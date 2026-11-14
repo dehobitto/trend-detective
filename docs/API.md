@@ -22,7 +22,12 @@ type Variable = {
   temporal_resolution: "daily" | "monthly"
   available_start: string    // date
   available_end: string      // date
-  coverage: "global" | "land" | "ocean"
+  coverage: "global" | "land" | "ocean" | "series"
+  // "series" = a ready-made single time series (station like Mauna Loa, or a global mean like NOAA marine CH4).
+  // bbox is NOT needed/used for these; UI should skip the "draw an area" step and show a "Global record" note.
+  dataset: string            // dataset name as the team uses it, e.g. "GLDAS_CLSM025_DA1_D v2.2"
+  access: string             // how real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "KNMI Climate Explorer"
+  location: { lat: number; lon: number; label: string } | null   // for "series" from a station (Mauna Loa), else null
 }
 
 type ExampleCase = {
@@ -35,10 +40,12 @@ type ExampleCase = {
   end: string
   deseasonalize: boolean
   center: { lat: number; lon: number }   // for globe fly-to
+  related_variable_id: string | null     // optional "compare with" variable for the same region (e.g. groundwater vs rainfall)
+  takeaway: string | null                // 1 sentence explaining what the pair/trend shows
 }
 
 type AnalysisRequest = {
-  bbox: BBox
+  bbox: BBox | null          // required unless variable coverage is "series" or variable_id is "upload:<id>"
   variable_id: string        // or "upload:<dataset_id>" for user data (bbox ignored then)
   start: string
   end: string
