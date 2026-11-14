@@ -55,3 +55,11 @@ def test_summary_texts():
     assert "Only the regression" in build_summary(mixed, "°C", 1980, 2023)
     assert "per decade (+" in build_summary(_stats(), "unitless", 2000, 2020)
     assert format_number(0.000123) == "0.00012" and format_number(1234.5) == "1,200"
+
+
+def test_preprocess_blanks_interpolated_values_for_testing():
+    idx = pd.date_range("2000-01-01", periods=6, freq="MS")
+    s = pd.Series([1.0, np.nan, 3.0, 4.0, np.nan, 6.0], index=idx)
+    out = preprocess.preprocess(s, want_deseasonalized=False, is_monthly=True)
+    assert out.raw.notna().all()  # chart still shows the filled values
+    assert out.tested.isna().tolist() == [False, True, False, False, True, False]

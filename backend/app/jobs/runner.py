@@ -74,7 +74,7 @@ class AnalysisRunner:
         is_monthly = plan.aggregation == "monthly"
         series = monthly if is_monthly or ts.infer_frequency(monthly.index) == "annual" else ts.to_annual(monthly)
         processed = prep.preprocess(series, want_deseasonalized=bool(request.deseasonalize), is_monthly=is_monthly)
-        analyzed = processed.analyzed
+        analyzed = processed.tested
         if analyzed.notna().sum() < MIN_POINTS:
             raise InvalidRequest("Not enough data in this period to test for a trend. Try a longer date range.")
 

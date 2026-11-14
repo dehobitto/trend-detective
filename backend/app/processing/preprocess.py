@@ -18,10 +18,21 @@ class Preprocessed:
     deseasonalized: pd.Series | None
     """Anomalies from the monthly climatology, or None when not requested / not applicable."""
     warnings: list[str] = field(default_factory=list)
+    filled: pd.Series | None = None
+    """True where ``raw`` holds an interpolated (not observed) value."""
 
     @property
     def analyzed(self) -> pd.Series:
         return self.deseasonalized if self.deseasonalized is not None else self.raw
+
+    @property
+    def tested(self) -> pd.Series:
+        """``analyzed`` with interpolated values blanked out.
+
+        Interpolated points add no information; counting them would inflate n and the autocorrelation
+        and make the p-values too small, so the trend tests only see observed values.
+        """
+        return self.analyzed if self.filled is None else self.analyzed.where(~self.filled)
 
 
 def trim(series: pd.Series, start: dt.date, end: dt.date) -> pd.Series:
@@ -61,7 +72,10 @@ def preprocess(series: pd.Series, *, want_deseasonalized: bool, is_monthly: bool
     warnings: list[str] = []
     filled, n_filled = fill_gaps(series)
     if n_filled:
-        warnings.append(f"{n_filled} missing value(s) were filled by interpolating between neighbors.")
+        warnings.append(
+            f"{n_filled} missing value(s) were filled by interpolating between neighbors for the chart; "
+            "the trend tests use only the measured values."
+        )
     remaining = int(filled.isna().sum())
     if remaining:
         warnings.append(f"{remaining} period(s) have no data and were skipped.")
@@ -72,4 +86,5 @@ def preprocess(series: pd.Series, *, want_deseasonalized: bool, is_monthly: bool
             anomalies = deseasonalize(filled)
         else:
             warnings.append("Deseasonalizing only applies to monthly data, so the annual values were analyzed directly.")
-    return Preprocessed(raw=filled, deseasonalized=anomalies, warnings=warnings)
+    was_filled = series.isna() & filled.notna()
+    return Preprocessed(raw=filled, deseasonalized=anomalies, warnings=warnings, filled=was_filled)

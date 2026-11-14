@@ -147,3 +147,68 @@ def test_chat_stub(client):
 def test_cors_allows_vite_dev_server(client):
     r = client.options("/api/health", headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "GET"})
     assert r.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def _upload(client: TestClient, content: str | bytes):
+    return client.post("/api/datasets", files={"file": ("x.csv", content, "text/csv")})
+
+
+def test_upload_year_only_dates_are_years_not_epoch_nanoseconds(client):
+    r = _upload(client, "date,value\n" + "\n".join(f"{1990 + i},{i}" for i in range(20)))
+    assert r.status_code == 201, r.text
+    assert (r.json()["start"], r.json()["end"]) == ("1990-01-01", "2009-01-01")
+
+
+def test_upload_semicolon_csv_with_decimal_commas(client):
+    r = _upload(client, "date;value\n2000-01-01;1,5\n2001-01-01;2,5\n2002-01-01;3\n")
+    assert r.status_code == 201, r.text
+    ds_id = r.json()["id"]
+    assert client.app.state.services.uploads.store.load(ds_id).tolist() == [1.5, 2.5, 3.0]
+
+
+def test_upload_edge_cases_never_500(client):
+    for content, status, needle in [
+        ("date,value\n2000-01-01,1\n2001-01-01,inf\n2002-01-01,3\n", 422, "finite"),
+        ("date,Date,value\n2000-01-01,2000-01-01,1\n2001-01-01,2001-01-01,2\n2002-01-01,2002-01-01,3\n", 422, "twice"),
+        ("", 422, "date,value"),
+        ("﻿date,value\n2002-01-01,3\n2000-01-01,1\n2001-01-01,2\n2001-01-01,4\n", 201, None),
+        ("date,value\n2000-01-01T00:00+02:00,1\n2001-01-01T00:00-05:00,2\n2002-01-01T00:00Z,3\n", 201, None),
+    ]:
+        r = _upload(client, content)
+        assert r.status_code == status, (content, r.text)
+        if needle:
+            assert needle in r.json()["detail"]
+    ds = r.json()  # mixed UTC offsets keep their local calendar date
+    assert (ds["start"], ds["end"], ds["n"]) == ("2000-01-01", "2002-01-01", 3)
+
+
+def test_list_datasets_skips_unreadable_metadata(client, settings):
+    ds = _upload(client, CSV).json()
+    (settings.upload_dir / "0123456789ab.json").write_text("{not json", encoding="utf-8")
+    r = client.get("/api/datasets")
+    assert r.status_code == 200 and [d["id"] for d in r.json()] == [ds["id"]]
+
+
+def test_trend_tests_ignore_interpolated_values(client):
+    # Quarterly data is averaged to months: the two months between samples are interpolated for the chart,
+    # but must not count as observations (that would triple n and shrink the p-values).
+    csv = "date,value\n" + "\n".join(f"{2000 + q // 4}-{(q % 4) * 3 + 1:02d}-01,{(q * 7) % 5 + 0.1 * q}" for q in range(48))
+    ds = _upload(client, csv).json()
+    job = run(client, variable_id=f"upload:{ds['id']}", start="2000-01-01", end="2011-12-31", deseasonalize=False)
+    assert job["status"] == "done", job["message"]
+    assert job["result"]["stats"]["n"] == 48
+    assert sum(p["value"] is not None for p in job["result"]["series"]) == 142
+
+
+def test_unexpected_errors_use_api_error_shape(settings):
+    from app.main import create_app
+
+    app = create_app(settings)
+
+    def boom():
+        raise RuntimeError("disk on fire")
+
+    app.state.services.uploads.store.list = boom
+    with TestClient(app, raise_server_exceptions=False) as c:
+        r = c.get("/api/datasets")
+    assert r.status_code == 500 and r.json() == {"detail": "Something went wrong on the server. Please try again."}

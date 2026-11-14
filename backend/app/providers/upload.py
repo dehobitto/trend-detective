@@ -13,6 +13,7 @@ import threading
 import uuid
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from app.catalog.models import CatalogVariable
@@ -36,15 +37,22 @@ def parse_csv(content: bytes) -> pd.Series:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         raise InvalidCSV("The file is not UTF-8 text. Save it as a plain CSV file and try again.") from None
+    header = next((line for line in text.splitlines() if line.strip()), "")
+    sep = ";" if ";" in header and "," not in header else ","  # European spreadsheets: "date;value", "1,5"
     try:
-        df = pd.read_csv(io.StringIO(text), skipinitialspace=True)
+        # Read everything as text: otherwise year-only dates ("2001") become integers that
+        # to_datetime would read as nanoseconds since 1970.
+        df = pd.read_csv(io.StringIO(text), sep=sep, skipinitialspace=True, dtype=str)
     except (pd.errors.ParserError, pd.errors.EmptyDataError):
         raise InvalidCSV("The file could not be read as CSV. Expected a header row 'date,value'.") from None
     df.columns = [str(c).strip().lower() for c in df.columns]
     if not {"date", "value"} <= set(df.columns):
         raise InvalidCSV(f"Missing columns: the header must be 'date,value' (found: {', '.join(df.columns)}).")
-    dates = pd.to_datetime(df["date"], errors="coerce", format="mixed")
-    values = pd.to_numeric(df["value"], errors="coerce")
+    if df.columns.duplicated().any():
+        raise InvalidCSV("The header has the same column name twice. Keep one 'date' and one 'value' column.")
+    dates = _parse_dates(df["date"])
+    raw_values = df["value"].str.replace(",", ".", regex=False) if sep == ";" else df["value"]
+    values = pd.to_numeric(raw_values, errors="coerce")
     bad_dates = dates.isna() & df["date"].notna()
     if bad_dates.any():
         row = int(bad_dates.idxmax()) + 2  # +1 header, +1 one-based
@@ -53,14 +61,35 @@ def parse_csv(content: bytes) -> pd.Series:
     if bad_values.any():
         row = int(bad_values.idxmax()) + 2
         raise InvalidCSV(f"Row {row}: the value {df['value'][row - 2]!r} is not a number.")
+    infinite = np.isinf(values)
+    if infinite.any():
+        row = int(infinite.idxmax()) + 2
+        raise InvalidCSV(f"Row {row}: the value {df['value'][row - 2]!r} is not a finite number.")
     series = pd.Series(values.to_numpy(dtype=float), index=pd.DatetimeIndex(dates)).dropna()
     series = series[series.index.notna()]
     series = series.groupby(level=0).mean().sort_index()
     if len(series) < MIN_ROWS:
         raise InvalidCSV(f"Need at least {MIN_ROWS} rows with a date and a numeric value.")
-    if series.index.tz is not None:
-        series.index = series.index.tz_localize(None)
     return series
+
+
+def _parse_dates(column: pd.Series) -> pd.Series:
+    """Parse date strings to naive timestamps (NaT where unreadable), keeping local wall time for time zones."""
+    try:
+        dates = pd.to_datetime(column, errors="coerce", format="mixed")
+    except ValueError:  # mixed UTC offsets
+        dates = pd.to_datetime(column.map(_naive_timestamp), errors="coerce")
+    if dates.dt.tz is not None:
+        dates = dates.dt.tz_localize(None)
+    return dates
+
+
+def _naive_timestamp(value: object) -> pd.Timestamp:
+    try:
+        stamp = pd.Timestamp(value)
+    except (ValueError, TypeError):
+        return pd.NaT
+    return stamp.tz_localize(None) if stamp.tzinfo is not None else stamp
 
 
 class UploadStore:
@@ -86,11 +115,18 @@ class UploadStore:
         )
         with self._lock:
             series.rename("value").rename_axis("date").to_csv(self._csv(ds_id), date_format="%Y-%m-%d")
-            self._meta(ds_id).write_text(dataset.model_dump_json(), encoding="utf-8")
+            tmp = self._meta(ds_id).with_suffix(".json.tmp")  # atomic: readers never see a half-written file
+            tmp.write_text(dataset.model_dump_json(), encoding="utf-8")
+            tmp.replace(self._meta(ds_id))
         return dataset
 
     def list(self) -> list[Dataset]:
-        items = [Dataset.model_validate_json(p.read_text(encoding="utf-8")) for p in self.dir.glob("*.json")]
+        items = []
+        for path in self.dir.glob("*.json"):
+            try:
+                items.append(Dataset.model_validate_json(path.read_text(encoding="utf-8")))
+            except (OSError, ValueError):  # deleted meanwhile, or not one of ours
+                continue
         return sorted(items, key=lambda d: d.created_at, reverse=True)
 
     def get(self, ds_id: str) -> Dataset | None:

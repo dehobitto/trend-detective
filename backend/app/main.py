@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import api_router
 from app.api.deps import Services
-from app.api.errors import validation_error_handler
+from app.api.errors import unhandled_error_handler, validation_error_handler
 from app.catalog import Catalog
 from app.chat import create_chat_backend
 from app.config import Settings, get_settings
@@ -47,6 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(Exception, unhandled_error_handler)
     app.include_router(api_router)
     return app
 

@@ -66,6 +66,8 @@ def ols(t: np.ndarray, y: np.ndarray, alpha: float = 0.05) -> OLSResult:
     resid = y - (intercept + slope * t)
     ss_res = float(np.sum(resid**2))
     ss_tot = float(np.sum((y - y_mean) ** 2))
+    if not (np.isfinite(slope) and np.isfinite(ss_res)):
+        raise ValueError("The values are too large to fit a trend line.")
     df = n - 2
     residual_std = float(np.sqrt(ss_res / df))
     slope_se = residual_std / np.sqrt(sxx)

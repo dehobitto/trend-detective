@@ -114,3 +114,9 @@ def test_lag1_autocorrelation():
     for i in range(1, x.size):
         x[i] = 0.8 * x[i - 1] + rng.normal()
     assert trends.lag1_autocorrelation(x) == pytest.approx(0.8, abs=0.05)
+
+
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+def test_ols_rejects_overflowing_values_instead_of_returning_nan():
+    with pytest.raises(ValueError, match="too large"):
+        trends.ols(np.arange(6.0), np.array([1e308, -1e308, 1e308, 1e308, 1e308, 1.0]))
