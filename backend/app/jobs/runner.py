@@ -68,7 +68,16 @@ class AnalysisRunner:
         plan = resolve(request, self.catalog, self.provider, self.uploads)
         provider = plan.provider
         self._stage(job_id, "fetching", 0.1, f"Fetching {plan.variable.name} data…", plan)
-        monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
+        fallback_warnings: list[str] = []
+        try:
+            monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
+        except ProviderError as exc:
+            if plan.fallback is None:
+                raise
+            log.warning("%s failed for %s (%s); using %s", provider.name, plan.variable.id, exc, plan.fallback.name)
+            provider = plan.fallback
+            monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
+            fallback_warnings = [plan.fallback_warning] if plan.fallback_warning else []
 
         self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…", plan)
         is_monthly = plan.aggregation == "monthly"
@@ -88,7 +97,10 @@ class AnalysisRunner:
         )
         stats = TrendStats.model_validate(analysis.stats)
         valid_index = analyzed.dropna().index
-        warnings = plan.warnings + processed.warnings + self._quality_warnings(valid_index, analysis, provider)
+        warnings = (
+            plan.warnings + fallback_warnings + processed.warnings
+            + self._quality_warnings(valid_index, analysis, provider)
+        )
         return AnalysisResult(
             variable=plan.variable.public(),
             bbox=plan.bbox,

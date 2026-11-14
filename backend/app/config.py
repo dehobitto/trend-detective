@@ -16,8 +16,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TD_", env_file=".env", extra="ignore")
 
     version: str = "0.1.0"
-    data_provider: str = "synthetic"
-    """Name of the registered DataProvider used for catalog variables."""
+    data_provider: str = "auto"
+    """Name of the registered DataProvider used for catalog variables. ``auto``: real data where a
+    provider is implemented (NOAA GML greenhouse-gas records), synthetic elsewhere and as a fallback;
+    ``synthetic``: demo data for everything; ``live``: real providers only (stubs raise)."""
     synthetic_delay: float = 0.3
     """Artificial pause (seconds) per job stage for local providers, so progress UI is visible."""
     chat_backend: str = "stub"
@@ -26,6 +28,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:4173",
     ]
+    cache_dir: Path = BACKEND_DIR / "data" / "cache"
+    """Downloaded source files (gitignored)."""
+    noaa_gml_base_url: str = "https://gml.noaa.gov/webdata/ccgg/trends"
+    noaa_cache_ttl_days: float = 7.0
+    """A cached NOAA file older than this is downloaded again (a stale copy is used if that fails)."""
+    http_timeout: float = 30.0
+    """Seconds before an outgoing data download gives up."""
     upload_dir: Path = BACKEND_DIR / "data" / "uploads"
     max_upload_bytes: int = 5 * 1024 * 1024
     max_jobs: int = 500

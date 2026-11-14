@@ -1,5 +1,9 @@
 """KNMI Climate Explorer provider (ready-made greenhouse-gas records) — STUB, not wired yet.
 
+NOTE: the three records below are now served with real data straight from NOAA GML by
+``app/providers/noaa_gml.py`` (catalog ``access: NOAA GML``). This stub is kept as an alternative
+mirror; nothing routes to it unless a catalog entry says ``access: KNMI Climate Explorer``.
+
 Serves catalog variables with ``access: KNMI Climate Explorer``. These have ``coverage: "series"``: one
 global / station record, so ``bbox`` is always ``None`` here (the job runner drops it).
 

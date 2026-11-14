@@ -36,7 +36,7 @@ def test_variables_and_examples(client):
     series = {v["id"] for v in variables if v["coverage"] == "series"}
     assert series == {"mauna_loa_co2", "noaa_co2_marine", "noaa_ch4_marine"}
     assert by_id["mauna_loa_co2"]["location"] == {"lat": 19.54, "lon": -155.58, "label": "Mauna Loa Observatory, Hawaiʻi"}
-    assert by_id["mauna_loa_co2"]["available_end"] == "2024-10-31"
+    assert by_id["mauna_loa_co2"]["available_end"] == "2026-09-30" and by_id["mauna_loa_co2"]["access"] == "NOAA GML"
     assert by_id["noaa_ch4_marine"]["location"] is None and by_id["noaa_ch4_marine"]["units"] == "ppb"
     assert all(v["location"] is None for v in variables if v["coverage"] != "series")
     assert client.get("/api/variables/gpm_precipitation").json()["units"] == "mm/day"
@@ -110,11 +110,14 @@ def test_live_provider_routes_by_access_and_fails_gracefully(settings):
         catalog = c.app.state.services.catalog
         assert provider.provider_for(catalog.get("gldas_gws")).name == "giovanni"
         assert provider.provider_for(catalog.get("modis_lst_day")).name == "appeears"
-        assert provider.provider_for(catalog.get("noaa_ch4_marine")).name == "knmi"
-        for body in ({"bbox": PHOENIX, "variable_id": "modis_lst_day"}, {"variable_id": "mauna_loa_co2"}):
-            r = c.post("/api/analyses", json=body | {"start": "2005-01-01", "end": "2015-12-31"})
-            job = c.get(f"/api/analyses/{r.json()['id']}").json()
-            assert job["status"] == "error" and "not connected yet" in job["message"]
+        assert provider.provider_for(catalog.get("noaa_ch4_marine")).name == "noaa_gml"
+        body = {"bbox": PHOENIX, "variable_id": "modis_lst_day", "start": "2005-01-01", "end": "2015-12-31"}
+        job = c.get(f"/api/analyses/{c.post('/api/analyses', json=body).json()['id']}").json()
+        assert job["status"] == "error" and "not connected yet" in job["message"]
+        # live has no synthetic fallback: an unreachable NOAA is an error
+        body = {"variable_id": "mauna_loa_co2", "start": "2005-01-01", "end": "2015-12-31"}
+        job = c.get(f"/api/analyses/{c.post('/api/analyses', json=body).json()['id']}").json()
+        assert job["status"] == "error" and "Couldn't reach NOAA" in job["message"]
 
 
 def test_full_analysis_lifecycle(client):

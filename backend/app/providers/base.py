@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 import pandas as pd
@@ -42,6 +43,22 @@ class DataProvider(Protocol):
     def fetch(self, variable: CatalogVariable, bbox: BBox | None, start: dt.date, end: dt.date) -> pd.Series:
         """Return the monthly area-mean series for ``start..end`` (inclusive, month-start index)."""
         ...
+
+
+@dataclass(frozen=True)
+class Route:
+    """Which provider serves one variable, and what to use if it fails."""
+
+    provider: DataProvider
+    fallback: DataProvider | None = None
+    fallback_warning: str | None = None
+    """Shown on results that came from ``fallback``."""
+
+
+def route_for(provider: DataProvider, variable: CatalogVariable) -> Route:
+    """Resolve a (possibly routing) provider to the concrete provider for ``variable``."""
+    route = getattr(provider, "route", None)
+    return route(variable) if callable(route) else Route(provider)
 
 
 ProviderFactory = Callable[[Settings], DataProvider]

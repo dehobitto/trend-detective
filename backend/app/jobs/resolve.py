@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from app.catalog import Catalog, CatalogVariable
 from app.processing.timeseries import infer_frequency
-from app.providers import DataProvider, UploadProvider, dataset_variable
+from app.providers import DataProvider, UploadProvider, dataset_variable, route_for
 from app.schemas.analysis import AnalysisRequest
 from app.schemas.common import BBox
 
@@ -35,12 +35,17 @@ class Plan:
     bbox: BBox | None = None
     """The area passed to the provider: None for uploads and "series" variables (any request bbox is ignored)."""
     warnings: list[str] = field(default_factory=list)
+    fallback: DataProvider | None = None
+    """Used when ``provider`` raises ProviderError (e.g. NOAA unreachable -> synthetic)."""
+    fallback_warning: str | None = None
 
 
 def resolve(
     request: AnalysisRequest, catalog: Catalog, provider: DataProvider, uploads: UploadProvider
 ) -> Plan:
     warnings: list[str] = []
+    fallback: DataProvider | None = None
+    fallback_warning: str | None = None
     aggregation: str = request.aggregation
     bbox = request.bbox
     if request.is_upload:
@@ -58,7 +63,9 @@ def resolve(
         found = catalog.get(request.variable_id)
         if found is None:
             raise NotFound(f"Unknown variable '{request.variable_id}'.")
-        variable, chosen = found, provider
+        variable = found
+        route = route_for(provider, variable)
+        chosen, fallback, fallback_warning = route.provider, route.fallback, route.fallback_warning
         if variable.is_series:
             if bbox is not None:
                 warnings.append(
@@ -75,7 +82,7 @@ def resolve(
             f"The date range is too short for {aggregation} analysis: pick at least {min_years} years."
         )
     return Plan(variable=variable, provider=chosen, start=start, end=end, aggregation=aggregation,
-                bbox=bbox, warnings=warnings)
+                bbox=bbox, warnings=warnings, fallback=fallback, fallback_warning=fallback_warning)
 
 
 def clamp_period(

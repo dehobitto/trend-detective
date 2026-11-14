@@ -4,8 +4,10 @@ FastAPI service that turns *(region, Earth-science variable, dates)* into a time
 statistics (OLS + t-test + confidence intervals, Mann-Kendall, Sen's slope) and a plain-English verdict.
 The API contract is [`../docs/API.md`](../docs/API.md); architecture is in [`../docs/SPEC.md`](../docs/SPEC.md).
 
-Real NASA data is not wired yet: by default a deterministic **synthetic provider** generates realistic
-demo series (results carry `synthetic: true`).
+Data sources (default `TD_DATA_PROVIDER=auto`): the three greenhouse-gas records (Mauna Loa CO₂, global
+marine CO₂ and CH₄) are **real NOAA GML data** (`provider: "noaa_gml"`, `synthetic: false`, no "Demo data"
+badge). Every other variable still comes from a deterministic **synthetic provider** that generates
+realistic demo series (results carry `synthetic: true`) until its NASA provider is implemented.
 
 ## Catalog: the team's datasets
 
@@ -20,9 +22,12 @@ demo series (results carry `synthetic: true`).
 | MERRA-2 M2TMNXAER v5.12.4 (monthly, 1980 →) | `merra2_dust` DUSMASS, `merra2_bc` BCSMASS, `merra2_oc` OCSMASS, `merra2_so2` SO2SMASS, `merra2_so4` SO4SMASS | µg/m³ (from kg/m³) | global | Giovanni |
 | | `merra2_aod` TOTEXTTAU, `merra2_sulfate_aod` SUEXTTAU | unitless | global | Giovanni |
 | GPM_3IMERGM v07 (monthly, 0.1°, 2000-06 →) | `gpm_precipitation` → precipitation | mm/day (from mm/hr) | global | Giovanni |
-| Mauna Loa CO₂ (NOAA/Scripps, 1958-03 → 2024-10) | `mauna_loa_co2` | ppm | series | KNMI Climate Explorer |
-| Global marine CO₂ (NOAA, 1980 →) | `noaa_co2_marine` | ppm | series | KNMI Climate Explorer |
-| Global marine CH₄ (NOAA, 1983-07 →) | `noaa_ch4_marine` | ppb | series | KNMI Climate Explorer |
+| Mauna Loa CO₂ (NOAA/Scripps, 1958-03 → 2026-09) | `mauna_loa_co2` | ppm | series | NOAA GML (real) |
+| Global marine CO₂ (NOAA, 1979-01 → 2026-07) | `noaa_co2_marine` | ppm | series | NOAA GML (real) |
+| Global marine CH₄ (NOAA, 1983-07 → 2026-06) | `noaa_ch4_marine` | ppb | series | NOAA GML (real) |
+
+The `available_end` of the three NOAA records is the latest month in NOAA's files when last checked
+(2026-11); bump it in `variables.yaml` when the files gain months.
 
 Water vapor and ozone are not in the catalog yet (the team has not picked datasets); a commented TODO
 block at the end of `variables.yaml` shows where they go.
@@ -49,10 +54,12 @@ Sahara and Middle East; the Keeling curve (seasonal peak in May) and methane's 2
 cd backend
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m app.prefetch   # optional: download the NOAA files into data/cache/ for offline demos
 .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
-Interactive docs: http://localhost:8000/docs. Tests: `.venv/bin/python -m pytest`.
+Interactive docs: http://localhost:8000/docs. Tests: `.venv/bin/python -m pytest` (no network: tests run
+synthetic by default, NOAA tests use the trimmed files in `tests/fixtures/` and a mocked httpx).
 
 ## Environment variables
 
@@ -60,10 +67,14 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TD_DATA_PROVIDER` | `synthetic` | Registered data provider for catalog variables: `synthetic`, or the stubs `giovanni`, `appeears`, `knmi` and `live` (routes each variable by its `access`) |
+| `TD_DATA_PROVIDER` | `auto` | `auto`: real data where a provider is implemented (NOAA GML records), synthetic elsewhere and as fallback; `synthetic`: demo data for everything; `live`: real providers only, routed by `access`, no fallback (stubs raise); or a single provider name (`noaa_gml`, stubs `giovanni`, `appeears`, `knmi`) |
 | `TD_SYNTHETIC_DELAY` | `0.3` | Seconds of artificial delay per job stage for local providers, so progress is visible |
 | `TD_CHAT_BACKEND` | `stub` | Registered chat backend |
 | `TD_CORS_ORIGINS` | `["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"]` | JSON list of allowed origins |
+| `TD_CACHE_DIR` | `backend/data/cache` | Downloaded source files (gitignored); NOAA files go in `noaa_gml/` |
+| `TD_NOAA_CACHE_TTL_DAYS` | `7` | A cached NOAA file older than this is downloaded again (stale copy used if that fails) |
+| `TD_NOAA_GML_BASE_URL` | `https://gml.noaa.gov/webdata/ccgg/trends` | Where `<gas>/<file>.txt` are downloaded from |
+| `TD_HTTP_TIMEOUT` | `30` | Seconds before a data download gives up |
 | `TD_UPLOAD_DIR` | `backend/data/uploads` | Where uploaded CSV datasets are stored |
 | `TD_MAX_UPLOAD_BYTES` | `5242880` | Upload size limit |
 | `TD_MAX_JOBS` | `500` | In-memory job history size |
@@ -74,19 +85,23 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 app/
   main.py          create_app() factory: settings -> services -> routers, CORS, error format
   config.py        Settings (TD_ env prefix)
+  prefetch.py      `python -m app.prefetch`: download real-data files into the cache
   api/             routers: health, catalog (variables/examples), analyses, datasets, chat; deps.Services
   schemas/         pydantic models mirroring docs/API.md
   catalog/         variables.yaml, examples.yaml, loader (validated at startup)
-  providers/       base.py (DataProvider protocol + registry), synthetic.py, upload.py, and real-data stubs:
-                   nasa_giovanni.py (Giovanni / GES DISC), appeears.py (MODIS LST), knmi.py (CO₂/CH₄ records),
-                   live.py (routes a variable to one of those by its `access` field)
+  providers/       base.py (DataProvider protocol + registry, Route), synthetic.py, upload.py,
+                   noaa_gml.py (real CO₂/CH₄ records), real-data stubs nasa_giovanni.py (Giovanni / GES DISC),
+                   appeears.py (MODIS LST), knmi.py (alternative CO₂/CH₄ mirror, unused),
+                   live.py (`auto` and `live`: route a variable to a provider by its `access` field)
   processing/      timeseries.py, preprocess.py, trends.py, summary.py (pure functions, unit tested)
   jobs/            store.py (JobStore protocol + in-memory store), resolve.py (validation, bbox rules, date clamping), runner.py
   chat/            ChatBackend protocol + registry, StubChatBackend
-tests/             pytest: trends, processing, catalog, synthetic provider (incl. the example stories), API
+tests/             pytest: trends, processing, catalog, synthetic provider (incl. the example stories), API,
+                   NOAA GML parsing/cache/fallback (fixtures/ = trimmed NOAA files)
 ```
 
-Analysis pipeline (`jobs/runner.py`): `resolve` (variable, provider, clamped dates) → `provider.fetch`
+Analysis pipeline (`jobs/runner.py`): `resolve` (variable, provider via `route()`, clamped dates) → `provider.fetch`
+(on `ProviderError`, the route's fallback provider plus its warning)
 (monthly area mean) → aggregate (monthly/annual) → `preprocess` (gap fill, deseasonalize) → `trends.analyze`
 → `build_summary`. Job status goes `queued → fetching → processing → analyzing → done | error`.
 
@@ -98,6 +113,21 @@ Notes on the numbers:
 - `direction` is the sign of the OLS slope, or `flat` when the total change is < 5% of the series' std-dev.
 - `percent_change` is relative to the mean raw value; it is `null` for temperatures (°C has no true zero).
 
+## Real data: NOAA GML greenhouse-gas records
+
+`providers/noaa_gml.py` serves every catalog variable whose `product` is `NOAA-GML:<file>` from
+`https://gml.noaa.gov/webdata/ccgg/trends/<gas>/<file>.txt` (`co2/co2_mm_mlo`, `co2/co2_mm_gl`,
+`ch4/ch4_mm_gl`; public, no auth). It parses column 4 (the monthly mean, "average"; values ≤ -9 such as
+`-9.99`/`-99.99` are missing), returns a complete month-start series, and caches the raw file in
+`TD_CACHE_DIR/noaa_gml/` for `TD_NOAA_CACHE_TTL_DAYS`. If a refresh fails, the stale copy is used; with no
+copy at all, `auto` falls back to synthetic data and the result says "Couldn't reach NOAA; showing demo
+data." (plus the usual "Demo data" warning, `synthetic: true`). Under `live` the same failure is a job error.
+
+Routing (`providers/live.py`): `auto` and `live` implement `route(variable) -> Route(provider, fallback,
+fallback_warning)`; `jobs/resolve.py` uses it so the result reports the concrete provider (`noaa_gml`,
+`synthetic`), and `jobs/runner.py` applies the fallback. `ACCESS_TO_PROVIDER` maps `access` values to
+providers and `IMPLEMENTED` lists the providers `auto` trusts for real data.
+
 ## How to plug in real NASA data
 
 Three stubs are registered, one per access path, each with a docstring listing its exact products,
@@ -107,8 +137,8 @@ native units and TODOs:
 |---|---|---|---|
 | `giovanni` | `providers/nasa_giovanni.py` | GLDAS, OMNO2d, MERRA-2 M2TMNXAER, GPM IMERG (`Giovanni`) | Giovanni area-averaged time series, or GES DISC OPeNDAP + our own area mean |
 | `appeears` | `providers/appeears.py` | MODIS MOD11C3 LST day/night (`AppEEARS`) | AppEEARS area task → NetCDF/statistics CSV |
-| `knmi` | `providers/knmi.py` | Mauna Loa CO₂, NOAA marine CO₂/CH₄ (`KNMI Climate Explorer`) | KNMI `.dat` text series (NOAA GML files as fallback) |
-| `live` | `providers/live.py` | everything, by each variable's `access` | delegates to the three above |
+| `knmi` | `providers/knmi.py` | nothing today (`KNMI Climate Explorer`): the CO₂/CH₄ records now come from NOAA GML directly | KNMI `.dat` text series |
+| `live` / `auto` | `providers/live.py` | everything, by each variable's `access` | delegates to the providers above and `noaa_gml` |
 
 To fill one in:
 
@@ -117,7 +147,8 @@ To fill one in:
    in the catalog's units. Daily data → `processing.timeseries.to_monthly`; gridded data →
    `processing.timeseries.area_mean`; native units → `variable.to_catalog_units(values)`. `bbox` is
    `None` for `series` variables. Raise `ProviderError("message for students")` on failure.
-2. Run with `TD_DATA_PROVIDER=live` (or the single provider's name). To add a new provider, decorate a
+2. Add its name to `IMPLEMENTED` in `providers/live.py` so the default `auto` mode uses it (with synthetic
+   fallback), or test it alone with `TD_DATA_PROVIDER=live` (or the single provider's name). To add a new provider, decorate a
    factory with `@register_provider("name")` and import its module in `app/providers/__init__.py`.
 
 The `product` field of each catalog variable holds the NASA product id and variable name
