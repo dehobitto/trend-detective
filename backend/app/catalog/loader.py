@@ -44,6 +44,10 @@ class Catalog:
                 raise ValueError(f"Example {ex.id!r} references unknown variable {ex.variable_id!r}")
             if ex.start < var.available_start or ex.end > var.available_end:
                 raise ValueError(f"Example {ex.id!r} dates fall outside {var.id} availability")
+            if ex.bbox is None and not var.is_series:
+                raise ValueError(f"Example {ex.id!r} needs a bbox: {var.id} is not a 'series' variable")
+            if ex.related_variable_id is not None and self.get(ex.related_variable_id) is None:
+                raise ValueError(f"Example {ex.id!r} references unknown related variable {ex.related_variable_id!r}")
 
 
 def _read_yaml(path: Path) -> list[dict]:

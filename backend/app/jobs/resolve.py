@@ -12,6 +12,7 @@ from app.catalog import Catalog, CatalogVariable
 from app.processing.timeseries import infer_frequency
 from app.providers import DataProvider, UploadProvider, dataset_variable
 from app.schemas.analysis import AnalysisRequest
+from app.schemas.common import BBox
 
 MIN_YEARS = {"monthly": 2, "annual": 5}
 
@@ -31,6 +32,8 @@ class Plan:
     start: dt.date
     end: dt.date
     aggregation: str
+    bbox: BBox | None = None
+    """The area passed to the provider: None for uploads and "series" variables (any request bbox is ignored)."""
     warnings: list[str] = field(default_factory=list)
 
 
@@ -39,6 +42,7 @@ def resolve(
 ) -> Plan:
     warnings: list[str] = []
     aggregation: str = request.aggregation
+    bbox = request.bbox
     if request.is_upload:
         dataset = uploads.store.get(request.dataset_id or "")
         if dataset is None:
@@ -46,6 +50,7 @@ def resolve(
         frequency = infer_frequency(uploads.store.load(dataset.id).index)
         variable = dataset_variable(dataset, frequency)
         chosen: DataProvider = uploads
+        bbox = None
         if frequency == "annual" and aggregation == "monthly":
             aggregation = "annual"
             warnings.append("Your dataset has one value per year, so it was analyzed as annual data.")
@@ -54,6 +59,14 @@ def resolve(
         if found is None:
             raise NotFound(f"Unknown variable '{request.variable_id}'.")
         variable, chosen = found, provider
+        if variable.is_series:
+            if bbox is not None:
+                warnings.append(
+                    f"{variable.name} is a single global record, so the area you selected was not used."
+                )
+            bbox = None
+        elif bbox is None:
+            raise InvalidRequest(f"Select an area (bbox) on the map: it is required for {variable.name}.")
 
     start, end = clamp_period(request.start, request.end, variable, warnings)
     min_years = MIN_YEARS[aggregation]
@@ -61,7 +74,8 @@ def resolve(
         raise InvalidRequest(
             f"The date range is too short for {aggregation} analysis: pick at least {min_years} years."
         )
-    return Plan(variable=variable, provider=chosen, start=start, end=end, aggregation=aggregation, warnings=warnings)
+    return Plan(variable=variable, provider=chosen, start=start, end=end, aggregation=aggregation,
+                bbox=bbox, warnings=warnings)
 
 
 def clamp_period(

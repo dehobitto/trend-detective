@@ -68,7 +68,7 @@ class AnalysisRunner:
         plan = resolve(request, self.catalog, self.provider, self.uploads)
         provider = plan.provider
         self._stage(job_id, "fetching", 0.1, f"Fetching {plan.variable.name} data…", plan)
-        monthly = provider.fetch(plan.variable, request.bbox, plan.start, plan.end)
+        monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
 
         self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…", plan)
         is_monthly = plan.aggregation == "monthly"
@@ -91,7 +91,7 @@ class AnalysisRunner:
         warnings = plan.warnings + processed.warnings + self._quality_warnings(valid_index, analysis, provider)
         return AnalysisResult(
             variable=plan.variable.public(),
-            bbox=None if request.is_upload else request.bbox,
+            bbox=plan.bbox,
             analyzed_series="deseasonalized" if processed.deseasonalized is not None else "raw",
             series=_series_points(processed, analysis),
             stats=stats,

@@ -7,6 +7,42 @@ The API contract is [`../docs/API.md`](../docs/API.md); architecture is in [`../
 Real NASA data is not wired yet: by default a deterministic **synthetic provider** generates realistic
 demo series (results carry `synthetic: true`).
 
+## Catalog: the team's datasets
+
+`app/catalog/variables.yaml` lists the variables the team uses (source of truth: the team's
+"Датасети та змінні" list). `GET /api/variables` returns them; ids below.
+
+| Dataset | Variables (catalog id → product variable) | Units shown | Coverage | Access |
+|---|---|---|---|---|
+| GLDAS_CLSM025_DA1_D v2.2 (daily, 0.25°, 2003-02 →) | `gldas_gws` → GWS_tavg, `gldas_tws` → TWS_tavg | mm | land | Giovanni |
+| OMNO2d v004 (daily, 0.25°, 2004-10 →) | `omi_no2` → ColumnAmountNO2TropCloudScreened | 10¹⁵ molecules/cm² (from molecules/cm²) | global | Giovanni |
+| MODIS MOD11C3 v061 (monthly, 2000-03 →) | `modis_lst_day` → LST_Day_CMG, `modis_lst_night` → LST_Night_CMG | °C (from K) | land | AppEEARS |
+| MERRA-2 M2TMNXAER v5.12.4 (monthly, 1980 →) | `merra2_dust` DUSMASS, `merra2_bc` BCSMASS, `merra2_oc` OCSMASS, `merra2_so2` SO2SMASS, `merra2_so4` SO4SMASS | µg/m³ (from kg/m³) | global | Giovanni |
+| | `merra2_aod` TOTEXTTAU, `merra2_sulfate_aod` SUEXTTAU | unitless | global | Giovanni |
+| GPM_3IMERGM v07 (monthly, 0.1°, 2000-06 →) | `gpm_precipitation` → precipitation | mm/day (from mm/hr) | global | Giovanni |
+| Mauna Loa CO₂ (NOAA/Scripps, 1958-03 → 2024-10) | `mauna_loa_co2` | ppm | series | KNMI Climate Explorer |
+| Global marine CO₂ (NOAA, 1980 →) | `noaa_co2_marine` | ppm | series | KNMI Climate Explorer |
+| Global marine CH₄ (NOAA, 1983-07 →) | `noaa_ch4_marine` | ppb | series | KNMI Climate Explorer |
+
+Water vapor and ozone are not in the catalog yet (the team has not picked datasets); a commented TODO
+block at the end of `variables.yaml` shows where they go.
+
+- **`coverage: "series"`** = one ready-made record (a station or a global mean). The request `bbox` may be
+  omitted; if sent it is ignored (with a warning) and `result.bbox` is `null`. Mauna Loa has a `location`.
+- **Daily products are served as monthly area means**: aggregation (days → calendar months, grid cells →
+  bbox mean) happens inside the provider, so the pipeline always receives a monthly series.
+- **Unit conversion** from the native product units is stored per variable in the internal `conversion`
+  block (`value * scale + offset`, applied with `CatalogVariable.to_catalog_units`), for real providers.
+- `examples.yaml` holds the one-click detective cases, each with an optional `related_variable_id`
+  ("compare with", e.g. Punjab groundwater vs. rainfall) and a one-sentence `takeaway`.
+
+The synthetic provider is tuned so each example tells its real-world story: groundwater falling ~15 mm/yr
+in NW India (and in California's Central Valley, the North China Plain and the Middle East) while Punjab
+rainfall has no significant trend; NO₂ falling over US/European cities and Beijing since ~2011, rising over
+Delhi, with a spring-2020 lockdown dip; SO₂/sulfate rising until ~2010 then falling steeply over China and
+rising over India; urban LST warming in Phoenix, Delhi, Cairo and Lagos; summer dust maxima over the
+Sahara and Middle East; the Keeling curve (seasonal peak in May) and methane's 2000–2006 plateau.
+
 ## Run
 
 ```bash
@@ -24,7 +60,7 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TD_DATA_PROVIDER` | `synthetic` | Registered data provider for catalog variables (`synthetic`, `giovanni` stub) |
+| `TD_DATA_PROVIDER` | `synthetic` | Registered data provider for catalog variables: `synthetic`, or the stubs `giovanni`, `appeears`, `knmi` and `live` (routes each variable by its `access`) |
 | `TD_SYNTHETIC_DELAY` | `0.3` | Seconds of artificial delay per job stage for local providers, so progress is visible |
 | `TD_CHAT_BACKEND` | `stub` | Registered chat backend |
 | `TD_CORS_ORIGINS` | `["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"]` | JSON list of allowed origins |
@@ -41,11 +77,13 @@ app/
   api/             routers: health, catalog (variables/examples), analyses, datasets, chat; deps.Services
   schemas/         pydantic models mirroring docs/API.md
   catalog/         variables.yaml, examples.yaml, loader (validated at startup)
-  providers/       base.py (DataProvider protocol + registry), synthetic.py, nasa_giovanni.py (stub), upload.py
+  providers/       base.py (DataProvider protocol + registry), synthetic.py, upload.py, and real-data stubs:
+                   nasa_giovanni.py (Giovanni / GES DISC), appeears.py (MODIS LST), knmi.py (CO₂/CH₄ records),
+                   live.py (routes a variable to one of those by its `access` field)
   processing/      timeseries.py, preprocess.py, trends.py, summary.py (pure functions, unit tested)
-  jobs/            store.py (JobStore protocol + in-memory store), resolve.py (validation/date clamping), runner.py
+  jobs/            store.py (JobStore protocol + in-memory store), resolve.py (validation, bbox rules, date clamping), runner.py
   chat/            ChatBackend protocol + registry, StubChatBackend
-tests/             pytest: trends, processing, synthetic provider, API smoke tests
+tests/             pytest: trends, processing, catalog, synthetic provider (incl. the example stories), API
 ```
 
 Analysis pipeline (`jobs/runner.py`): `resolve` (variable, provider, clamped dates) → `provider.fetch`
@@ -62,18 +100,28 @@ Notes on the numbers:
 
 ## How to plug in real NASA data
 
-1. Implement the `DataProvider` protocol (`app/providers/base.py`): attributes `name`, `synthetic`,
-   `local`, and `fetch(variable, bbox, start, end) -> pd.Series` returning a **monthly, area-mean** series
-   (month-start `DatetimeIndex`, floats, NaN for missing months) in the catalog's units. Use
-   `processing.timeseries.area_mean` / `to_monthly` if you download gridded or daily data. Raise
-   `ProviderError("message for students")` on failure.
-2. Register a factory: `@register_provider("giovanni") def _factory(settings): return MyProvider(settings)`,
-   and make sure the module is imported in `app/providers/__init__.py`.
-3. Start with `TD_DATA_PROVIDER=giovanni`.
+Three stubs are registered, one per access path, each with a docstring listing its exact products,
+native units and TODOs:
 
-`app/providers/nasa_giovanni.py` is a ready skeleton with TODOs describing the Giovanni area-averaged
-time-series route and the GES DISC OPeNDAP route (Earthdata Login token, unit conversions, caching).
-The `product` field of each catalog variable (`variables.yaml`) holds the NASA product id and variable name.
+| Provider | File | Serves (`access`) | Route |
+|---|---|---|---|
+| `giovanni` | `providers/nasa_giovanni.py` | GLDAS, OMNO2d, MERRA-2 M2TMNXAER, GPM IMERG (`Giovanni`) | Giovanni area-averaged time series, or GES DISC OPeNDAP + our own area mean |
+| `appeears` | `providers/appeears.py` | MODIS MOD11C3 LST day/night (`AppEEARS`) | AppEEARS area task → NetCDF/statistics CSV |
+| `knmi` | `providers/knmi.py` | Mauna Loa CO₂, NOAA marine CO₂/CH₄ (`KNMI Climate Explorer`) | KNMI `.dat` text series (NOAA GML files as fallback) |
+| `live` | `providers/live.py` | everything, by each variable's `access` | delegates to the three above |
+
+To fill one in:
+
+1. Implement `fetch(variable, bbox, start, end) -> pd.Series` (protocol in `app/providers/base.py`):
+   return a **monthly, area-mean** series (month-start `DatetimeIndex`, floats, NaN for missing months)
+   in the catalog's units. Daily data → `processing.timeseries.to_monthly`; gridded data →
+   `processing.timeseries.area_mean`; native units → `variable.to_catalog_units(values)`. `bbox` is
+   `None` for `series` variables. Raise `ProviderError("message for students")` on failure.
+2. Run with `TD_DATA_PROVIDER=live` (or the single provider's name). To add a new provider, decorate a
+   factory with `@register_provider("name")` and import its module in `app/providers/__init__.py`.
+
+The `product` field of each catalog variable holds the NASA product id and variable name
+(`"<ShortName>.<version>:<Variable>"`, e.g. `M2TMNXAER.5.12.4:DUSMASS`).
 
 ## How to plug in the chatbot
 
@@ -88,4 +136,4 @@ The `product` field of each catalog variable (`variables.yaml`) holds the NASA p
 
 `POST /api/datasets` with a CSV file (header `date,value`, ISO dates). Daily or irregular data is averaged
 to months; yearly data is analyzed as annual. Then run an analysis with `variable_id: "upload:<id>"`
-(the bbox may be omitted for uploads).
+(the bbox may be omitted for uploads, as for `series` variables).

@@ -171,6 +171,8 @@ def dataset_variable(dataset: Dataset, frequency: str) -> CatalogVariable:
         available_start=dataset.start,
         available_end=dataset.end,
         coverage="global",
+        dataset=f"{dataset.name} (uploaded CSV)",
+        access="Upload",
     )
 
 

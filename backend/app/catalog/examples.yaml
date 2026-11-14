@@ -1,61 +1,87 @@
-# One-click "detective cases". variable_id must exist in variables.yaml; dates must be inside its availability.
+# One-click "detective cases". variable_id (and related_variable_id) must exist in variables.yaml; dates must
+# be inside the variable's availability. bbox may be null only for "series" variables (single global records);
+# center is where the globe flies to.
 
-- id: arctic-warming
-  title: Is the Arctic warming faster?
-  question: Has the air over the Barents Sea and Svalbard warmed faster than the global average since 1980?
-  bbox: {west: 10, south: 70, east: 60, north: 82}
-  variable_id: merra2_t2m
-  start: 1980-01-01
+- id: punjab-groundwater
+  title: Is Punjab running out of groundwater?
+  question: Has the groundwater under the farmlands of Punjab and Haryana in northwest India gone down since 2003?
+  bbox: {west: 73.5, south: 28.5, east: 77.5, north: 32.5}
+  variable_id: gldas_gws
+  start: 2003-02-01
   end: 2025-12-31
   deseasonalize: true
-  center: {lat: 76, lon: 35}
+  center: {lat: 30.5, lon: 75.5}
+  related_variable_id: gpm_precipitation
+  takeaway: Groundwater falls steadily while rainfall shows no significant trend, so the loss is not caused by less rain; it points to people pumping water for irrigation faster than it is refilled.
 
-- id: amazon-rainfall
-  title: Is the Amazon drying out?
-  question: Has rainfall over the central Amazon rainforest changed over the last two decades?
-  bbox: {west: -70, south: -12, east: -50, north: 0}
+- id: punjab-rain
+  title: Did the rain change in Punjab?
+  question: Has rainfall over Punjab and Haryana changed since 2003, enough to explain the falling groundwater?
+  bbox: {west: 73.5, south: 28.5, east: 77.5, north: 32.5}
   variable_id: gpm_precipitation
-  start: 2001-01-01
+  start: 2003-02-01
   end: 2025-12-31
   deseasonalize: true
-  center: {lat: -6, lon: -60}
+  center: {lat: 30.5, lon: 75.5}
+  related_variable_id: gldas_gws
+  takeaway: Rainfall goes up and down from year to year but has no significant trend, so the climate did not take the groundwater away.
 
-- id: aral-sea-soil
-  title: What happened around the Aral Sea?
-  question: Are soils around the shrinking Aral Sea getting drier?
-  bbox: {west: 58, south: 43, east: 62, north: 47}
-  variable_id: gldas_soil_moisture
-  start: 2000-01-01
-  end: 2025-12-31
-  deseasonalize: true
-  center: {lat: 45, lon: 60}
-
-- id: delhi-haze
-  title: Is Delhi's air getting hazier?
-  question: Has the amount of haze-forming particles in the air over Delhi increased since 2001?
-  bbox: {west: 76.5, south: 28.0, east: 77.8, north: 29.2}
-  variable_id: modis_aod
-  start: 2001-01-01
+- id: delhi-no2
+  title: Is Delhi's air getting dirtier?
+  question: Has nitrogen dioxide from traffic and power plants over Delhi increased since 2005?
+  bbox: {west: 76.8, south: 28.3, east: 77.6, north: 28.9}
+  variable_id: omi_no2
+  start: 2005-01-01
   end: 2025-12-31
   deseasonalize: true
   center: {lat: 28.6, lon: 77.2}
+  related_variable_id: merra2_bc
+  takeaway: NO₂ over Delhi keeps rising as traffic and coal power grow, with a clear dip during the spring 2020 lockdown that shows how much of it comes from human activity.
 
-- id: sahel-greening
-  title: Is the Sahel turning greener?
-  question: Is vegetation along the southern edge of the Sahara recovering after the great droughts?
-  bbox: {west: -10, south: 12, east: 20, north: 16}
-  variable_id: modis_ndvi
-  start: 2001-01-01
+- id: china-so2
+  title: Did China clean up its coal smoke?
+  question: Did sulfur dioxide from coal burning over the North China Plain drop after power plants were fitted with scrubbers around 2010?
+  bbox: {west: 113, south: 34, east: 119, north: 40}
+  variable_id: merra2_so2
+  start: 2000-01-01
   end: 2025-12-31
   deseasonalize: true
-  center: {lat: 14, lon: 5}
+  center: {lat: 37, lon: 116}
+  related_variable_id: merra2_so4
+  takeaway: SO₂ climbed until about 2010 and then fell steeply, so the record as a whole is falling; a sign that cleaner coal plants and closures worked.
 
-- id: gulf-sst
-  title: Is the Gulf of Mexico heating up?
-  question: How fast is the surface of the Gulf of Mexico warming, the water that fuels Atlantic hurricanes?
-  bbox: {west: -97, south: 18, east: -81, north: 30}
-  variable_id: modis_sst
-  start: 2003-01-01
+- id: phoenix-nights
+  title: Is Phoenix heating up?
+  question: Are nights in Phoenix getting hotter as the city grows into the desert?
+  bbox: {west: -112.5, south: 33.2, east: -111.6, north: 33.8}
+  variable_id: modis_lst_night
+  start: 2000-03-01
   end: 2025-12-31
   deseasonalize: true
-  center: {lat: 24, lon: -89}
+  center: {lat: 33.45, lon: -112.07}
+  related_variable_id: modis_lst_day
+  takeaway: Night-time ground temperature in Phoenix rises much faster than the global average because concrete and asphalt store the day's heat; the urban heat island.
+
+- id: mauna-loa-co2
+  title: How fast is CO₂ rising?
+  question: How quickly has carbon dioxide in the air increased since measurements began at Mauna Loa in 1958?
+  bbox: null
+  variable_id: mauna_loa_co2
+  start: 1958-03-01
+  end: 2024-10-31
+  deseasonalize: true
+  center: {lat: 19.54, lon: -155.58}
+  related_variable_id: noaa_co2_marine
+  takeaway: CO₂ has risen every single year, from about 315 to over 420 ppm, and the rise is speeding up as we burn more fossil fuel; the yearly wiggle is plants breathing in summer.
+
+- id: global-methane
+  title: Is methane still climbing?
+  question: Is the amount of methane in the air still increasing, and has it ever stopped?
+  bbox: null
+  variable_id: noaa_ch4_marine
+  start: 1983-07-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 0, lon: -160}
+  related_variable_id: noaa_co2_marine
+  takeaway: Methane rose quickly, paused around 2000–2006, and then started climbing again even faster, driven by fossil fuels, farming, landfills and wetlands.

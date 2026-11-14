@@ -8,7 +8,8 @@ from typing import Literal
 from pydantic import BaseModel, model_validator
 
 Sphere = Literal["atmosphere", "land", "ocean", "water"]
-Coverage = Literal["global", "land", "ocean"]
+Coverage = Literal["global", "land", "ocean", "series"]
+"""``series`` = a ready-made single time series (a station such as Mauna Loa, or a global mean): no bbox."""
 
 MIN_BBOX_SPAN_DEG = 0.05
 
@@ -41,6 +42,15 @@ class BBox(BaseModel):
         return (self.south + self.north) / 2, (self.west + self.east) / 2
 
 
+class LatLon(BaseModel):
+    lat: float
+    lon: float
+
+
+class Location(LatLon):
+    label: str
+
+
 class Variable(BaseModel):
     id: str
     name: str
@@ -55,20 +65,31 @@ class Variable(BaseModel):
     available_start: dt.date
     available_end: dt.date
     coverage: Coverage
+    dataset: str
+    """Dataset name as the team uses it, e.g. "GLDAS_CLSM025_DA1_D v2.2"."""
+    access: str
+    """How real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "KNMI Climate Explorer"."""
+    location: Location | None = None
+    """Station position for "series" variables measured at one place (Mauna Loa), else null."""
 
-
-class LatLon(BaseModel):
-    lat: float
-    lon: float
+    @property
+    def is_series(self) -> bool:
+        return self.coverage == "series"
 
 
 class ExampleCase(BaseModel):
     id: str
     title: str
     question: str
-    bbox: BBox
+    bbox: BBox | None
+    """Null only for "series" variables (a single global/station record)."""
     variable_id: str
     start: dt.date
     end: dt.date
     deseasonalize: bool
     center: LatLon
+    related_variable_id: str | None = None
+    """Optional "compare with" variable for the same region (e.g. groundwater vs rainfall)."""
+    takeaway: str | None = None
+    """One sentence explaining what the trend (or the pair) shows."""
+

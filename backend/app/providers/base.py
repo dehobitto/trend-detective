@@ -4,6 +4,11 @@ A provider turns (variable, bbox, start, end) into a **monthly, area-mean** ``pd
 float values indexed by a month-start ``DatetimeIndex``, NaN for missing months, in the variable's
 catalog units. Everything downstream (preprocess, trends, API) is provider-agnostic.
 
+Aggregation is the provider's job: daily products (GLDAS_CLSM025_DA1_D, OMNO2d) and 8-day composites
+must be averaged to calendar months (``processing.timeseries.to_monthly``) and over the bbox
+(``processing.timeseries.area_mean``) before returning. Variables with ``coverage == "series"`` are one
+ready-made record (Mauna Loa CO₂, NOAA CH₄): they receive ``bbox=None``.
+
 To add a provider: implement the protocol, decorate a factory with ``@register_provider("name")``,
 import the module in ``app/providers/__init__.py`` and set ``TD_DATA_PROVIDER=name``.
 """

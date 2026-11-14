@@ -31,7 +31,7 @@ export type ExampleCase = {
   id: string;
   title: string;
   question: string;
-  bbox: BBox;
+  bbox: BBox | null;
   variable_id: string;
   start: string;
   end: string;

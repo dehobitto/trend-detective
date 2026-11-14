@@ -34,7 +34,7 @@ type ExampleCase = {
   id: string
   title: string              // "Is the Arctic warming faster?"
   question: string           // the detective question, 1 sentence
-  bbox: BBox
+  bbox: BBox | null          // null for "series" variables
   variable_id: string
   start: string
   end: string

@@ -18,7 +18,9 @@ UPLOAD_PREFIX = "upload:"
 
 class AnalysisRequest(BaseModel):
     bbox: BBox | None = None
-    """Required for catalog variables; ignored for ``upload:<id>`` datasets."""
+    """Required for catalog variables with an area; ignored for "series" variables and ``upload:<id>`` datasets.
+
+    Whether it is required depends on the catalog, so that check lives in ``jobs.resolve`` (HTTP 422)."""
     variable_id: str = Field(min_length=1)
     start: dt.date
     end: dt.date
@@ -33,8 +35,6 @@ class AnalysisRequest(BaseModel):
             raise ValueError("Start date must be before end date.")
         if self.deseasonalize is None:
             self.deseasonalize = self.aggregation == "monthly"
-        if not self.is_upload and self.bbox is None:
-            raise ValueError("A bbox is required for this variable.")
         return self
 
     @property
