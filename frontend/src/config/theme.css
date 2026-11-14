@@ -1,0 +1,40 @@
+/* Design tokens — source of truth: docs/SPEC.md "Design direction".
+   Two accents only, and they always mean something: rise (warm amber) and fall (glacial cyan). */
+:root {
+  --space: #070b1a;
+  --panel: #0e1630;
+  --panel-a: rgba(14, 22, 48, 0.88);
+  --panel-raised: #142043;
+  --ink: #e8ecf5;
+  --ink-dim: #93a0bd;
+  --ink-faint: #64708e;
+  --line: #24304f;
+  --line-strong: #34436a;
+  --rise: #f0a43a;
+  --fall: #5cc8e0;
+  --signif: #e8ecf5;
+  --danger: #f08a7a;
+
+  --font-ui: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-notes: 'Newsreader', Georgia, 'Times New Roman', serif;
+
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --blur: blur(14px) saturate(130%);
+  --shadow: 0 10px 30px rgba(2, 4, 12, 0.45);
+
+  --edge: 16px;
+  --panel-w: 420px;
+  --panel-w-wide: 520px;
+
+  /* Durations are mirrored in src/config/motion.ts (JS needs them too). */
+  --fade-ms: 700ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fade-ms: 0ms;
+  }
+}

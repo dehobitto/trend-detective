@@ -1,0 +1,21 @@
+.upload { margin-top: 6px; }
+.upload__file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.upload__drop {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-m);
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--ink);
+}
+.upload__drop svg { margin-top: 2px; flex: none; color: var(--ink-dim); }
+.upload__drop:hover { border-color: var(--ink-dim); }
+.upload__drop code { font-family: inherit; color: var(--ink); }
+.upload__form { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-m); }
+.upload__form .hint { margin: 0; }
+.upload__fields { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
+.upload__fields label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-dim); }
+.upload__actions { display: flex; gap: 6px; }
