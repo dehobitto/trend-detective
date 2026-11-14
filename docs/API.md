@@ -139,3 +139,46 @@ inside variable availability (clamp + warning is acceptable instead of erroring)
 Frontend polls `GET /api/analyses/{id}` every ~400 ms until `done`/`error`. Synthetic provider should
 take a short artificial delay (~0.3 s per stage, configurable `TD_SYNTHETIC_DELAY`) so the progress UI is
 visible.
+
+## v2 additions (map layers, time slider, place search)
+
+```ts
+// New field on Variable:
+map_layer: MapLayer | null
+
+type MapLayer =
+  | { kind: "gibs"                    // real NASA imagery tiles from GIBS WMTS (EPSG:3857), time-enabled
+      layer: string                   // GIBS layer identifier, verified against GetCapabilities
+      tile_matrix_set: string         // e.g. "GoogleMapsCompatible_Level6"
+      format: "png" | "jpeg"
+      max_zoom: number
+      time_step: "daily" | "8day" | "monthly" | "yearly"
+      time_start: string; time_end: string   // dates available in GIBS
+      legend_url: string | null       // GIBS colormap legend image if available
+      // tile URL template the frontend builds:
+      // https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/{tile_matrix_set}/{z}/{y}/{x}.{format}
+    }
+  | { kind: "grid" }                  // backend serves gridded values via /api/grid (synthetic now, real later)
+
+type Colormap = { name: string; stops: [number, string][] }   // value -> hex, for legend + client rendering
+
+type GridFrame = {
+  variable_id: string
+  date: string                        // first day of month
+  bbox: BBox                          // area actually covered
+  width: number; height: number       // grid size (cols, rows); row 0 = north
+  values: (number | null)[]           // row-major, length width*height, null = no data (e.g. ocean for land vars)
+  min: number; max: number            // suggested color range for this variable (stable across frames)
+  units: string
+  colormap: Colormap
+  synthetic: boolean
+}
+
+type Place = { name: string; display_name: string; lat: number; lon: number; bbox: BBox | null; kind: string }
+```
+
+| Method | Path | Query | Returns |
+|---|---|---|---|
+| GET | `/api/grid/{variable_id}` | `date=YYYY-MM-01`, `west,south,east,north` (optional; default global), `res` (deg, optional; server caps size to ≤ 200×200) | `GridFrame` |
+| GET | `/api/grid/{variable_id}/dates` | – | `string[]` monthly dates available for the slider |
+| GET | `/api/geocode` | `q` (≥2 chars), `limit` (default 6) | `Place[]` (proxied to OSM Nominatim/Photon with caching; generic User-Agent) |
