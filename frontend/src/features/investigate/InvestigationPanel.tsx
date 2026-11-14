@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../../components/Button';
 import { needsNoArea, useStore } from '../../state/store';
 import { ResultsView } from '../results/ResultsView';
@@ -25,6 +25,14 @@ export function InvestigationPanel() {
   const running = !!job && job.status !== 'done' && job.status !== 'error';
   const done = job?.status === 'done' && job.result;
   const canRun = hasArea && !!variableId && !running;
+
+  // "Show the global record" from the guided start: run as soon as the panel is up.
+  const pendingRun = useStore((s) => s.pendingRun);
+  useEffect(() => {
+    if (!pendingRun) return;
+    useStore.getState().set({ pendingRun: false });
+    if (canRun) run();
+  }, [pendingRun, canRun, run]);
 
   return (
     <aside className="panel" data-collapsed={collapsed} aria-label="Investigation">

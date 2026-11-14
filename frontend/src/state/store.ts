@@ -41,6 +41,11 @@ type State = {
   activeExample: ExampleCase | null;
 
   chatOpen: boolean;
+
+  /** Turn the globe (without zooming) to face a place, e.g. the station behind a record. */
+  peek: (LatLon & { nonce: number }) | null;
+  /** Run the analysis as soon as the investigation panel is ready (set by "Show the global record"). */
+  pendingRun: boolean;
 };
 
 type Actions = {
@@ -52,6 +57,7 @@ type Actions = {
   setBBox: (b: BBox | null) => void;
   applyExample: (ex: ExampleCase) => void;
   selectVariable: (id: string) => void;
+  peekAt: (to: LatLon) => void;
   clearResult: () => void;
 };
 
@@ -85,6 +91,9 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   chatOpen: false,
 
+  peek: null,
+  pendingRun: false,
+
   set: (patch) => set(patch),
 
   flyTo: (to, fitBBox = false) => {
@@ -117,14 +126,11 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   selectVariable: (id) => {
-    const v = get().variables.find((x) => x.id === id);
+    const s = get();
+    const v = s.variables.find((x) => x.id === id);
     const patch: Partial<State> = { variableId: id, job: null, runError: null };
-    if (v) {
-      // Keep the chosen dates inside what the instrument actually covers.
-      if (get().start < v.available_start) patch.start = v.available_start;
-      if (get().end > v.available_end) patch.end = v.available_end;
-    }
-    const ds = get().datasets.find((d) => `upload:${d.id}` === id);
+    if (v) Object.assign(patch, clampRange(s.start, s.end, v));
+    const ds = s.datasets.find((d) => `upload:${d.id}` === id);
     if (ds) {
       patch.start = ds.start;
       patch.end = ds.end;
@@ -132,8 +138,24 @@ export const useStore = create<State & Actions>((set, get) => ({
     set(patch);
   },
 
+  peekAt: (to) => set((s) => ({ peek: { ...to, nonce: (s.peek?.nonce ?? 0) + 1 } })),
+
   clearResult: () => set({ job: null, runError: null }),
 }));
+
+/**
+ * Dates for a newly chosen variable. Records ("series") default to their full span; everything else
+ * keeps the user's range, clamped into what the instrument covers (full span if nothing overlaps).
+ */
+export function clampRange(start: string, end: string, v: Variable): { start: string; end: string } {
+  const full = { start: v.available_start, end: v.available_end };
+  if (v.coverage === 'series') return full;
+  const s = start < v.available_start ? v.available_start : start > v.available_end ? v.available_start : start;
+  const e = end > v.available_end ? v.available_end : end < v.available_start ? v.available_end : end;
+  // Need at least a couple of years for a trend; otherwise fall back to everything available.
+  if (Number(e.slice(0, 4)) - Number(s.slice(0, 4)) < 2) return full;
+  return { start: s, end: e };
+}
 
 /** The selected catalog variable (undefined for uploads or nothing selected). */
 export const useSelectedVariable = () => useStore((s) => s.variables.find((v) => v.id === s.variableId));

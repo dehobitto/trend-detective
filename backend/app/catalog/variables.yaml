@@ -389,7 +389,7 @@
   available_start: 1958-03-01
   available_end: 2026-09-30
   coverage: series
-  location: {lat: 19.54, lon: -155.58, label: "Mauna Loa Observatory, Hawaiʻi"}
+  location: {lat: 19.54, lon: -155.58, label: "Mauna Loa Observatory, Hawaii"}
   synthetic: {base: 315, amp: 3.0, peak_month: 5, noise: 0.15, ar1: 0.5, min: 300, max: 500,
               curve: [[1958.2, 315.3], [1959.5, 315.98], [1965.5, 320.04], [1970.5, 325.68], [1975.5, 331.11],
                       [1980.5, 338.76], [1985.5, 346.12], [1990.5, 354.39], [1995.5, 360.82], [2000.5, 369.71],

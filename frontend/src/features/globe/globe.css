@@ -18,3 +18,20 @@
   font-size: 12px;
   white-space: nowrap;
 }
+.station-label {
+  /* Sits just right of the marker; drei's Html anchors the wrapper at the projected point. */
+  transform: translate(12px, -50%);
+  padding: 2px 8px;
+  border-radius: var(--radius-s);
+  background: var(--panel-a);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+@media (max-width: 760px) {
+  /* Narrow screens: label above the marker so it never runs off the edge. */
+  .station-label { transform: translate(-50%, calc(-100% - 10px)); }
+}

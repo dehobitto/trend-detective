@@ -8,6 +8,7 @@ import { useStore } from '../../state/store';
 import { Atmosphere } from './Atmosphere';
 import { CameraRig } from './CameraRig';
 import { Earth } from './Earth';
+import { StationMarker } from './StationMarker';
 import { Stars } from './Stars';
 import './globe.css';
 
@@ -54,6 +55,7 @@ export function GlobeView() {
             }}
           />
           <Atmosphere />
+          <StationMarker />
         </Suspense>
         <CameraRig />
       </Canvas>

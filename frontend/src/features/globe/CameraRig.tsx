@@ -54,6 +54,7 @@ export function CameraRig() {
 
   const transition = useStore((s) => s.transition);
   const focus = useStore((s) => s.focus);
+  const peek = useStore((s) => s.peek);
 
   // Initial framing.
   useEffect(() => {
@@ -103,6 +104,22 @@ export function CameraRig() {
       });
     }
   }, [transition]);
+
+  // Turn the globe to face a place without zooming (e.g. the station behind a record).
+  useEffect(() => {
+    const s = useStore.getState();
+    if (!peek || flight.current || s.transition !== 'idle' || s.view !== 'globe') return;
+    const target = latLonToVector3(clampLat(peek.lat), peek.lon, 1);
+    startFlight(target, camera.position.length(), () => {
+      const c = controls.current;
+      if (!c) return;
+      c.enabled = true;
+      window.clearTimeout(resumeTimer.current);
+      resumeTimer.current = window.setTimeout(() => {
+        if (!flight.current && !reduced) c.autoRotate = true;
+      }, globeConfig.resumeRotationAfterMs);
+    });
+  }, [peek?.nonce]);
 
   // Interaction: pause rotation while the user drags/zooms, resume after a short rest.
   useEffect(() => {
