@@ -1,0 +1,48 @@
+# Map colormaps for /api/grid frames, referenced by `colormap:` in variables.yaml.
+# `stops` are [position 0..1, hex]; the API spreads them over the variable's stable [min, max] range and
+# returns Colormap.stops as [value in the variable's units, hex]. Sequential perceptual ramps (ColorBrewer /
+# matplotlib) with 9 stops; brown_teal is diverging (dry/low brown -> wet/high teal).
+
+inferno:          # temperature (matplotlib "inferno")
+  - [0.000, "#000004"]
+  - [0.125, "#1b0c41"]
+  - [0.250, "#4a0c6b"]
+  - [0.375, "#781c6d"]
+  - [0.500, "#a52c60"]
+  - [0.625, "#cf4446"]
+  - [0.750, "#ed6925"]
+  - [0.875, "#fb9b06"]
+  - [1.000, "#fcffa4"]
+
+blue_green:       # precipitation / water (ColorBrewer GnBu)
+  - [0.000, "#f7fcf0"]
+  - [0.125, "#e0f3db"]
+  - [0.250, "#ccebc5"]
+  - [0.375, "#a8ddb5"]
+  - [0.500, "#7bccc4"]
+  - [0.625, "#4eb3d3"]
+  - [0.750, "#2b8cbe"]
+  - [0.875, "#0868ac"]
+  - [1.000, "#084081"]
+
+yellow_orange_brown:   # NO₂ and aerosols (ColorBrewer YlOrBr)
+  - [0.000, "#ffffe5"]
+  - [0.125, "#fff7bc"]
+  - [0.250, "#fee391"]
+  - [0.375, "#fec44f"]
+  - [0.500, "#fe9929"]
+  - [0.625, "#ec7014"]
+  - [0.750, "#cc4c02"]
+  - [0.875, "#993404"]
+  - [1.000, "#662506"]
+
+brown_teal:       # groundwater / water storage (ColorBrewer BrBG, diverging)
+  - [0.000, "#8c510a"]
+  - [0.125, "#bf812d"]
+  - [0.250, "#dfc27d"]
+  - [0.375, "#f6e8c3"]
+  - [0.500, "#f5f5f5"]
+  - [0.625, "#c7eae5"]
+  - [0.750, "#80cdc1"]
+  - [0.875, "#35978f"]
+  - [1.000, "#01665e"]

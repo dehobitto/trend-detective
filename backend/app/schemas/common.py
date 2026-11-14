@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 Sphere = Literal["atmosphere", "land", "ocean", "water"]
 Coverage = Literal["global", "land", "ocean", "series"]
@@ -51,6 +51,33 @@ class Location(LatLon):
     label: str
 
 
+class GibsMapLayer(BaseModel):
+    """Real NASA imagery tiles from GIBS WMTS (EPSG:3857), time-enabled.
+
+    Tile URL: https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/{tile_matrix_set}/{z}/{y}/{x}.{format}
+    """
+
+    kind: Literal["gibs"] = "gibs"
+    layer: str
+    """GIBS layer identifier, verified against GetCapabilities (see app/tools/gibs_layers.py)."""
+    tile_matrix_set: str
+    format: Literal["png", "jpeg"]
+    max_zoom: int
+    time_step: Literal["daily", "8day", "monthly", "yearly"]
+    time_start: dt.date
+    time_end: dt.date
+    legend_url: str | None = None
+
+
+class GridMapLayer(BaseModel):
+    """The backend serves gridded values via /api/grid (synthetic now, real later)."""
+
+    kind: Literal["grid"] = "grid"
+
+
+MapLayer = Annotated[GibsMapLayer | GridMapLayer, Field(discriminator="kind")]
+
+
 class Variable(BaseModel):
     id: str
     name: str
@@ -71,6 +98,8 @@ class Variable(BaseModel):
     """How real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "NOAA GML" | "KNMI Climate Explorer"."""
     location: Location | None = None
     """Station position for "series" variables measured at one place (Mauna Loa), else null."""
+    map_layer: MapLayer | None = None
+    """How the map shows this variable over time: GIBS imagery tiles or /api/grid frames; null for "series"."""
 
     @property
     def is_series(self) -> bool:

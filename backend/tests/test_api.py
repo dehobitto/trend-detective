@@ -20,6 +20,7 @@ def test_health(client):
 VARIABLE_FIELDS = {
     "id", "name", "short_definition", "why_it_matters", "units", "sphere", "source", "mission_or_model", "product",
     "temporal_resolution", "available_start", "available_end", "coverage", "dataset", "access", "location",
+    "map_layer",
 }
 
 
@@ -35,7 +36,7 @@ def test_variables_and_examples(client):
     assert by_id["merra2_dust"]["product"] == "M2TMNXAER.5.12.4:DUSMASS" and by_id["merra2_dust"]["units"] == "µg/m³"
     series = {v["id"] for v in variables if v["coverage"] == "series"}
     assert series == {"mauna_loa_co2", "noaa_co2_marine", "noaa_ch4_marine"}
-    assert by_id["mauna_loa_co2"]["location"] == {"lat": 19.54, "lon": -155.58, "label": "Mauna Loa Observatory, Hawaiʻi"}
+    assert by_id["mauna_loa_co2"]["location"] == {"lat": 19.54, "lon": -155.58, "label": "Mauna Loa Observatory, Hawaii"}
     assert by_id["mauna_loa_co2"]["available_end"] == "2026-09-30" and by_id["mauna_loa_co2"]["access"] == "NOAA GML"
     assert by_id["noaa_ch4_marine"]["location"] is None and by_id["noaa_ch4_marine"]["units"] == "ppb"
     assert all(v["location"] is None for v in variables if v["coverage"] != "series")

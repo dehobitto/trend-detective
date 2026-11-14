@@ -59,7 +59,8 @@ python3 -m venv .venv
 ```
 
 Interactive docs: http://localhost:8000/docs. Tests: `.venv/bin/python -m pytest` (no network: tests run
-synthetic by default, NOAA tests use the trimmed files in `tests/fixtures/` and a mocked httpx).
+synthetic by default, NOAA tests use the trimmed files in `tests/fixtures/` and a mocked httpx, geocoding
+tests an `httpx.MockTransport`).
 
 ## Environment variables
 
@@ -78,6 +79,12 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 | `TD_UPLOAD_DIR` | `backend/data/uploads` | Where uploaded CSV datasets are stored |
 | `TD_MAX_UPLOAD_BYTES` | `5242880` | Upload size limit |
 | `TD_MAX_JOBS` | `500` | In-memory job history size |
+| `TD_GRID_PREWARM` | `true` | Compute every variable's map color range in a background thread at startup |
+| `TD_PHOTON_URL` | `https://photon.komoot.io/api/` | Place search, tried first |
+| `TD_NOMINATIM_URL` | `https://nominatim.openstreetmap.org/search` | Place search fallback (jsonv2) |
+| `TD_GEOCODE_TIMEOUT` | `6` | Seconds before a place-search request gives up |
+| `TD_GEOCODE_CACHE_TTL` | `86400` | Seconds a place-search answer stays in the in-memory cache |
+| `TD_NOMINATIM_MIN_INTERVAL` | `1` | At most one Nominatim request per this many seconds (usage policy) |
 
 ## Layout
 
@@ -86,9 +93,14 @@ app/
   main.py          create_app() factory: settings -> services -> routers, CORS, error format
   config.py        Settings (TD_ env prefix)
   prefetch.py      `python -m app.prefetch`: download real-data files into the cache
-  api/             routers: health, catalog (variables/examples), analyses, datasets, chat; deps.Services
-  schemas/         pydantic models mirroring docs/API.md
-  catalog/         variables.yaml, examples.yaml, loader (validated at startup)
+  api/             routers: health, catalog (variables/examples), analyses, datasets, chat, grid, geocode;
+                   deps.Services
+  schemas/         pydantic models mirroring docs/API.md (grid.py: GridFrame/Colormap, geocode.py: Place)
+  catalog/         variables.yaml, examples.yaml, colormaps.yaml, loader (validated at startup)
+  grid/            service.py (/api/grid frames, color ranges, caching), landmask.py (land fraction per cell)
+  geocode.py       Photon -> Nominatim place search with TTL cache and Nominatim rate limit
+  data/            landmask.npy (committed: 1600x800 land/sea bits from the frontend water texture)
+  tools/           gibs_layers.py (refresh GIBS map layers), build_landmask.py (rebuild data/landmask.npy)
   providers/       base.py (DataProvider protocol + registry, Route), synthetic.py, upload.py,
                    noaa_gml.py (real CO₂/CH₄ records), real-data stubs nasa_giovanni.py (Giovanni / GES DISC),
                    appeears.py (MODIS LST), knmi.py (alternative CO₂/CH₄ mirror, unused),
@@ -97,7 +109,7 @@ app/
   jobs/            store.py (JobStore protocol + in-memory store), resolve.py (validation, bbox rules, date clamping), runner.py
   chat/            ChatBackend protocol + registry, StubChatBackend
 tests/             pytest: trends, processing, catalog, synthetic provider (incl. the example stories), API,
-                   NOAA GML parsing/cache/fallback (fixtures/ = trimmed NOAA files)
+                   NOAA GML parsing/cache/fallback (fixtures/ = trimmed NOAA files), grid frames, geocoding
 ```
 
 Analysis pipeline (`jobs/runner.py`): `resolve` (variable, provider via `route()`, clamped dates) → `provider.fetch`
@@ -112,6 +124,57 @@ Notes on the numbers:
 - `significant` requires both the OLS t-test and Mann-Kendall to have p < alpha.
 - `direction` is the sign of the OLS slope, or `flat` when the total change is < 5% of the series' std-dev.
 - `percent_change` is relative to the mean raw value; it is `null` for temperatures (°C has no true zero).
+
+## Map: GIBS layers, grid frames, place search (API v2)
+
+Every area variable has a public `map_layer` (`docs/API.md`, "v2 additions"); `series` variables have `null`.
+
+**GIBS imagery** (`kind: gibs`): real NASA tiles for the map time slider, chosen from the GIBS WMTS
+GetCapabilities for EPSG:3857 (monthly layers preferred) and verified by downloading tiles. `time_start`/
+`time_end` are what GIBS serves (not the product's availability); GIBS has gaps inside some ranges: GRACE has
+nothing for 2017-07 → 2018-05 (between GRACE and GRACE-FO) and misses single months (e.g. 2016-04), where GIBS
+answers tile requests with 404, so the frontend should keep the previous frame or show "no image".
+
+| Variable | GIBS layer | Step | GIBS range | Note |
+|---|---|---|---|---|
+| `gldas_gws` | `GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI` | monthly | 2002-04 → 2022-07 | GRACE total water storage anomaly (closest to groundwater; no GLDAS GWS layer) |
+| `gldas_tws` | `GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI` | monthly | 2002-04 → 2022-07 | what GRACE measures |
+| `gpm_precipitation` | `MERRA2_Precipitation_Bias_Corrected_Monthly` | monthly | 1980-01 → 2026-08 | no IMERG monthly layer (IMERG is daily/30-min only) |
+| `omi_no2` | `OMI_Nitrogen_Dioxide_Tropo_Column` | daily | 2004-10 → 2026-11 | no monthly OMI NO₂ layer |
+| `merra2_dust` | `MERRA2_Dust_Surface_Mass_Concentration_Monthly` | monthly | 1980-01 → 2026-08 | exact variable (DUSMASS) |
+| `merra2_so2` | `MERRA2_SO2_Column_Mass_Density_Monthly` | monthly | 1980-01 → 2026-08 | column, not surface, SO₂ (same pattern; legend in column units) |
+| `merra2_aod` | `MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly` | monthly | 1980-01 → 2026-08 | exact variable (TOTEXTTAU) |
+| `modis_lst_day` | `MODIS_Terra_L3_Land_Surface_Temp_Monthly_Day` | monthly | 2000-03 → 2026-10 | MOD11C3 |
+| `modis_lst_night` | `MODIS_Terra_L3_Land_Surface_Temp_Monthly_Night` | monthly | 2000-03 → 2026-10 | MOD11C3 |
+| `merra2_bc`, `merra2_oc`, `merra2_so4`, `merra2_sulfate_aod` | – (`kind: grid`) | | | no GIBS layer for these MERRA-2 species |
+
+All use `GoogleMapsCompatible_Level6` (max zoom 6), PNG, with GIBS's horizontal SVG legend as `legend_url`.
+Refresh after GIBS changes: `.venv/bin/python -m app.tools.gibs_layers` (prints suggested `map_layer` blocks
+and checks a tile per layer; `--search no2` lists matching layers; `--no-verify` skips tile downloads),
+then paste into `variables.yaml`. Preferences per variable live in `CANDIDATES` in that script.
+
+**Grid frames** (`GET /api/grid/{variable_id}?date=YYYY-MM-01[&west&south&east&north][&res]`): a
+`GridFrame` for every area variable (also those with a GIBS layer), synthetic for now (`synthetic: true`).
+Values come from the same model as the synthetic area series (`providers/synthetic.py: _signal`, used by both
+`generate` and `grid_values`), so the heatmap shows the chart's hotspots, trends, breaks and seasonality; the
+red noise is a smooth field of plane waves with AR(1) amplitudes that depends only on the variable, so panning
+or zooming never changes a cell's value. Land variables (`coverage: land`) are `null` where less than half of
+a cell is land (`data/landmask.npy`, a 0.225° mask from the frontend's water texture; lakes count as water).
+Size: without `res`, the longer side gets 160 cells but never finer than 0.1°; each axis is capped at 200.
+Default bbox: the whole globe. `min`/`max` are stable per variable: area-weighted 2nd–98th percentile of a
+global 2° sample over 24 months spread across the record, widened to include each hotspot's median (so Beijing
+NO₂ or Punjab groundwater stay readable), rounded to 2 significant digits. `colormap` (catalog
+`colormap:` → `catalog/colormaps.yaml`, 9 stops spread over min..max): `inferno` for LST, `blue_green` for
+precipitation, `yellow_orange_brown` for NO₂ and aerosols, diverging `brown_teal` for GLDAS water storage.
+Frames are cached as JSON bytes (LRU, 512) and gzip-compressed; an uncached 200×200 frame takes ~50 ms.
+`/api/grid/{id}/dates` lists the month starts from `available_start` to `available_end`. Errors: 404 for
+unknown or `series` variables, 422 for a month outside availability or a partial/invalid bbox.
+
+**Place search** (`GET /api/geocode?q=&limit=6`): proxies Photon (`photon.komoot.io`), falling back to
+OSM Nominatim when Photon fails or finds nothing. Generic User-Agent `TrendDetective/0.1 (hackathon demo)`,
+6 s timeout, in-memory TTL cache (24 h, 1000 queries), at most 1 request/s to Nominatim. Results map to
+`Place` (`bbox` from Photon `extent` / Nominatim `boundingbox`; tiny extents are padded to a valid BBox, ones
+crossing the 180° line become `null`). 502 with a readable `detail` when both fail; 422 when `q` < 2 chars.
 
 ## Real data: NOAA GML greenhouse-gas records
 

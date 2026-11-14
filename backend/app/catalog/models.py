@@ -80,9 +80,13 @@ class CatalogVariable(Variable):
     conversion: UnitConversion | None = None
     """Native product units -> catalog units, for real-data providers. None means already in catalog units."""
     synthetic: SyntheticHints | None = None
+    colormap: str | None = None
+    """Name of the map colormap in colormaps.yaml (area variables)."""
 
     @model_validator(mode="after")
     def _check(self) -> "CatalogVariable":
+        if self.is_series and self.map_layer is not None:
+            raise ValueError(f"{self.id}: 'series' variables have map_layer: null")
         if self.is_series and self.synthetic is not None and not self.synthetic.curve:
             raise ValueError(f"{self.id}: 'series' variables need a synthetic.curve")
         if self.location is not None and not self.is_series:

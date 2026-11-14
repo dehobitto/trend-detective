@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 5 * 1024 * 1024
     max_jobs: int = 500
     """Oldest finished jobs are evicted from the in-memory store beyond this count."""
+    grid_prewarm: bool = True
+    """Compute every variable's map color range in a background thread at startup (first frames stay fast)."""
+    photon_url: str = "https://photon.komoot.io/api/"
+    """Place search (GET /api/geocode), tried first."""
+    nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    """Fallback place search (OSM Nominatim, jsonv2)."""
+    geocode_timeout: float = 6.0
+    """Seconds before a place-search request gives up."""
+    geocode_cache_ttl: float = 24 * 3600
+    """Seconds a place-search answer is kept in memory."""
+    nominatim_min_interval: float = 1.0
+    """Nominatim usage policy: at most one request per this many seconds."""
 
 
 @lru_cache

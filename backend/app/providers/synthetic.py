@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -49,22 +50,23 @@ def stable_seed(*parts: object) -> int:
     return int.from_bytes(digest[:8], "little")
 
 
-def _hotspot_weight(lat: float, lon: float, h: Hotspot) -> float:
+def _hotspot_weight(lat, lon, h: Hotspot):
+    """Gaussian weight of hotspot ``h`` at (lat, lon); scalars or numpy arrays."""
     dlat = lat - h.lat
     dlon = (lon - h.lon) * np.cos(np.deg2rad((lat + h.lat) / 2))
-    return float(np.exp(-(dlat**2 + dlon**2) / h.radius**2))
+    return np.exp(-(dlat**2 + dlon**2) / h.radius**2)
 
 
-def _background_factor(hints: SyntheticHints, variable_id: str, lat: float, lon: float) -> float:
+def _background_factor(hints: SyntheticHints, variable_id: str, lat, lon):
     rng = np.random.default_rng(stable_seed("phase", variable_id))
     p1, p2 = rng.uniform(0, 2 * np.pi, size=2)
     wave = np.sin(np.deg2rad(lat) * 3 + p1) * np.cos(np.deg2rad(lon) * 2 + p2)
-    damp = min(1.0, sum(h.damp * _hotspot_weight(lat, lon, h) for h in hints.hotspots))
-    return float((hints.bias + hints.spread * wave) * (1 - damp))
+    damp = np.minimum(1.0, sum((h.damp * _hotspot_weight(lat, lon, h) for h in hints.hotspots), 0.0))
+    return (hints.bias + hints.spread * wave) * (1 - damp)
 
 
-def _polar(hints: SyntheticHints, lat: float) -> float:
-    return 1 + hints.polar_amplification * max(0.0, abs(lat) - 55) / 35
+def _polar(hints: SyntheticHints, lat):
+    return 1 + hints.polar_amplification * np.maximum(0.0, np.abs(lat) - 55) / 35
 
 
 def trend_per_year(hints: SyntheticHints, variable_id: str, lat: float, lon: float) -> float:
@@ -74,26 +76,26 @@ def trend_per_year(hints: SyntheticHints, variable_id: str, lat: float, lon: flo
     return float(hints.trend_per_decade * factor * _polar(hints, lat) / 10)
 
 
-def _background_trend(hints: SyntheticHints, variable_id: str, lat: float, lon: float, t: np.ndarray) -> np.ndarray:
-    """Smooth large-scale trend signal (catalog units) over decimal years ``t``; shared across a bbox."""
+def _background_trend(hints: SyntheticHints, variable_id: str, lat, lon, t: np.ndarray) -> np.ndarray:
+    """Smooth large-scale trend signal (catalog units) over decimal years ``t``."""
     scale = hints.trend_per_decade * _polar(hints, lat) / 10
     return scale * _background_factor(hints, variable_id, lat, lon) * (t - TREND_ORIGIN_YEAR)
 
 
-def _hotspot_terms(
-    hints: SyntheticHints, weights: list[float], lat: float, t: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """Local (hotspot) excess over the background and extra seasonal half-range at one grid point.
+def _hotspot_terms(hints: SyntheticHints, weights: list, lat, t: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Local (hotspot) excess over the background and extra seasonal half-range.
 
     Each hotspot adds ``w * (base + trend signal)``; its trend is piecewise linear when it has a break year.
     Its extra seasonal amplitude scales with how much of its excess is left (a cleaned-up city also has
     a smaller winter peak), so values do not swing below zero once a hotspot has faded.
+    ``lat`` and the weights are scalars or arrays of point positions; ``t`` broadcasts against them.
     """
     scale = hints.trend_per_decade * _polar(hints, lat) / 10
-    excess = np.zeros_like(t)
-    extra_amp = np.zeros_like(t)
+    shape = np.broadcast_shapes(np.shape(t), np.shape(lat))
+    excess = np.zeros(shape)
+    extra_amp = np.zeros(shape)
     for h, w in zip(hints.hotspots, weights):
-        if w < 1e-6:
+        if np.all(w < 1e-6):
             continue
         if h.break_year is None:
             signal = scale * h.trend * (t - TREND_ORIGIN_YEAR)
@@ -135,8 +137,8 @@ def _grid(bbox: BBox) -> tuple[np.ndarray, np.ndarray]:
     return axis(bbox.south, bbox.north), axis(bbox.west, bbox.east)
 
 
-def _seasonal(amp: float | np.ndarray, peak_month: int, lat: float, months: np.ndarray) -> np.ndarray:
-    peak = peak_month if lat >= 0 else (peak_month + 6 - 1) % 12 + 1
+def _seasonal(amp, peak_month: int, lat, months: np.ndarray) -> np.ndarray:
+    peak = np.where(np.asarray(lat) >= 0, peak_month, (peak_month + 6 - 1) % 12 + 1)
     return amp * np.cos(2 * np.pi * (months - peak) / 12)
 
 
@@ -154,6 +156,35 @@ def _apply_gaps(values: np.ndarray, hints: SyntheticHints, rng: np.random.Genera
     if hints.gap_fraction > 0:
         values[rng.random(len(values)) < hints.gap_fraction] = np.nan
     return values
+
+
+def _signal(
+    hints: SyntheticHints, variable_id: str, lat, lon, index: pd.DatetimeIndex, background=None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Noise-free ``(level, seasonal)`` at points ``(lat, lon)`` for each month of ``index``.
+
+    ``level = base(lat) + background trend + dip * hotspot excess`` and ``seasonal`` is the seasonal
+    cycle (base + hotspot amplitude); both have shape ``(len(index), *point_shape)``. ``background``
+    overrides the per-point background trend (an area series uses the one at the bbox center).
+    This is the single place the synthetic formula lives: area series and map grids both use it.
+    """
+    lat, lon = np.asarray(lat, dtype=float), np.asarray(lon, dtype=float)
+    time_shape = (len(index),) + (1,) * lat.ndim
+    t = decimal_years(index).reshape(time_shape)
+    months = index.month.to_numpy().reshape(time_shape)
+    dip = _dip_factor(hints, index).reshape(time_shape)
+    weights = [_hotspot_weight(lat, lon, h) for h in hints.hotspots]
+    excess, extra_amp = _hotspot_terms(hints, weights, lat, t)
+    if background is None:
+        background = _background_trend(hints, variable_id, lat, lon, t)
+    level = hints.base + hints.base_lat * np.abs(lat) + background + dip * excess
+    amp = np.maximum(0.0, hints.amp + hints.amp_lat * np.abs(lat) + dip * extra_amp)
+    return level, _seasonal(amp, hints.peak_month, lat, months)
+
+
+def _noise_sd(hints: SyntheticHints, lat, level):
+    """Noise grows with |lat| (noise_lat) and with the local level (noise_rel), following it over time."""
+    return hints.noise + hints.noise_lat * np.abs(lat) + hints.noise_rel * np.abs(level)
 
 
 def generate_series(variable: CatalogVariable) -> pd.Series:
@@ -182,39 +213,74 @@ def generate(variable: CatalogVariable, bbox: BBox | None) -> pd.Series:
     hints = _hints(variable)
     index = _index(variable)
     n = len(index)
-    t = decimal_years(index)
-    months = index.month.to_numpy()
 
     rng = np.random.default_rng(
         stable_seed(variable.id, round(bbox.west, 4), round(bbox.south, 4), round(bbox.east, 4), round(bbox.north, 4))
     )
     lats, lons = _grid(bbox)
     c_lat, c_lon = bbox.center
-    background = _background_trend(hints, variable.id, c_lat, c_lon, t)
-    dip = _dip_factor(hints, index)
-    # Noise grows with the local level (noise_rel), following the level as it changes over time.
-    c_weights = [_hotspot_weight(c_lat, c_lon, h) for h in hints.hotspots]
-    c_local, _ = _hotspot_terms(hints, c_weights, c_lat, t)
-    center_level = hints.base + hints.base_lat * abs(c_lat) + background + dip * c_local
-    noise_sd = hints.noise + hints.noise_lat * abs(c_lat) + hints.noise_rel * np.abs(center_level)
+    # The background trend is shared across the bbox (taken at its center); noise follows the center level.
+    center_level, _ = _signal(hints, variable.id, c_lat, c_lon, index)
+    background = _background_trend(hints, variable.id, c_lat, c_lon, decimal_years(index))
+    noise_sd = _noise_sd(hints, c_lat, center_level)
     shared_noise = _ar1(rng, n, hints.ar1, 1.0) * noise_sd
 
-    cube = np.empty((n, len(lats), len(lons)))
-    for i, lat in enumerate(lats):
-        for j, lon in enumerate(lons):
-            weights = [_hotspot_weight(lat, lon, h) for h in hints.hotspots]
-            excess, extra_amp = _hotspot_terms(hints, weights, lat, t)
-            amp = np.maximum(0.0, hints.amp + hints.amp_lat * abs(lat) + dip * extra_amp)
-            base = hints.base + hints.base_lat * abs(lat)
-            local_noise = rng.normal(0, 1.0, size=n) * noise_sd * 0.3
-            value = (
-                base + _seasonal(amp, hints.peak_month, lat, months) + background + dip * excess
-                + shared_noise + local_noise
-            )
-            cube[:, i, j] = np.clip(value, hints.min, hints.max)
+    lat2, lon2 = np.meshgrid(lats, lons, indexing="ij")
+    level, seasonal = _signal(hints, variable.id, lat2, lon2, index, background=background[:, None, None])
+    local_noise = rng.normal(0, 1.0, size=(len(lats), len(lons), n)).transpose(2, 0, 1) * noise_sd[:, None, None] * 0.3
+    cube = np.clip(level + seasonal + shared_noise[:, None, None] + local_noise, hints.min, hints.max)
 
     values = _apply_gaps(area_mean(cube, lats), hints, rng)
     return pd.Series(values, index=index, name=variable.id)
+
+
+# ---------------------------------------------------------------- map grids --------------------------------
+
+GRID_NOISE_WAVES = 6
+
+
+@lru_cache(maxsize=64)
+def _grid_noise_waves(variable_id: str, ar1: float, start: str, end: str) -> tuple[np.ndarray, np.ndarray]:
+    """Smooth space-time noise for map frames: random plane waves whose amplitudes are AR(1) in time.
+
+    Returns (wave parameters (K, 3): kx, ky [rad/degree], phase; amplitudes (n_months, K)). Depends only
+    on the variable (not on the requested bbox), so panning/zooming never changes the numbers.
+    """
+    rng = np.random.default_rng(stable_seed(variable_id, "grid-noise"))
+    n = len(pd.date_range(start, end, freq="MS"))
+    wavelength = rng.uniform(8, 60, size=GRID_NOISE_WAVES)  # degrees
+    direction = rng.uniform(0, np.pi, size=GRID_NOISE_WAVES)
+    k = 2 * np.pi / wavelength
+    params = np.column_stack([k * np.cos(direction), k * np.sin(direction), rng.uniform(0, 2 * np.pi, GRID_NOISE_WAVES)])
+    amps = np.column_stack([_ar1(rng, n, ar1, 1.0) for _ in range(GRID_NOISE_WAVES)])
+    return params, amps
+
+
+def grid_values(variable: CatalogVariable, month: pd.Timestamp, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
+    """Synthetic map frame: ``(len(lats), len(lons))`` values for one month (no land mask applied).
+
+    Same model as :func:`generate` (base, seasonality, hotspots, dips, trends via :func:`_signal`), but the
+    background trend is evaluated at every cell (the area series takes it at the bbox center) and the
+    red noise is a smooth field of plane waves instead of one number per bbox. The cos-lat mean of a frame
+    over a bbox therefore tracks that bbox's series up to noise.
+    """
+    if variable.is_series:
+        raise ProviderError(f"{variable.name} is a single record and has no map.")
+    hints = _hints(variable)
+    full = _index(variable)
+    month = pd.Timestamp(month).replace(day=1)
+    pos = full.get_indexer([month])[0]
+    if pos < 0:
+        raise ProviderError(f"{variable.name} has no data for {month:%Y-%m}.")
+    lat2, lon2 = np.meshgrid(lats, lons, indexing="ij")
+    level, seasonal = _signal(hints, variable.id, lat2, lon2, full[pos:pos + 1])
+    params, amps = _grid_noise_waves(
+        variable.id, hints.ar1, variable.available_start.isoformat(), variable.available_end.isoformat()
+    )
+    phase = lon2[..., None] * params[:, 0] + lat2[..., None] * params[:, 1] + params[:, 2]
+    noise = (np.cos(phase) * amps[pos]).sum(axis=-1) * np.sqrt(2 / GRID_NOISE_WAVES)
+    value = level[0] + seasonal[0] + noise * _noise_sd(hints, lat2, level[0])
+    return np.clip(value, hints.min, hints.max)
 
 
 class SyntheticProvider:

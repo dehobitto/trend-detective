@@ -22,7 +22,8 @@ def no_network(monkeypatch):
 def settings(tmp_path) -> Settings:
     # Synthetic by default so stories are deterministic and offline; tests/test_noaa_gml.py covers "auto".
     return Settings(
-        data_provider="synthetic", synthetic_delay=0, upload_dir=tmp_path / "uploads", cache_dir=tmp_path / "cache"
+        data_provider="synthetic", synthetic_delay=0, upload_dir=tmp_path / "uploads", cache_dir=tmp_path / "cache",
+        grid_prewarm=False,
     )
 
 
