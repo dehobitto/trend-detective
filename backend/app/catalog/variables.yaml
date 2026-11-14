@@ -1,0 +1,280 @@
+# Earth-science variables offered in the variable picker.
+#
+# Public fields mirror the `Variable` type in docs/API.md. Two internal blocks are NOT sent to clients:
+#   ratio_scale: false  -> percent change is meaningless (e.g. °C has an arbitrary zero), so it is null.
+#   synthetic:          -> hints for the synthetic demo provider (realistic ranges, seasonality, trends).
+#     base + base_lat*|lat|         climatological mean at a grid point
+#     amp + amp_lat*|lat|           half-range of the seasonal cycle
+#     peak_month                    month of the seasonal maximum in the northern hemisphere (+6 in the south)
+#     trend_per_decade              typical trend size; scaled by a smooth, region-dependent factor:
+#                                   bias + spread * wave(lat, lon) + hotspots (can flip sign between regions)
+#     polar_amplification           extra trend multiplier ramping up poleward of 55°
+#     noise, noise_lat, ar1         AR(1) "red" noise std-dev and lag-1 correlation
+#     hotspots                      [{lat, lon, radius, trend, base}] local trend factor / mean offset bumps
+#     min, max                      physical clamp; gap_fraction: share of missing months (satellite gaps)
+#
+# Availability end dates are conservative (last fully reprocessed month we rely on).
+
+- id: merra2_t2m
+  name: Surface air temperature
+  short_definition: How warm the air is about 2 meters above the ground, the height where a weather station thermometer would sit.
+  why_it_matters: It is the most direct measure of how climate change is felt where people live, farm and build.
+  units: °C
+  sphere: atmosphere
+  source: MERRA-2 (model reanalysis)
+  mission_or_model: MERRA-2
+  product: "M2TMNXSLV.5.12.4:T2M"
+  temporal_resolution: monthly
+  available_start: 1980-01-01
+  available_end: 2025-12-31
+  coverage: global
+  ratio_scale: false
+  synthetic: {base: 27, base_lat: -0.5, amp: 0.5, amp_lat: 0.2, peak_month: 7, trend_per_decade: 0.2,
+              bias: 0.8, spread: 0.5, polar_amplification: 2.0, noise: 0.5, noise_lat: 0.02, ar1: 0.5,
+              min: -60, max: 45}
+
+- id: airs_surface_air_temp
+  name: Surface air temperature (satellite)
+  short_definition: Air temperature near the surface measured from space by an infrared sounder that "listens" to heat given off by the atmosphere.
+  why_it_matters: Comparing a satellite measurement with a model reanalysis is a good way to check whether a warming trend is real.
+  units: °C
+  sphere: atmosphere
+  source: AIRS on NASA's Aqua satellite
+  mission_or_model: AIRS
+  product: "AIRS3STM.7.0:SurfAirTemp_A"
+  temporal_resolution: monthly
+  available_start: 2002-09-01
+  available_end: 2025-12-31
+  coverage: global
+  ratio_scale: false
+  synthetic: {base: 27, base_lat: -0.5, amp: 0.5, amp_lat: 0.2, peak_month: 7, trend_per_decade: 0.22,
+              bias: 0.8, spread: 0.5, polar_amplification: 2.0, noise: 0.6, noise_lat: 0.02, ar1: 0.45,
+              min: -60, max: 45, gap_fraction: 0.01}
+
+- id: merra2_aod
+  name: Aerosol optical depth (model)
+  short_definition: How much sunlight is blocked by tiny particles in the air such as dust, smoke and pollution. 0 means perfectly clear; above 1 is very hazy.
+  why_it_matters: Aerosols affect the air we breathe and cool or warm the planet by reflecting or absorbing sunlight.
+  units: unitless
+  sphere: atmosphere
+  source: MERRA-2 (model reanalysis with assimilated aerosols)
+  mission_or_model: MERRA-2
+  product: "M2TMNXAER.5.12.4:TOTEXTTAU"
+  temporal_resolution: monthly
+  available_start: 1980-01-01
+  available_end: 2025-12-31
+  coverage: global
+  synthetic: {base: 0.15, base_lat: -0.0015, amp: 0.04, amp_lat: 0, peak_month: 4, trend_per_decade: 0.012,
+              bias: 0.0, spread: 1.0, noise: 0.025, ar1: 0.4, min: 0.01, max: 3,
+              hotspots: [{lat: 28.6, lon: 77.2, radius: 8, trend: 4, base: 0.5},
+                         {lat: 20, lon: 5, radius: 12, trend: 0.5, base: 0.25},
+                         {lat: 50, lon: 10, radius: 12, trend: -2, base: 0.05}]}
+
+- id: modis_aod
+  name: Aerosol optical depth (satellite)
+  short_definition: The haziness of the air caused by particles like dust, smoke and smog, measured by how much sunlight they block. 0 is crystal clear; above 1 is very hazy.
+  why_it_matters: High aerosol levels are linked to health problems and change how much sunlight reaches the ground.
+  units: unitless
+  sphere: atmosphere
+  source: MODIS on NASA's Terra satellite
+  mission_or_model: MODIS
+  product: "MOD08_M3.061:AOD_550_Dark_Target_Deep_Blue_Combined_Mean_Mean"
+  temporal_resolution: monthly
+  available_start: 2000-03-01
+  available_end: 2025-12-31
+  coverage: global
+  synthetic: {base: 0.17, base_lat: -0.0015, amp: 0.05, amp_lat: 0, peak_month: 5, trend_per_decade: 0.012,
+              bias: 0.0, spread: 1.0, noise: 0.03, ar1: 0.35, min: 0.01, max: 3, gap_fraction: 0.01,
+              hotspots: [{lat: 28.6, lon: 77.2, radius: 8, trend: 5, base: 0.55},
+                         {lat: 20, lon: 5, radius: 12, trend: 0.5, base: 0.25},
+                         {lat: 50, lon: 10, radius: 12, trend: -2, base: 0.05}]}
+
+- id: omi_no2
+  name: Nitrogen dioxide (tropospheric)
+  short_definition: The amount of nitrogen dioxide gas in the lower atmosphere above an area. It comes mostly from car engines, power plants and fires.
+  why_it_matters: NO₂ is a marker of air pollution from burning fuel, so it shows how cities and industry change over time.
+  units: "10¹⁵ molecules/cm²"
+  sphere: atmosphere
+  source: OMI on NASA's Aura satellite
+  mission_or_model: OMI
+  product: "OMNO2d.003:ColumnAmountNO2TropCloudScreened"
+  temporal_resolution: daily
+  available_start: 2004-10-01
+  available_end: 2025-12-31
+  coverage: global
+  synthetic: {base: 1.2, base_lat: 0, amp: 0.3, amp_lat: 0, peak_month: 1, trend_per_decade: 0.08,
+              bias: 0.0, spread: 1.0, noise: 0.25, ar1: 0.3, min: 0.1, max: 40, gap_fraction: 0.02,
+              hotspots: [{lat: 28.6, lon: 77.2, radius: 6, trend: 8, base: 5},
+                         {lat: 40.5, lon: -74.5, radius: 5, trend: -12, base: 7},
+                         {lat: 51, lon: 6, radius: 6, trend: -8, base: 5}]}
+
+- id: omi_ozone
+  name: Total ozone column
+  short_definition: The total amount of ozone in a column of air from the ground to space, measured in Dobson Units. Most of it sits in the ozone layer.
+  why_it_matters: The ozone layer shields life from harmful ultraviolet light; its recovery shows whether the ban on ozone-destroying chemicals is working.
+  units: DU
+  sphere: atmosphere
+  source: OMI on NASA's Aura satellite
+  mission_or_model: OMI
+  product: "OMTO3d.003:ColumnAmountO3"
+  temporal_resolution: daily
+  available_start: 2004-10-01
+  available_end: 2025-12-31
+  coverage: global
+  synthetic: {base: 265, base_lat: 1.2, amp: 4, amp_lat: 0.6, peak_month: 3, trend_per_decade: 1.0,
+              bias: 0.3, spread: 0.8, noise: 5, ar1: 0.3, min: 100, max: 550, gap_fraction: 0.02}
+
+- id: modis_ndvi
+  name: Vegetation greenness (NDVI)
+  short_definition: An index from -1 to 1 that shows how green and leafy the land is. Bare soil is near 0.1; dense forest is above 0.8.
+  why_it_matters: Changes in greenness reveal droughts, deforestation, farming and plants responding to a warmer climate.
+  units: unitless
+  sphere: land
+  source: MODIS on NASA's Terra satellite
+  mission_or_model: MODIS
+  product: "MOD13C2.061:CMG_0_05_Deg_Monthly_NDVI"
+  temporal_resolution: monthly
+  available_start: 2000-02-01
+  available_end: 2025-12-31
+  coverage: land
+  synthetic: {base: 0.55, base_lat: -0.004, amp: 0.06, amp_lat: 0.003, peak_month: 8, trend_per_decade: 0.012,
+              bias: 0.3, spread: 0.7, noise: 0.025, ar1: 0.4, min: -0.1, max: 0.95, gap_fraction: 0.005,
+              hotspots: [{lat: 14, lon: 5, radius: 12, trend: 2.5, base: -0.22},
+                         {lat: 24, lon: 10, radius: 10, trend: 0, base: -0.45},
+                         {lat: -5, lon: -60, radius: 12, trend: -1.5, base: 0.28}]}
+
+- id: modis_lst_day
+  name: Daytime land surface temperature
+  short_definition: How hot the ground itself gets during the day, seen from space. Pavement and deserts can be much hotter than the air above them.
+  why_it_matters: Hot surfaces drive heat waves, dry out soils and create urban heat islands.
+  units: °C
+  sphere: land
+  source: MODIS on NASA's Terra satellite
+  mission_or_model: MODIS
+  product: "MOD11C3.061:LST_Day_CMG"
+  temporal_resolution: monthly
+  available_start: 2000-03-01
+  available_end: 2025-12-31
+  coverage: land
+  ratio_scale: false
+  synthetic: {base: 33, base_lat: -0.55, amp: 1.5, amp_lat: 0.25, peak_month: 7, trend_per_decade: 0.25,
+              bias: 0.6, spread: 0.6, polar_amplification: 1.5, noise: 0.9, noise_lat: 0.02, ar1: 0.35,
+              min: -60, max: 70, gap_fraction: 0.01}
+
+- id: gldas_soil_moisture
+  name: Topsoil moisture
+  short_definition: How much water is held in the top 10 cm of soil, given as kilograms of water per square meter (1 kg/m² equals a 1 mm layer of water).
+  why_it_matters: Moist soil feeds crops and natural plants; drying soils are an early warning of drought and desertification.
+  units: kg/m²
+  sphere: water
+  source: GLDAS Noah land surface model
+  mission_or_model: GLDAS
+  product: "GLDAS_NOAH025_M.2.1:SoilMoi0_10cm_inst"
+  temporal_resolution: monthly
+  available_start: 2000-01-01
+  available_end: 2025-12-31
+  coverage: land
+  synthetic: {base: 24, base_lat: 0, amp: 3, amp_lat: 0, peak_month: 4, trend_per_decade: 0.4,
+              bias: -0.1, spread: 1.0, noise: 1.2, ar1: 0.6, min: 2, max: 50,
+              hotspots: [{lat: 45, lon: 60, radius: 6, trend: -3, base: -12},
+                         {lat: 24, lon: 10, radius: 12, trend: 0, base: -18}]}
+
+- id: gldas_evapotranspiration
+  name: Evapotranspiration
+  short_definition: Water moving from the land into the air, both evaporating from soil and lakes and "breathed out" by plants through their leaves.
+  why_it_matters: It links the water, energy and carbon cycles, and rises when plants are healthy and water is available.
+  units: mm/day
+  sphere: water
+  source: GLDAS Noah land surface model
+  mission_or_model: GLDAS
+  product: "GLDAS_NOAH025_M.2.1:Evap_tavg"
+  temporal_resolution: monthly
+  available_start: 2000-01-01
+  available_end: 2025-12-31
+  coverage: land
+  synthetic: {base: 2.6, base_lat: -0.025, amp: 0.4, amp_lat: 0.02, peak_month: 7, trend_per_decade: 0.04,
+              bias: 0.2, spread: 0.8, noise: 0.2, ar1: 0.4, min: 0, max: 10}
+
+- id: gldas_snow_water
+  name: Snow water equivalent
+  short_definition: How much water is stored in the snowpack, as the depth of water you would get if all the snow melted (1 kg/m² equals 1 mm of water).
+  why_it_matters: Melting snow fills rivers and reservoirs in spring for billions of people; less snow means less stored water.
+  units: kg/m²
+  sphere: water
+  source: GLDAS Noah land surface model
+  mission_or_model: GLDAS
+  product: "GLDAS_NOAH025_M.2.1:SWEnow_inst"
+  temporal_resolution: monthly
+  available_start: 2000-01-01
+  available_end: 2025-12-31
+  coverage: land
+  synthetic: {base: -55, base_lat: 1.6, amp: -20, amp_lat: 0.9, peak_month: 2, trend_per_decade: 2.0,
+              bias: -0.5, spread: 0.6, noise: 6, ar1: 0.5, min: 0, max: 600}
+
+- id: gpm_precipitation
+  name: Precipitation
+  short_definition: How much rain and snow falls, averaged as millimeters of water per day, combined from a fleet of satellites.
+  why_it_matters: Changes in rainfall decide floods, droughts, water supplies and harvests.
+  units: mm/day
+  sphere: water
+  source: GPM IMERG (multi-satellite)
+  mission_or_model: GPM
+  product: "GPM_3IMERGM.07:precipitation"
+  temporal_resolution: monthly
+  available_start: 2000-06-01
+  available_end: 2025-12-31
+  coverage: global
+  synthetic: {base: 5.5, base_lat: -0.07, amp: 1.5, amp_lat: 0, peak_month: 7, trend_per_decade: 0.08,
+              bias: 0.0, spread: 1.0, noise: 0.7, ar1: 0.25, min: 0, max: 40,
+              hotspots: [{lat: -6, lon: -60, radius: 12, trend: -3, base: 2.0},
+                         {lat: 22, lon: 10, radius: 12, trend: 0, base: -4.5}]}
+
+- id: airs_water_vapor
+  name: Total water vapor
+  short_definition: All the water vapor in a column of air above an area, as the depth of water (in mm, or kg/m²) you would get if it all rained out at once.
+  why_it_matters: Water vapor is the strongest natural greenhouse gas, and warmer air holds more of it, which fuels heavier downpours.
+  units: kg/m²
+  sphere: water
+  source: AIRS on NASA's Aqua satellite
+  mission_or_model: AIRS
+  product: "AIRS3STM.7.0:TotH2OVap_A"
+  temporal_resolution: monthly
+  available_start: 2002-09-01
+  available_end: 2025-12-31
+  coverage: global
+  synthetic: {base: 48, base_lat: -0.6, amp: 2, amp_lat: 0.08, peak_month: 7, trend_per_decade: 0.35,
+              bias: 0.6, spread: 0.5, noise: 0.8, ar1: 0.4, min: 1, max: 75, gap_fraction: 0.01}
+
+- id: modis_sst
+  name: Sea surface temperature
+  short_definition: The temperature of the top layer of the ocean, measured from space by the heat it gives off.
+  why_it_matters: Warmer seas feed stronger hurricanes, bleach coral reefs and raise sea level as water expands.
+  units: °C
+  sphere: ocean
+  source: MODIS on NASA's Aqua satellite
+  mission_or_model: MODIS
+  product: "MODISA_L3m_SST_Monthly_4km_R2019_0:sst"
+  temporal_resolution: monthly
+  available_start: 2002-07-01
+  available_end: 2025-12-31
+  coverage: ocean
+  ratio_scale: false
+  synthetic: {base: 30, base_lat: -0.35, amp: 0.3, amp_lat: 0.08, peak_month: 8, trend_per_decade: 0.16,
+              bias: 0.8, spread: 0.5, noise: 0.25, ar1: 0.6, min: -1.8, max: 35, gap_fraction: 0.005,
+              hotspots: [{lat: 25, lon: -90, radius: 8, trend: 1.5, base: 0}]}
+
+- id: modis_chlorophyll
+  name: Ocean chlorophyll
+  short_definition: The concentration of chlorophyll in surface seawater, which tells us how much microscopic plant life (phytoplankton) is growing.
+  why_it_matters: Phytoplankton are the base of the ocean food web and produce about half of the oxygen we breathe.
+  units: mg/m³
+  sphere: ocean
+  source: MODIS on NASA's Aqua satellite
+  mission_or_model: MODIS
+  product: "MODISA_L3m_CHL_Monthly_4km_R2022_0:chlor_a"
+  temporal_resolution: monthly
+  available_start: 2002-07-01
+  available_end: 2025-12-31
+  coverage: ocean
+  synthetic: {base: 0.12, base_lat: 0.008, amp: 0.03, amp_lat: 0.003, peak_month: 5, trend_per_decade: 0.01,
+              bias: -0.2, spread: 1.0, noise: 0.04, ar1: 0.4, min: 0.01, max: 20, gap_fraction: 0.01}

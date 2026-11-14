@@ -7,3 +7,4 @@ __pycache__/
 backend/data/cache/
 backend/data/uploads/
 NASA Space Apps Challenge_files/
+.pytest_cache/

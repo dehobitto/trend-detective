@@ -1,0 +1,61 @@
+# One-click "detective cases". variable_id must exist in variables.yaml; dates must be inside its availability.
+
+- id: arctic-warming
+  title: Is the Arctic warming faster?
+  question: Has the air over the Barents Sea and Svalbard warmed faster than the global average since 1980?
+  bbox: {west: 10, south: 70, east: 60, north: 82}
+  variable_id: merra2_t2m
+  start: 1980-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 76, lon: 35}
+
+- id: amazon-rainfall
+  title: Is the Amazon drying out?
+  question: Has rainfall over the central Amazon rainforest changed over the last two decades?
+  bbox: {west: -70, south: -12, east: -50, north: 0}
+  variable_id: gpm_precipitation
+  start: 2001-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: -6, lon: -60}
+
+- id: aral-sea-soil
+  title: What happened around the Aral Sea?
+  question: Are soils around the shrinking Aral Sea getting drier?
+  bbox: {west: 58, south: 43, east: 62, north: 47}
+  variable_id: gldas_soil_moisture
+  start: 2000-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 45, lon: 60}
+
+- id: delhi-haze
+  title: Is Delhi's air getting hazier?
+  question: Has the amount of haze-forming particles in the air over Delhi increased since 2001?
+  bbox: {west: 76.5, south: 28.0, east: 77.8, north: 29.2}
+  variable_id: modis_aod
+  start: 2001-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 28.6, lon: 77.2}
+
+- id: sahel-greening
+  title: Is the Sahel turning greener?
+  question: Is vegetation along the southern edge of the Sahara recovering after the great droughts?
+  bbox: {west: -10, south: 12, east: 20, north: 16}
+  variable_id: modis_ndvi
+  start: 2001-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 14, lon: 5}
+
+- id: gulf-sst
+  title: Is the Gulf of Mexico heating up?
+  question: How fast is the surface of the Gulf of Mexico warming, the water that fuels Atlantic hurricanes?
+  bbox: {west: -97, south: 18, east: -81, north: 30}
+  variable_id: modis_sst
+  start: 2003-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 24, lon: -89}
