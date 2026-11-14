@@ -1,0 +1,134 @@
+# API contract (v1) — backend and frontend MUST both follow this exactly
+
+Base path: `/api`. JSON everywhere, snake_case keys. Dates are ISO `YYYY-MM-DD`. Times UTC.
+
+## Shared types
+
+```ts
+type BBox = { west: number; south: number; east: number; north: number }   // degrees, lon -180..180, lat -90..90, west<east (no antimeridian crossing in v1)
+
+type Sphere = "atmosphere" | "land" | "ocean" | "water"
+
+type Variable = {
+  id: string                 // e.g. "merra2_t2m"
+  name: string               // "Surface air temperature"
+  short_definition: string   // 1–2 sentences, plain language for students
+  why_it_matters: string     // 1 sentence
+  units: string              // "°C"
+  sphere: Sphere
+  source: string             // "MERRA-2 (model reanalysis)"
+  mission_or_model: string   // "MERRA-2" | "MODIS" | "GPM" | "OMI" | "AIRS" | "GLDAS" ...
+  product: string            // NASA product id, e.g. "M2TMNXSLV.5.12.4:T2M"
+  temporal_resolution: "daily" | "monthly"
+  available_start: string    // date
+  available_end: string      // date
+  coverage: "global" | "land" | "ocean"
+}
+
+type ExampleCase = {
+  id: string
+  title: string              // "Is the Arctic warming faster?"
+  question: string           // the detective question, 1 sentence
+  bbox: BBox
+  variable_id: string
+  start: string
+  end: string
+  deseasonalize: boolean
+  center: { lat: number; lon: number }   // for globe fly-to
+}
+
+type AnalysisRequest = {
+  bbox: BBox
+  variable_id: string        // or "upload:<dataset_id>" for user data (bbox ignored then)
+  start: string
+  end: string
+  aggregation: "monthly" | "annual"     // default "monthly"
+  deseasonalize: boolean                // default true for monthly
+  alpha: number                         // significance level, default 0.05
+}
+
+type JobStatus = "queued" | "fetching" | "processing" | "analyzing" | "done" | "error"
+
+type Job = {
+  id: string
+  status: JobStatus
+  progress: number           // 0..1
+  message: string | null     // human readable stage message or error message
+  request: AnalysisRequest
+  result: AnalysisResult | null
+  created_at: string         // ISO datetime
+}
+
+type SeriesPoint = {
+  date: string
+  value: number | null       // raw area-mean (after aggregation)
+  deseasonalized: number | null  // anomaly series if deseasonalize, else null
+  trend: number | null       // fitted OLS trend value at this date (on the analyzed series)
+  ci_low: number | null      // 95%(1-alpha) CI of the mean trend line
+  ci_high: number | null
+}
+
+type TrendStats = {
+  n: number
+  slope_per_year: number
+  slope_per_decade: number
+  slope_ci_low_per_decade: number
+  slope_ci_high_per_decade: number
+  intercept: number
+  r_squared: number
+  t_stat: number
+  p_value: number            // OLS two-sided t-test on slope
+  mk_tau: number             // Mann-Kendall
+  mk_z: number
+  mk_p_value: number
+  sens_slope_per_decade: number
+  total_change: number       // slope * span in years
+  percent_change: number | null  // total_change / |mean| * 100, null if mean ~ 0
+  direction: "rising" | "falling" | "flat"
+  significant: boolean       // mk_p_value < alpha AND p_value < alpha  (both agree)
+  alpha: number
+}
+
+type AnalysisResult = {
+  variable: Variable         // for uploads, a synthesized Variable
+  bbox: BBox | null
+  analyzed_series: "raw" | "deseasonalized"
+  series: SeriesPoint[]
+  stats: TrendStats
+  summary: string            // plain-English verdict, e.g. "Rising by 0.42 °C per decade. Both tests agree this trend is significant (p < 0.001)."
+  synthetic: boolean         // true when demo/synthetic data was used
+  provider: string           // "synthetic" | "giovanni" | "upload"
+  warnings: string[]         // e.g. "Fewer than 10 years of data: trends may not be reliable."
+}
+
+type Dataset = { id: string; name: string; units: string; n: number; start: string; end: string; created_at: string }
+
+type ChatMessage = { role: "user" | "assistant"; content: string }
+type ChatRequest = { messages: ChatMessage[]; context: { bbox: BBox | null; variable_id: string | null; result_summary: string | null } }
+type ChatResponse = { message: ChatMessage; stub: boolean }
+
+type ApiError = { detail: string }   // FastAPI default shape; 4xx/5xx
+```
+
+## Endpoints
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/api/health` | – | `{ status: "ok", provider: string, version: string }` |
+| GET | `/api/variables` | – | `Variable[]` |
+| GET | `/api/variables/{id}` | – | `Variable` (404 if unknown) |
+| GET | `/api/examples` | – | `ExampleCase[]` |
+| POST | `/api/analyses` | `AnalysisRequest` | `Job` (status `queued`, 202) |
+| GET | `/api/analyses/{job_id}` | – | `Job` (404 if unknown) |
+| GET | `/api/analyses/{job_id}/csv` | – | `text/csv` of `series` (409 if not done) |
+| POST | `/api/datasets` | multipart `file` (CSV with header `date,value`), optional form fields `name`, `units` | `Dataset` (201). 422 with clear `detail` on bad CSV |
+| GET | `/api/datasets` | – | `Dataset[]` |
+| DELETE | `/api/datasets/{id}` | – | 204 |
+| POST | `/api/chat` | `ChatRequest` | `ChatResponse` |
+
+Validation (422): bbox must have west<east, south<north, within range, area not degenerate; start<end; dates
+inside variable availability (clamp + warning is acceptable instead of erroring); unknown variable → 404.
+
+Frontend polls `GET /api/analyses/{id}` every ~400 ms until `done`/`error`. Synthetic provider should
+take a short artificial delay (~0.3 s per stage, configurable `TD_SYNTHETIC_DELAY`) so the progress UI is
+visible.
