@@ -6,6 +6,7 @@ from app.providers.base import (
     ProviderError,
     Route,
     create_provider,
+    fetch_progress,
     register_provider,
     registered_providers,
     route_for,
@@ -14,5 +15,5 @@ from app.providers.upload import InvalidCSV, UploadProvider, UploadStore, datase
 
 __all__ = [
     "DataProvider", "InvalidCSV", "ProviderError", "Route", "UploadProvider", "UploadStore",
-    "create_provider", "dataset_variable", "register_provider", "registered_providers", "route_for",
+    "create_provider", "dataset_variable", "fetch_progress", "register_provider", "registered_providers", "route_for",
 ]

@@ -86,6 +86,8 @@ type State = {
   activeExample: ExampleCase | null;
 
   chatOpen: boolean;
+  /** A short note shown over the map for a few seconds (e.g. "your area was enlarged"). */
+  mapNotice: string | null;
 
   /** Turn the globe (without zooming) to face a place, e.g. the station behind a record. */
   peek: (LatLon & { nonce: number }) | null;
@@ -140,6 +142,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   activeExample: null,
 
   chatOpen: false,
+  mapNotice: null,
 
   peek: null,
   pendingRun: false,

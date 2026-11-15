@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Button } from '../../components/Button';
+import { mapConfig } from '../../config/map';
 import { needsNoArea, useStore } from '../../state/store';
 import { wrapLon } from '../../lib/geo';
 import { IconBack, IconList, IconRect, IconUpload } from '../../components/icons';
@@ -51,6 +53,20 @@ export function MapHint() {
   const bbox = useStore((s) => s.bbox);
   const noArea = useStore(needsNoArea);
   const casesOpen = useStore((s) => s.flat && s.casesOpen);
+  const notice = useStore((s) => s.mapNotice);
+  const set = useStore((s) => s.set);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => set({ mapNotice: null }), mapConfig.noticeMs);
+    return () => clearTimeout(t);
+  }, [notice, set]);
+  if (notice) {
+    return (
+      <p className="map-hint" role="status">
+        {notice}
+      </p>
+    );
+  }
   if (bbox && !drawing) return null;
   if (casesOpen && !drawing) return null;
   if (!drawing && noArea) return null;

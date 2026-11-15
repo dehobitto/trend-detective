@@ -47,7 +47,7 @@ import pandas as pd
 
 from app.catalog.models import CatalogVariable
 from app.config import Settings
-from app.providers.base import ProviderError, register_provider
+from app.providers.base import ProviderError, register_provider, report_progress
 from app.schemas.common import BBox
 
 log = logging.getLogger(__name__)
@@ -497,8 +497,13 @@ class EarthdataProvider:
 
         results: dict[str, float | None] = {}
         errors: list[str] = []
+        total = len(urls)
+        step = max(1, total // 100)
+        report_progress(0, total)
         with ThreadPoolExecutor(max_workers=self._workers) as pool:
-            for date, value, error in pool.map(one, urls.items()):
+            for done, (date, value, error) in enumerate(pool.map(one, urls.items()), start=1):
+                if done % step == 0 or done == total:
+                    report_progress(done, total)
                 if error is None:
                     results[date] = value
                 else:

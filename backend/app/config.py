@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     earthdata_password: str | None = Field(
         default=None, validation_alias=AliasChoices("TD_EARTHDATA_PASSWORD", "EARTHDATA_PASSWORD", "EARTHDATA_PASS")
     )
-    earthdata_workers: int = 8
+    earthdata_workers: int = 16
     """Parallel OPeNDAP requests per analysis (each is one small granule subset)."""
     appeears_wait: float = 90.0
     """Seconds an analysis waits for a running AppEEARS task before answering "still preparing" (the frontend

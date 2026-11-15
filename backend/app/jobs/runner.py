@@ -18,7 +18,7 @@ from app.processing import preprocess as prep
 from app.processing import timeseries as ts
 from app.processing import trends
 from app.processing.summary import build_summary
-from app.providers import DataProvider, ProviderError, UploadProvider
+from app.providers import DataProvider, ProviderError, UploadProvider, fetch_progress
 from app.schemas.analysis import AnalysisRequest, AnalysisResult, SeriesPoint, TrendStats
 
 log = logging.getLogger(__name__)
@@ -62,7 +62,16 @@ class AnalysisRunner:
         plan = resolve(request, self.catalog, self.provider, self.uploads)
         provider = plan.provider
         self._stage(job_id, "fetching", 0.1, f"Fetching {plan.variable.name} data from {_source(plan)}…")
-        monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
+
+        def on_progress(done: int, total: int) -> None:
+            self._stage(
+                job_id, "fetching", 0.1 + 0.35 * done / max(total, 1),
+                f"Downloading from NASA: {done} of {total} files. "
+                "A new area takes a while the first time; after that it is instant.",
+            )
+
+        with fetch_progress(on_progress):
+            monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
 
         self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…")
         is_monthly = plan.aggregation == "monthly"

@@ -16,7 +16,9 @@ import the module in ``app/providers/__init__.py`` and map the catalog ``access`
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -25,6 +27,29 @@ import pandas as pd
 from app.catalog.models import CatalogVariable
 from app.config import Settings
 from app.schemas.common import BBox
+
+
+ProgressCallback = Callable[[int, int], None]
+"""``(done, total)`` download steps; called by providers while ``fetch`` runs."""
+
+_progress: ContextVar[ProgressCallback | None] = ContextVar("fetch_progress", default=None)
+
+
+@contextmanager
+def fetch_progress(callback: ProgressCallback) -> Iterator[None]:
+    """Route ``report_progress`` calls made during ``fetch`` (same thread) to ``callback``."""
+    token = _progress.set(callback)
+    try:
+        yield
+    finally:
+        _progress.reset(token)
+
+
+def report_progress(done: int, total: int) -> None:
+    """Providers call this as slow downloads advance. A no-op unless a job is listening."""
+    callback = _progress.get()
+    if callback is not None:
+        callback(done, total)
 
 
 class ProviderError(Exception):

@@ -6,8 +6,9 @@ export const appConfig = {
   healthTimeoutMs: 5000,
   /** Job polling interval (API.md suggests ~400 ms). */
   pollIntervalMs: 400,
-  /** Give up polling after this long. */
-  pollTimeoutMs: 120_000,
+  /** Give up only if the job shows no progress for this long. A first download for a new area can take
+   *  several minutes, but the backend reports progress all along, so there is no fixed overall limit. */
+  pollStallMs: 180_000,
   /** Default analysis settings. */
   defaults: {
     start: '2003-01-01',

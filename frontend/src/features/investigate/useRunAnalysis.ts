@@ -12,11 +12,18 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function pollAnalysis(req: AnalysisRequest, onUpdate: (job: Job) => void, cancelled: () => boolean): Promise<Job | null> {
   let job = await api.createAnalysis(req);
-  const t0 = Date.now();
+  let lastChange = Date.now();
+  let lastMark = '';
   while (!cancelled()) {
     onUpdate(job);
     if (job.status === 'done' || job.status === 'error') return job;
-    if (Date.now() - t0 > appConfig.pollTimeoutMs) throw new Error('The analysis is taking too long. Try a shorter date range, then run it again.');
+    const mark = `${job.status}|${job.progress}|${job.message ?? ''}`;
+    if (mark !== lastMark) {
+      lastMark = mark;
+      lastChange = Date.now();
+    } else if (Date.now() - lastChange > appConfig.pollStallMs) {
+      throw new Error("NASA's data server stopped responding. Wait a minute and run it again: what was already downloaded is kept.");
+    }
     await sleep(appConfig.pollIntervalMs);
     job = await api.getAnalysis(job.id);
   }

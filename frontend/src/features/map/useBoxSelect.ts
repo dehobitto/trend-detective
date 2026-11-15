@@ -28,6 +28,16 @@ function nearOutline(map: MlMap, b: BBox, p: { x: number; y: number }, e = EDGE_
   return withinOuter && !withinInner;
 }
 
+/** Grow a too-small rectangle to the minimum size around its center (kept inside the map). */
+function enlarged(b: BBox, min: number): BBox {
+  const r = (x: number) => Math.round(x * 100) / 100;
+  const w = Math.max(b.east - b.west, min);
+  const h = Math.max(b.north - b.south, min);
+  const west = clamp((b.west + b.east) / 2 - w / 2, -180, 180 - w);
+  const south = clamp((b.south + b.north) / 2 - h / 2, -90, 90 - h);
+  return { west: r(west), east: r(west + w), south: r(south), north: r(south + h) };
+}
+
 function shifted(b: BBox, dLng: number, dLat: number): BBox {
   const w = b.east - b.west;
   const h = b.north - b.south;
@@ -83,12 +93,26 @@ export function useBoxSelect(map: MlMap | null) {
     const finish = () => {
       if (!gesture) return;
       const s = useStore.getState();
-      const small = draft && (draft.east - draft.west < mapConfig.minBoxDegrees || draft.north - draft.south < mapConfig.minBoxDegrees);
-      if (draft && !small) {
-        s.setBBox(draft);
+      const min = mapConfig.minBoxDegrees;
+      let box = draft;
+      if (box && gesture.kind === 'draw') {
+        const a = map.project([box.west, box.north]);
+        const b = map.project([box.east, box.south]);
+        if (Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) < mapConfig.minDragPx) {
+          box = null; // a click, not a drag
+        } else if (box.east - box.west < min || box.north - box.south < min) {
+          box = enlarged(box, min);
+          s.set({
+            mapNotice: `That area is smaller than one cell of NASA's data grid, so it was enlarged to ${min}° (about ${Math.round(min * 111)} km) around the spot you picked.`,
+          });
+        }
+      }
+      if (box) {
+        s.setBBox(box);
+        setBBoxData(map, box);
         if (gesture.kind === 'draw') s.set({ drawing: false });
       } else {
-        setBBoxData(map, s.bbox); // too small or no movement: put the old box back
+        setBBoxData(map, s.bbox); // no movement: put the old box back
       }
       gesture = null;
       draft = null;

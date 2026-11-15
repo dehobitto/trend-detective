@@ -97,8 +97,13 @@ export const mapConfig = {
   fitMaxZoom: 9,
   /** Padding (px) when fitting a bbox; the right side leaves room for the panel. */
   fitPadding: { top: 80, bottom: 150, left: 80, right: 80 },
-  /** Ignore rectangles smaller than this (degrees) — almost certainly a mis-click. */
+  /** Smallest area side (degrees), about one cell of the coarsest common grids (0.25° ≈ 25 km). A smaller
+   *  rectangle is enlarged to this around its center, with a note on the map. */
   minBoxDegrees: 0.25,
+  /** A drag shorter than this (screen px) is a click, not a rectangle. */
+  minDragPx: 6,
+  /** How long a map note (e.g. "area enlarged") stays up (ms). */
+  noticeMs: 6000,
   /** Fly/animation duration (ms) on the map; 0 under prefers-reduced-motion. */
   flyMs: 1200,
 
