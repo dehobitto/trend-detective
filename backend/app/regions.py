@@ -93,7 +93,10 @@ def approximate(geometry: dict, *, max_cells: int = MAX_CELLS) -> tuple[list[BBo
     squares = [BBox(west=r(w), south=r(s), east=r(e), north=r(n)) for w, s, e, n in chosen]
     union = BBox(west=min(c.west for c in squares), south=min(c.south for c in squares),
                  east=max(c.east for c in squares), north=max(c.north for c in squares))
-    outline = mapping(geom.simplify(min(step / 6, 0.05), preserve_topology=True))
+    # Drawn outline: keep the real boundary's detail, simplified only in proportion to the region's size
+    # (a city keeps its curves, a country does not ship megabytes of coastline).
+    tolerance = max(east - west, north - south) / 1500
+    outline = mapping(geom.simplify(tolerance, preserve_topology=True))
     return squares, step, union, json.loads(json.dumps(outline))
 
 
@@ -120,7 +123,7 @@ class RegionService:
         with self._lock:
             if osm in self._memo:
                 return self._memo[osm]
-        path = self._cache_dir / f"{osm}.json"
+        path = self._cache_dir / f"{osm}.v2.json"  # v2: finer outline
         if path.exists():
             try:
                 region = RegionShape.model_validate_json(path.read_text(encoding="utf-8"))
@@ -144,7 +147,7 @@ class RegionService:
         return region
 
     def _lookup(self, osm: str) -> dict:
-        params = {"osm_ids": osm, "format": "jsonv2", "polygon_geojson": 1, "polygon_threshold": 0.005, "accept-language": "en"}
+        params = {"osm_ids": osm, "format": "jsonv2", "polygon_geojson": 1, "polygon_threshold": 0.0003, "accept-language": "en"}
         try:
             with self._throttle():
                 r = self._client.get(self._lookup_url, params=params)
