@@ -80,7 +80,8 @@ export default function App() {
         </div>
       )}
 
-      <PlaceSearch />
+      {/* Home screen: just the headline and the globe. The search appears once the map is open. */}
+      {onMap && <PlaceSearch />}
       {server === 'offline' && (
         <div className="server-down" role="alert">
           <p className="server-down__title">Can't reach the server</p>

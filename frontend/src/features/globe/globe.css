@@ -148,8 +148,8 @@
 /* ---------- home screen headline (wide screens): big, top-left, spilling a little onto the globe ---------- */
 .hero {
   position: absolute;
-  left: calc(var(--edge) + 10px);
-  top: 78px; /* just under the search pill */
+  left: calc(var(--edge) + 6px);
+  top: var(--edge); /* the very top-left corner: no search on the home screen */
   z-index: 4;
   pointer-events: none;
   color: #f4f6f8;
