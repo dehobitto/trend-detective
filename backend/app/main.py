@@ -12,6 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app import seed
 from app.api import api_router
 from app.api.deps import Services
 from app.api.errors import unhandled_error_handler, validation_error_handler
@@ -45,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(title="Trend Detective API", version=settings.version)
+    seed.install(settings.cache_seed_dir, Path(settings.cache_dir))
     app.state.services = build_services(settings)
     app.add_middleware(
         CORSMiddleware,

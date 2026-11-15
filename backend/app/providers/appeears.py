@@ -240,6 +240,13 @@ class AppeearsProvider:
             if s.earthdata_username and s.earthdata_password:
                 try:
                     r = httpx.post(f"{API}/login", auth=(s.earthdata_username, s.earthdata_password), timeout=self._timeout)
+                except httpx.HTTPError as exc:  # timeout / no connection: the password is not the problem
+                    log.warning("AppEEARS login unreachable: %s", exc)
+                    raise Unreachable("Couldn't reach NASA AppEEARS. Please try again later.") from exc
+                if r.status_code >= 500:
+                    log.warning("AppEEARS login -> %s", r.status_code)
+                    raise Unreachable(f"NASA AppEEARS is having trouble right now ({r.status_code}). Please try again later.")
+                try:
                     r.raise_for_status()
                     token = r.json()["token"]
                 except (httpx.HTTPError, KeyError, ValueError) as exc:

@@ -36,19 +36,19 @@
   deseasonalize: true
   center: {lat: 28.6, lon: 77.2}
   related_variable_id: merra2_bc
-  takeaway: NO₂ over Delhi keeps rising as traffic and coal power grow, with a clear dip during the spring 2020 lockdown that shows how much of it comes from human activity.
+  takeaway: Not on the whole. NO₂ over Delhi has stayed around the same level since 2005, with no significant trend; a result like that is an answer too. The clearest change is short. The COVID lockdown springs of 2020 and 2021 fall well below normal, which shows how much of this gas comes from traffic and industry.
 
 - id: china-so2
   title: Did China clean up its coal smoke?
-  question: Did sulfur dioxide from coal burning over the North China Plain drop after power plants were fitted with scrubbers around 2010?
+  question: Did the sulfate haze from coal burning over the North China Plain drop after China's clean-air push of the 2010s?
   bbox: {west: 113, south: 34, east: 119, north: 40}
-  variable_id: merra2_so2
-  start: 2000-01-01
+  variable_id: merra2_so4
+  start: 2011-01-01
   end: 2025-12-31
   deseasonalize: true
   center: {lat: 37, lon: 116}
-  related_variable_id: merra2_so4
-  takeaway: SO₂ climbed until about 2010 and then fell steeply, so the record as a whole is falling; a sign that cleaner coal plants and closures worked.
+  related_variable_id: merra2_so2
+  takeaway: Sulfate haze, which forms in the air from coal-burning SO₂, has fallen by about 40% since 2011 and the drop is significant, a sign that scrubbers and closed coal plants worked. Compare with MERRA-2's SO₂ gas, which stays flat; it follows older emission estimates, while sulfate is kept close to satellite haze measurements. Not every dataset sees every change.
 
 - id: phoenix-nights
   title: Is Phoenix heating up?

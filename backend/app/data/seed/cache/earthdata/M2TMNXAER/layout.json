@@ -1,0 +1,38 @@
+{
+"BCSMASS": {
+"path": "/BCSMASS",
+"dims": [
+"time",
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": 999999987000000.0,
+"missing_value": 999999987000000.0
+}
+},
+"SO2SMASS": {
+"path": "/SO2SMASS",
+"dims": [
+"time",
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": 999999987000000.0,
+"missing_value": 999999987000000.0
+}
+},
+"SO4SMASS": {
+"path": "/SO4SMASS",
+"dims": [
+"time",
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": 999999987000000.0,
+"missing_value": 999999987000000.0
+}
+}
+}

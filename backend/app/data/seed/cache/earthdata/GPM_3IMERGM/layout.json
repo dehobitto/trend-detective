@@ -1,0 +1,13 @@
+{
+"precipitation": {
+"path": "/Grid/precipitation",
+"dims": [
+"time",
+"lon",
+"lat"
+],
+"attrs": {
+"_FillValue": -9999.900391
+}
+}
+}

@@ -1,0 +1,16 @@
+{
+"GWS_tavg": {
+"path": "/GWS_tavg",
+"dims": [
+"time",
+"lat",
+"lon"
+],
+"attrs": {
+"scale_factor": 1.0,
+"add_offset": 0.0,
+"missing_value": -9999.0,
+"_FillValue": -9999.0
+}
+}
+}

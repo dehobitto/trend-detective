@@ -1,0 +1,38 @@
+{
+"2016-01-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/001/VNP46A3.A2016001.h25v06.002.2025101112529.h5"
+},
+"2016-02-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/032/VNP46A3.A2016032.h25v06.002.2025101114433.h5"
+},
+"2016-03-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/061/VNP46A3.A2016061.h25v06.002.2025101120430.h5"
+},
+"2016-04-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/092/VNP46A3.A2016092.h25v06.002.2025101122336.h5"
+},
+"2016-05-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/122/VNP46A3.A2016122.h25v06.002.2025101123647.h5"
+},
+"2016-06-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/153/VNP46A3.A2016153.h25v06.002.2025101125153.h5"
+},
+"2016-07-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/183/VNP46A3.A2016183.h25v06.002.2025101130850.h5"
+},
+"2016-08-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/214/VNP46A3.A2016214.h25v06.002.2025101173339.h5"
+},
+"2016-09-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/245/VNP46A3.A2016245.h25v06.002.2025101134140.h5"
+},
+"2016-10-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/275/VNP46A3.A2016275.h25v06.002.2025101140042.h5"
+},
+"2016-11-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/306/VNP46A3.A2016306.h25v06.002.2025101141901.h5"
+},
+"2016-12-01": {
+"h25v06": "https://ladsweb.modaps.eosdis.nasa.gov/opendap/RemoteResources/laads/allData/5200/VNP46A3/2016/336/VNP46A3.A2016336.h25v06.002.2025101173806.h5"
+}
+}

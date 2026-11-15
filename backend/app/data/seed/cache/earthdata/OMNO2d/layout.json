@@ -1,0 +1,14 @@
+{
+"ColumnAmountNO2TropCloudScreened": {
+"path": "/HDFEOS/GRIDS/ColumnAmountNO2/Data_Fields/ColumnAmountNO2TropCloudScreened",
+"dims": [
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": -1.2676506e+30,
+"scale_factor": 1.0,
+"add_offset": 0.0
+}
+}
+}

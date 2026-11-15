@@ -27,7 +27,7 @@ def settings(tmp_path) -> Settings:
     # The test-only "fake" provider keeps API tests deterministic and offline; real providers have their own tests.
     return Settings(
         data_provider="fake", upload_dir=tmp_path / "uploads", cache_dir=tmp_path / "cache",
-        noaa_seed_dir=None,  # tests opt in to the bundled NOAA seed explicitly
+        noaa_seed_dir=None, cache_seed_dir=None,  # tests opt in to the bundled seeds explicitly
         earthdata_token=None, earthdata_username=None, earthdata_password=None,  # never use a real login
     )
 

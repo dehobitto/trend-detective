@@ -162,7 +162,8 @@ class BlackMarbleProvider(EarthdataProvider):
                 data = json.loads(path.read_text(encoding="utf-8"))
             else:
                 params = {
-                    "short_name": short_name, "version": version, "page_size": 2000,
+                    # LAADS registers VNP46A3 in CMR as version "2", not "002" (the file-name form): "002" finds nothing.
+                    "short_name": short_name, "version": version.lstrip("0") or "0", "page_size": 2000,
                     "temporal": f"{year}-01-01T00:00:00Z,{year}-12-31T23:59:59Z",
                     "bounding_box": f"{bbox.west},{bbox.south},{bbox.east},{bbox.north}",
                 }

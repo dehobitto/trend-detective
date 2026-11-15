@@ -7,6 +7,7 @@ Run from ``backend/``::
     .venv/bin/python -m app.prefetch --earthdata  # only GES DISC + LAADS (night lights) via OPeNDAP
     .venv/bin/python -m app.prefetch --appeears   # only AppEEARS (MODIS LST, NDVI)
     .venv/bin/python -m app.prefetch --list       # show what would be downloaded
+    .venv/bin/python -m app.prefetch --save-seed  # copy the cache into app/data/seed/cache (commit it)
 
 NOAA: the three greenhouse-gas records (``TD_CACHE_DIR/noaa_gml/*.txt``).
 Earthdata (needs ``TD_EARTHDATA_TOKEN`` or username/password): each example case's variable and its
@@ -23,7 +24,9 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from pathlib import Path
 
+from app import seed
 from app.catalog import Catalog
 from app.config import get_settings
 from app.providers.appeears import AppeearsProvider, TaskPending
@@ -59,9 +62,17 @@ def main() -> None:
     parser.add_argument("--appeears", action="store_true", help="only AppEEARS")
     parser.add_argument("--wait", type=float, default=60, help="minutes to wait for AppEEARS tasks (default 60)")
     parser.add_argument("--list", action="store_true", help="print the plan and exit")
+    parser.add_argument("--save-seed", action="store_true",
+                        help="copy what is cached into app/data/seed/cache (to commit) and exit")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     settings = get_settings()
+    if args.save_seed:
+        if settings.cache_seed_dir is None:
+            raise SystemExit("TD_CACHE_SEED_DIR is disabled")
+        written = seed.export(Path(settings.cache_dir), Path(settings.cache_seed_dir))
+        print(f"Seed: {written} file(s) updated in {settings.cache_seed_dir}")
+        return
     catalog = Catalog.from_dir()
     plan = [(e, v, b, "earthdata") for e, v, b in plan_for(catalog, "earthdata")]
     plan += [(e, v, b, "blackmarble") for e, v, b in plan_for(catalog, "blackmarble")]

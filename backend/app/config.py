@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     noaa_seed_dir: Path | None = BACKEND_DIR / "app" / "data" / "seed" / "noaa_gml"
     """Read-only NOAA GML files committed with the code; used when a file is not cached and NOAA can't be
     reached (copied into the cache, so a fresh download is tried again after the TTL). ``None`` disables it."""
+    cache_seed_dir: Path | None = BACKEND_DIR / "app" / "data" / "seed" / "cache"
+    """Real-data cache committed with the code (example cases); copied into ``cache_dir`` at startup for files
+    the cache does not have yet, so a fresh deploy answers the examples instantly. ``None`` disables it."""
     upload_dir: Path = BACKEND_DIR / "data" / "uploads"
     max_upload_bytes: int = 5 * 1024 * 1024
     max_jobs: int = 500
