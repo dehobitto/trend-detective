@@ -41,7 +41,8 @@ type ExampleCase = {
   deseasonalize: boolean
   center: { lat: number; lon: number }   // for globe fly-to
   related_variable_id: string | null     // optional "compare with" variable for the same region (e.g. groundwater vs rainfall)
-  takeaway: string | null                // 1 sentence explaining what the pair/trend shows
+  takeaway: null                         // always null: the AI field guide interprets each actual result
+                                         // (frontend: features/results/AiInsight.tsx); kept for compatibility
 }
 
 type AnalysisRequest = {

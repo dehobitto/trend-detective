@@ -33,7 +33,7 @@ export function ResultsView({ job }: { job: Job }) {
 
   return (
     <div className="results" ref={top}>
-      <VerdictCard result={result} takeaway={fromExample?.takeaway} />
+      <VerdictCard result={result} />
       {warnings.length > 0 && (
         <ul className="warnings" aria-label="Warnings">
           {warnings.map((w) => (

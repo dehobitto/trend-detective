@@ -12,7 +12,6 @@
   deseasonalize: true
   center: {lat: 30.5, lon: 75.5}
   related_variable_id: gpm_precipitation
-  takeaway: Groundwater falls steadily while rainfall shows no significant trend, so the loss is not caused by less rain; it points to people pumping water for irrigation faster than it is refilled.
 
 - id: punjab-rain
   title: Did the rain change in Punjab?
@@ -24,7 +23,6 @@
   deseasonalize: true
   center: {lat: 30.5, lon: 75.5}
   related_variable_id: gldas_gws
-  takeaway: Rainfall goes up and down from year to year but has no significant trend, so the climate did not take the groundwater away.
 
 - id: delhi-no2
   title: Is Delhi's air getting dirtier?
@@ -36,7 +34,6 @@
   deseasonalize: true
   center: {lat: 28.6, lon: 77.2}
   related_variable_id: merra2_bc
-  takeaway: Not on the whole. NO₂ over Delhi has stayed around the same level since 2005, with no significant trend; a result like that is an answer too. The clearest change is short. The COVID lockdown springs of 2020 and 2021 fall well below normal, which shows how much of this gas comes from traffic and industry.
 
 - id: china-so2
   title: Did China clean up its coal smoke?
@@ -48,7 +45,6 @@
   deseasonalize: true
   center: {lat: 37, lon: 116}
   related_variable_id: merra2_so2
-  takeaway: Sulfate haze, which forms in the air from coal-burning SO₂, has fallen by about 40% since 2011 and the drop is significant, a sign that scrubbers and closed coal plants worked. Compare with MERRA-2's SO₂ gas, which stays flat; it follows older emission estimates, while sulfate is kept close to satellite haze measurements. Not every dataset sees every change.
 
 - id: phoenix-nights
   title: Is Phoenix heating up?
@@ -60,7 +56,6 @@
   deseasonalize: true
   center: {lat: 33.45, lon: -112.07}
   related_variable_id: modis_lst_day
-  takeaway: Phoenix nights warmed by about 2.4 °C since 2000, a significant trend several times faster than global warming, while daytime ground temperature shows no significant change. Concrete and asphalt store the day's heat and release it at night; that is the urban heat island.
 
 - id: mauna-loa-co2
   title: How fast is CO₂ rising?
@@ -72,7 +67,6 @@
   deseasonalize: true
   center: {lat: 19.54, lon: -155.58}
   related_variable_id: noaa_co2_marine
-  takeaway: CO₂ has risen every single year, from about 315 to over 420 ppm, and the rise is speeding up as we burn more fossil fuel; the yearly wiggle is plants breathing in summer.
 
 - id: global-methane
   title: Is methane still climbing?
@@ -84,7 +78,6 @@
   deseasonalize: true
   center: {lat: 0, lon: -160}
   related_variable_id: noaa_co2_marine
-  takeaway: Methane rose quickly, paused around 2000–2006, and then started climbing again even faster, driven by fossil fuels, farming, landfills and wetlands.
 
 - id: rondonia-forest
   title: Is the Amazon in Rondônia losing its forest?
@@ -95,7 +88,6 @@
   end: 2025-12-31
   deseasonalize: true
   center: {lat: -10.0, lon: -63.0}
-  takeaway: A falling NDVI here means fewer trees and more pasture and fields; check whether the drop is significant and how fast it goes.
 
 - id: sahel-green
   title: Is the Sahel turning into desert?
@@ -107,7 +99,6 @@
   deseasonalize: true
   center: {lat: 14.0, lon: 6.5}
   related_variable_id: gpm_precipitation
-  takeaway: Here greenness and rainfall both rise significantly, so this part of the Sahel is greening mostly because the rains came back. Where vegetation changes while rain does not, people (grazing, farming) are the more likely cause.
 
 - id: delhi-lights
   title: Is Delhi spreading out at night?
@@ -119,4 +110,3 @@
   deseasonalize: true
   center: {lat: 28.6, lon: 77.2}
   related_variable_id: omi_no2
-  takeaway: Delhi's nights got about 40% brighter since 2012, a significant rise as the city spreads, yet NO₂ over the same area did not rise significantly. A growing city does not automatically mean dirtier air; cleaner fuels and engines can offset the growth.

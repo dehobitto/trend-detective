@@ -85,7 +85,7 @@ type State = {
 
   job: Job | null;
   runError: string | null;
-  /** The example case the user opened (drives the takeaway and the "Compare with" action). */
+  /** The example case the user opened (drives the "Compare with" action). */
   activeExample: ExampleCase | null;
 
   chatOpen: boolean;

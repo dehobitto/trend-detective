@@ -40,7 +40,8 @@ docs/       SPEC.md (this), API.md (contract — both sides MUST follow it)
 5. **Example cases** (the one-click presets the brief asks for): set bbox + variable + dates in one click
    (Punjab groundwater vs. rainfall, Delhi NO₂, China sulfate haze, Phoenix nights, Mauna Loa CO₂, global
    methane, Rondônia forest NDVI, Sahel greening, Delhi night lights). Defined in backend catalog, served via
-   API; every takeaway was checked against the real data for the case's default dates.
+   API. There is no fixed takeaway text: under every verdict the AI field guide will explain the actual
+   result (placeholder `features/results/AiInsight.tsx` until the chatbot is plugged in).
 6. **Bring your own data**: upload a CSV (`date,value`) → appears as a dataset you can analyze/plot with the
    same pipeline.
 7. **Field guide chat (stub)**: floating button bottom-right opens a chat drawer. Backend `/api/chat`

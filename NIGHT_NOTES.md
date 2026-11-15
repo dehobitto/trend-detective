@@ -1,10 +1,12 @@
 # Status notes (2026-11-15, afternoon)
 
 ## State
-- Backend: `pytest` 100 passed. Frontend: `npm run build` passes.
-- All data is real. Every example case was run on real NASA/NOAA data and its takeaway checked against the
-  numbers (default dates). The cases' series are committed in `backend/app/data/seed/cache/` (3.6 MB) and
-  installed into the cache at startup: with an empty cache and no internet, every case answers in ~0.2 s.
+- Backend: `pytest` 104 passed. Frontend: `npm run build` passes.
+- All data is real. Every example case was run on real NASA/NOAA data (default dates); results below.
+  Cases carry no fixed takeaway text any more: the AI field guide will interpret each actual result
+  (placeholder in `frontend/src/features/results/AiInsight.tsx`).
+- The cases' series are committed in `backend/app/data/seed/cache/` (3.6 MB) and installed into the cache at
+  startup: with an empty cache and no internet, every case answers in ~0.2 s.
 
 | Case | Real result |
 |---|---|
@@ -34,8 +36,6 @@
   lights and ~6 min for a 5°×5° area (time is set by the number of requests, not their size).
 - OMI NO₂ is sampled on 4 days per month and GLDAS on the 1st: long trends are fine, single months are noisier.
 - MODIS is 0.05° (~5 km): fine for city-sized areas and up, coarse for a single field or district.
-- Example takeaways are fixed text checked for the default dates: if a student changes a case's dates, the
-  chart may tell a different story than the takeaway.
 - `appeears` provider is kept but unused (no catalog variable routes to it).
 - Pinch globe → map not tested on a real phone. Bundle chunks > 1 MB (three.js, maplibre).
 - `requirements.txt` unpinned; Docker image never built locally (first build will be in CI).

@@ -1,11 +1,12 @@
 import type { AnalysisResult } from '../../api/types';
 import { Badge } from '../../components/Badge';
 import { fmtSigned, unitSuffix } from '../../lib/format';
+import { AiInsight } from './AiInsight';
 
 const WORD = { rising: 'Rising', falling: 'Falling', flat: 'Flat' } as const;
 
-/** The answer, first: direction + rate in the trend colour, then the plain-English summary. */
-export function VerdictCard({ result, compact = false, takeaway }: { result: AnalysisResult; compact?: boolean; takeaway?: string | null }) {
+/** The answer, first: direction + rate in the trend colour, the plain-English summary, then the AI's reading. */
+export function VerdictCard({ result, compact = false }: { result: AnalysisResult; compact?: boolean }) {
   const { stats, variable } = result;
   const tone = stats.direction === 'rising' ? 'rise' : stats.direction === 'falling' ? 'fall' : 'flat';
   return (
@@ -20,7 +21,7 @@ export function VerdictCard({ result, compact = false, takeaway }: { result: Ana
         </span>
       </div>
       <p className="verdict__summary">{result.summary}</p>
-      {takeaway && <p className="verdict__takeaway">{takeaway}</p>}
+      {!compact && <AiInsight result={result} />}
       <div className="verdict__badges">
         <Badge title={stats.significant ? 'Both tests agree the trend is unlikely to be chance' : 'The tests could not rule out chance'}>
           <svg width="18" height="6" aria-hidden>

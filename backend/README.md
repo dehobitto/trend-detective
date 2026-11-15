@@ -44,11 +44,11 @@ block at the end of `variables.yaml` shows where they go.
 - **Unit conversion** from the native product units is stored per variable in the internal `conversion`
   block (`value * scale + offset`, applied with `CatalogVariable.to_catalog_units`).
 - `examples.yaml` holds the one-click detective cases, each with an optional `related_variable_id`
-  ("compare with", e.g. Punjab groundwater vs. rainfall) and a short `takeaway`. 10 cases: Punjab
+  ("compare with", e.g. Punjab groundwater vs. rainfall); `takeaway` is always null (the AI field guide
+  interprets the actual result instead). 10 cases: Punjab
   groundwater / rain, Delhi NO₂, China sulfate haze (vs. SO₂), Phoenix nights (vs. days), Mauna Loa CO₂,
   global methane, Rondônia forest (NDVI), Sahel greening (NDVI vs. rainfall) and Delhi night lights (vs. NO₂).
-  Every takeaway was checked against the real data for the case's default dates (2026-11-15); re-check
-  them if you change a case's area or dates.
+  What the real data shows for each case's default dates is in `NIGHT_NOTES.md` (useful context for the AI).
 
 ## Run
 

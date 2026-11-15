@@ -49,7 +49,7 @@ def test_variables_and_examples(client):
     examples = client.get("/api/examples").json()
     assert len(examples) == 10
     for e in examples:
-        assert e["variable_id"] in by_id and "center" in e and e["takeaway"]
+        assert e["variable_id"] in by_id and "center" in e and e["takeaway"] is None
         assert e["related_variable_id"] is None or e["related_variable_id"] in by_id
         assert (e["bbox"] is None) == (e["variable_id"] in series)
     punjab = next(e for e in examples if e["id"] == "punjab-groundwater")

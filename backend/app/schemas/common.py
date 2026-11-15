@@ -115,5 +115,6 @@ class ExampleCase(BaseModel):
     related_variable_id: str | None = None
     """Optional "compare with" variable for the same region (e.g. groundwater vs rainfall)."""
     takeaway: str | None = None
-    """One sentence explaining what the trend (or the pair) shows."""
+    """Always null: the interpretation comes from the AI field guide for the actual result (a fixed text could
+    contradict the chart once the student changes dates or area). Kept for API compatibility."""
 
