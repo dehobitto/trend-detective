@@ -1,0 +1,14 @@
+{
+"CMG_0_05_Deg_Monthly_NDVI": {
+"path": "/MOD_Grid_monthly_CMG_VI/Data_Fields/CMG_0_05_Deg_Monthly_NDVI",
+"dims": [
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": -3000.0,
+"scale_factor": 10000.0,
+"add_offset": 0.0
+}
+}
+}

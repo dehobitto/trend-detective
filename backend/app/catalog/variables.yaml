@@ -245,10 +245,10 @@
   map_layer: null
   location: null
 
-# ---------------------------------------------------------------- land: MODIS LST (AppEEARS) -------------
-# MOD11A2 (8-day composites, 1 km) through an AppEEARS area request: the provider reads AppEEARS'
-# per-date area statistics, applies the 0.02 scale factor if needed (-> Kelvin) and averages to months.
-# We show °C: value_K - 273.15. (MOD11C3, the 0.05° monthly product, is not offered by AppEEARS.)
+# ---------------------------------------------------------------- land: MODIS LST ------------------------
+# MOD11C3 monthly 0.05° climate-modeling grid through LP DAAC cloud OPeNDAP (earthdata provider: one small
+# subset request per month, ~30 s for a new area). UInt16 * 0.02 -> Kelvin; we show °C: value_K - 273.15.
+# (The 1 km MOD11A2 needs AppEEARS area tasks, whose queue took hours during the hackathon.)
 
 - id: modis_lst_day
   name: Daytime land surface temperature
@@ -258,10 +258,10 @@
   sphere: land
   source: MODIS on NASA's Terra satellite (converted from Kelvin)
   mission_or_model: MODIS
-  product: "MOD11A2.061:LST_Day_1km"
-  dataset: MODIS MOD11A2 v061
-  access: AppEEARS
-  temporal_resolution: 8-day
+  product: "MOD11C3.061:LST_Day_CMG"
+  dataset: MODIS MOD11C3 v061 (monthly, 0.05°)
+  access: Earthdata OPeNDAP
+  temporal_resolution: monthly
   available_start: 2000-03-01
   available_end: 2025-12-31
   coverage: land
@@ -270,7 +270,7 @@
               legend_url: https://gibs.earthdata.nasa.gov/legends/MODIS_Land_Surface_Temp_H.svg}
   location: null
   ratio_scale: false
-  conversion: {native_units: K, offset: -273.15, note: "MOD11A2 LST is in Kelvin (after the 0.02 scale factor)"}
+  conversion: {native_units: K, offset: -273.15, note: "MOD11C3 LST is in Kelvin (after the 0.02 scale factor)"}
 
 - id: modis_lst_night
   name: Nighttime land surface temperature
@@ -280,10 +280,10 @@
   sphere: land
   source: MODIS on NASA's Terra satellite (converted from Kelvin)
   mission_or_model: MODIS
-  product: "MOD11A2.061:LST_Night_1km"
-  dataset: MODIS MOD11A2 v061
-  access: AppEEARS
-  temporal_resolution: 8-day
+  product: "MOD11C3.061:LST_Night_CMG"
+  dataset: MODIS MOD11C3 v061 (monthly, 0.05°)
+  access: Earthdata OPeNDAP
+  temporal_resolution: monthly
   available_start: 2000-03-01
   available_end: 2025-12-31
   coverage: land
@@ -292,10 +292,10 @@
               legend_url: https://gibs.earthdata.nasa.gov/legends/MODIS_Land_Surface_Temp_H.svg}
   location: null
   ratio_scale: false
-  conversion: {native_units: K, offset: -273.15, note: "MOD11A2 LST is in Kelvin (after the 0.02 scale factor)"}
+  conversion: {native_units: K, offset: -273.15, note: "MOD11C3 LST is in Kelvin (after the 0.02 scale factor)"}
 
-# ---------------------------------------------------------------- land: MODIS NDVI (AppEEARS) -----------
-# MOD13A3 monthly 1 km NDVI through an AppEEARS area request (area statistics; 0.0001 scale applied if needed).
+# ---------------------------------------------------------------- land: MODIS NDVI ----------------------
+# MOD13C2 monthly 0.05° NDVI through LP DAAC cloud OPeNDAP (earthdata provider; stored x10000, divided there).
 
 - id: modis_ndvi
   name: Vegetation greenness (NDVI)
@@ -305,9 +305,9 @@
   sphere: land
   source: MODIS on NASA's Terra satellite
   mission_or_model: MODIS
-  product: "MOD13A3.061:_1_km_monthly_NDVI"
-  dataset: MODIS MOD13A3 v061
-  access: AppEEARS
+  product: "MOD13C2.061:CMG_0_05_Deg_Monthly_NDVI"
+  dataset: MODIS MOD13C2 v061 (monthly, 0.05°)
+  access: Earthdata OPeNDAP
   temporal_resolution: monthly
   available_start: 2000-02-01
   available_end: 2025-12-31

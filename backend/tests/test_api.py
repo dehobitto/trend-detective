@@ -30,9 +30,9 @@ def test_variables_and_examples(client):
     assert all(set(v) == VARIABLE_FIELDS for v in variables)  # internal ratio_scale/conversion hidden
     assert {v["sphere"] for v in variables} == {"atmosphere", "land", "water"}
     by_id = {v["id"]: v for v in variables}
-    assert by_id["modis_lst_night"]["units"] == "°C" and by_id["modis_lst_night"]["access"] == "AppEEARS"
-    assert by_id["modis_lst_night"]["product"] == "MOD11A2.061:LST_Night_1km"
-    assert by_id["modis_ndvi"]["access"] == "AppEEARS" and by_id["modis_ndvi"]["coverage"] == "land"
+    assert by_id["modis_lst_night"]["units"] == "°C" and by_id["modis_lst_night"]["access"] == "Earthdata OPeNDAP"
+    assert by_id["modis_lst_night"]["product"] == "MOD11C3.061:LST_Night_CMG"
+    assert by_id["modis_ndvi"]["access"] == "Earthdata OPeNDAP" and by_id["modis_ndvi"]["coverage"] == "land"
     assert all(v["map_layer"] is None or v["map_layer"]["kind"] == "gibs" for v in variables)
     assert by_id["gldas_gws"]["dataset"] == "GLDAS_CLSM025_DA1_D v2.2" and by_id["gldas_gws"]["coverage"] == "land"
     assert by_id["omi_no2"]["units"] == "10¹⁵ molecules/cm²"
@@ -97,7 +97,7 @@ def test_live_provider_routes_by_access_and_fails_gracefully(settings):
         assert isinstance(provider, LiveProvider)
         catalog = c.app.state.services.catalog
         assert provider.provider_for(catalog.get("gldas_gws")).name == "earthdata"
-        assert provider.provider_for(catalog.get("modis_lst_day")).name == "appeears"
+        assert provider.provider_for(catalog.get("modis_lst_day")).name == "earthdata"
         assert provider.provider_for(catalog.get("noaa_ch4_marine")).name == "noaa_gml"
         assert c.get("/api/health").json()["provider"] == "live"
         # no login and nothing cached: a clear error, never made-up data

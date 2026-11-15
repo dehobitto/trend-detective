@@ -1,0 +1,26 @@
+{
+"LST_Night_CMG": {
+"path": "/MODIS_MONTHLY_0_05DEG_CMG_LST/Data_Fields/LST_Night_CMG",
+"dims": [
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": 0.0,
+"scale_factor": 0.02,
+"add_offset": 0.0
+}
+},
+"LST_Day_CMG": {
+"path": "/MODIS_MONTHLY_0_05DEG_CMG_LST/Data_Fields/LST_Day_CMG",
+"dims": [
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": 0.0,
+"scale_factor": 0.02,
+"add_offset": 0.0
+}
+}
+}

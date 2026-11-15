@@ -21,6 +21,12 @@ MOD11A2_QC_Night_doy2001001_aid0001,QC_Night,aid0001,2001-01-01,500,0,3,3,1.0,1,
 MOD11A2_LST_Night_1km_doy2001033_aid0001,LST_Night_1km,aid0001,2001-02-02,500,280.0,300.0,20.0,290.0,3.0,9.0,292,300,290,280,288
 """
 
+def appeears_lst_night():
+    """The catalog reads MODIS LST from MOD11C3 over OPeNDAP now; the AppEEARS reader still serves MOD11A2."""
+    return Catalog.from_dir().get("modis_lst_night").model_copy(
+        update={"product": "MOD11A2.061:LST_Night_1km", "access": "AppEEARS"})
+
+
 
 def test_helpers():
     assert parse_product("MOD13A3.061:_1_km_monthly_NDVI") == ("MOD13A3.061", "_1_km_monthly_NDVI")
@@ -98,7 +104,7 @@ def test_task_lifecycle_pending_then_cached(settings, fake_appeears):
     logged_in = settings.model_copy(update={"earthdata_username": "student", "earthdata_password": "secret",
                                             "appeears_wait": 0, "appeears_poll": 0})
     provider = create_provider("appeears", logged_in)
-    lst = Catalog.from_dir().get("modis_lst_night")
+    lst = appeears_lst_night()
 
     with pytest.raises(TaskPending, match="preparing this area"):  # first request: submitted, still processing
         provider.fetch(lst, PHOENIX, dt.date(2001, 1, 1), dt.date(2001, 12, 31))
@@ -115,7 +121,7 @@ def test_task_lifecycle_pending_then_cached(settings, fake_appeears):
 
 
 def test_without_login_an_uncached_area_is_an_error(settings):
-    lst = Catalog.from_dir().get("modis_lst_night")
+    lst = appeears_lst_night()
     with pytest.raises(ProviderError, match="Earthdata login"):
         create_provider("appeears", settings).fetch(lst, PHOENIX, dt.date(2001, 1, 1), dt.date(2005, 12, 31))
 
@@ -125,7 +131,7 @@ def test_network_blips_keep_the_task_and_an_existing_task_is_reused(settings, fa
     the back of NASA's queue each time); a task already on the account with the same name is reused."""
     logged_in = settings.model_copy(update={"earthdata_username": "student", "earthdata_password": "secret",
                                             "appeears_wait": 0, "appeears_poll": 0})
-    lst = Catalog.from_dir().get("modis_lst_night")
+    lst = appeears_lst_night()
     name = "trend-detective_MOD11A2.061_LST_Night_1km_" + bbox_key(PHOENIX)
     fake_appeears["existing"] = [{"task_id": "T0", "task_name": name, "status": "error"},
                                  {"task_id": "T1", "task_name": name, "status": "processing"}]

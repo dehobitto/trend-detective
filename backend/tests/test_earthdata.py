@@ -13,6 +13,8 @@ from app.catalog import Catalog
 from app.providers import ProviderError, create_provider
 from app.providers.earthdata import (
     GRIDS,
+    decode_subset,
+    GRIDS,
     Box,
     EarthdataProvider,
     VarLayout,
@@ -209,3 +211,40 @@ def test_cmr_search_retries_a_dropped_connection(settings, monkeypatch):
     monkeypatch.setattr("app.providers.earthdata.time.sleep", lambda s: None)
     found = create_provider("earthdata", settings)._search_year("GPM_3IMERGM", "07", 2006)
     assert found == {dt.date(2006, 3, 1): "https://opendap.test/x"} and len(calls) == 2
+
+
+MODIS_DMR = """<?xml version="1.0"?>
+<Dataset xmlns="http://xml.opendap.org/ns/DAP/4.0#" name="MOD13C2.A2019001.061.hdf">
+  <Dimension name="YDim_MOD_Grid_monthly_CMG_VI" size="3600"/>
+  <Dimension name="XDim_MOD_Grid_monthly_CMG_VI" size="7200"/>
+  <Int16 name="CMG_0_05_Deg_Monthly_NDVI">
+    <Dim name="/YDim_MOD_Grid_monthly_CMG_VI"/>
+    <Dim name="/XDim_MOD_Grid_monthly_CMG_VI"/>
+    <Attribute name="_FillValue" type="Int16"><Value>-3000</Value></Attribute>
+    <Attribute name="scale_factor" type="Float64"><Value>10000.0</Value></Attribute>
+  </Int16>
+</Dataset>"""
+
+
+def test_modis_cmg_grid_runs_north_to_south_and_ndvi_is_divided():
+    grid = GRIDS["MOD13C2"]
+    layout = parse_dmr(MODIS_DMR, "CMG_0_05_Deg_Monthly_NDVI")
+    assert layout.dims == ("lat", "lon") and layout.path == "/CMG_0_05_Deg_Monthly_NDVI"
+
+    # Phoenix-sized box: rows count down from the north pole, so north maps to the smaller row index.
+    box = Box.for_bbox(grid, BBox(west=-112.5, south=33.2, east=-111.6, north=33.8))
+    assert (box.lat0, box.lat1) == (1124, 1135) and (box.lon0, box.lon1) == (1350, 1367)
+    lats = box.lats(grid)
+    assert lats[0] == pytest.approx(33.775) and lats[-1] == pytest.approx(33.225)
+    # a box whose edges are cell edges gets exactly the cells inside, no neighbor
+    two = Box.for_bbox(grid, BBox(west=10.0, south=50.0, east=10.1, north=50.1))
+    assert two.lat1 - two.lat0 == 1 and two.lon1 - two.lon0 == 1
+    assert list(two.lats(grid)) == pytest.approx([50.075, 50.025])
+
+    # The file says scale_factor = 10000 but MODIS VI means "divide": the grid override wins.
+    raw = np.array([[5000, -3000], [2500, 10000]], dtype=np.int16)
+    ds = xr.Dataset({"CMG_0_05_Deg_Monthly_NDVI": (("y", "x"), raw)})
+    ds["CMG_0_05_Deg_Monthly_NDVI"].attrs.update({"_FillValue": -3000, "scale_factor": 10000.0})
+    buf = io.BytesIO(ds.to_netcdf(engine="h5netcdf"))
+    values = decode_subset(buf.getvalue(), layout, 2, 2, overrides=grid.packing)
+    assert values[0, 0] == pytest.approx(0.5) and np.isnan(values[0, 1]) and values[1, 1] == pytest.approx(1.0)

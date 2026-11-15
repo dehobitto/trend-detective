@@ -60,7 +60,7 @@
   deseasonalize: true
   center: {lat: 33.45, lon: -112.07}
   related_variable_id: modis_lst_day
-  takeaway: Night-time ground temperature in Phoenix rises much faster than the global average because concrete and asphalt store the day's heat; the urban heat island.
+  takeaway: Phoenix nights warmed by about 2.4 °C since 2000, a significant trend several times faster than global warming, while daytime ground temperature shows no significant change. Concrete and asphalt store the day's heat and release it at night; that is the urban heat island.
 
 - id: mauna-loa-co2
   title: How fast is CO₂ rising?
@@ -107,7 +107,7 @@
   deseasonalize: true
   center: {lat: 14.0, lon: 6.5}
   related_variable_id: gpm_precipitation
-  takeaway: Compare greenness with rainfall over the same area; if vegetation changes while rain does not, people (grazing, farming) are the more likely cause.
+  takeaway: Here greenness and rainfall both rise significantly, so this part of the Sahel is greening mostly because the rains came back. Where vegetation changes while rain does not, people (grazing, farming) are the more likely cause.
 
 - id: delhi-lights
   title: Is Delhi spreading out at night?

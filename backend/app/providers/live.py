@@ -4,7 +4,8 @@
 ``access``             provider        source
 =====================  ==============  ==========================================================
 Giovanni / GES DISC    ``earthdata``   GLDAS, GPM IMERG, OMI NO₂, MERRA-2 via GES DISC OPeNDAP
-AppEEARS               ``appeears``    MODIS land surface temperature and NDVI (AppEEARS area tasks)
+Earthdata OPeNDAP      ``earthdata``   MODIS monthly 0.05° LST and NDVI (LP DAAC cloud OPeNDAP)
+AppEEARS               ``appeears``    MODIS 1 km products (area tasks; slow queue, not used by the catalog)
 LAADS                  ``blackmarble`` VIIRS Black Marble nighttime lights via LAADS OPeNDAP
 NOAA GML               ``noaa_gml``    CO₂ / CH₄ monthly records
 =====================  ==============  ==========================================================
@@ -27,6 +28,7 @@ from app.schemas.common import BBox
 ACCESS_TO_PROVIDER = {
     "giovanni": "earthdata",
     "ges disc opendap": "earthdata",
+    "earthdata opendap": "earthdata",
     "appeears": "appeears",
     "laads": "blackmarble",
     "noaa gml": "noaa_gml",

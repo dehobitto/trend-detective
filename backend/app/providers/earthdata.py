@@ -1,4 +1,5 @@
-"""NASA Earthdata provider: real GES DISC data (GLDAS, GPM IMERG, OMI NO₂, MERRA-2) via OPeNDAP.
+"""NASA Earthdata provider: real GES DISC data (GLDAS, GPM IMERG, OMI NO₂, MERRA-2) and LP DAAC MODIS
+monthly grids (MOD11C3 land surface temperature, MOD13C2 NDVI) via OPeNDAP.
 
 Ported from the team's data-access module (github.com/evheniikozlov/nasa2026, ``data_access.py``):
 same products, same grids, same "server-side subsetting" idea — for each granule we ask OPeNDAP for
@@ -73,6 +74,9 @@ class Grid:
     """Daily products: days of the month to sample. None = monthly product, use every granule."""
     positive_only: bool = False
     """Values <= 0 are fill values (OMI NO₂ uses ~-1e30)."""
+    packing: tuple[tuple[str, float], ...] = ()
+    """Packing attributes that override the file's: MODIS VI files say ``scale_factor = 10000`` but mean
+    *divide* by it (HDF4 MODIS convention), so the real multiplier is given here."""
 
 
 GRIDS: dict[str, Grid] = {
@@ -84,6 +88,11 @@ GRIDS: dict[str, Grid] = {
     "OMNO2d": Grid(-89.875, 0.25, 720, -179.875, 0.25, 1440, days=(1, 8, 15, 22), positive_only=True),
     # MERRA-2 aerosol monthly means, 0.5° x 0.625°.
     "M2TMNXAER": Grid(-90.0, 0.5, 361, -180.0, 0.625, 576),
+    # MODIS Terra monthly 0.05° climate-modeling grids (LP DAAC cloud OPeNDAP). Rows run north -> south.
+    # LST: UInt16 * 0.02 -> Kelvin, fill 0 (both read from the file).
+    "MOD11C3": Grid(89.975, -0.05, 3600, -179.975, 0.05, 7200),
+    # NDVI: Int16 / 10000, fill -3000.
+    "MOD13C2": Grid(89.975, -0.05, 3600, -179.975, 0.05, 7200, packing=(("scale_factor", 1e-4), ("add_offset", 0.0))),
 }
 
 _LAT_NAMES = {"lat", "latitude", "ydim", "nlat"}
@@ -110,8 +119,12 @@ def cell_range(start: float, step: float, n: int, low: float, high: float) -> tu
 
     A cell that only touches the box edge is left out; a box smaller than one cell still gets that cell.
     """
-    i_low = math.floor((low - start) / step + 0.5)
-    i_high = math.ceil((high - start) / step + 0.5) - 1
+    if step < 0:  # rows stored north -> south: solve on the mirrored (ascending) grid, then flip back
+        a, b = cell_range(start + step * (n - 1), -step, n, low, high)
+        return n - 1 - b, n - 1 - a
+    # round away float noise so a box edge exactly on a cell edge (33.8 on a 0.05° grid) stays an edge
+    i_low = math.floor(round((low - start) / step + 0.5, 6))
+    i_high = math.ceil(round((high - start) / step + 0.5, 6)) - 1
     i_low, i_high = max(0, min(n - 1, i_low)), max(0, min(n - 1, i_high))
     return i_low, max(i_low, i_high)
 
@@ -169,9 +182,10 @@ def _dim_role(dim_name: str) -> str:
     base = dim_name.rsplit("/", 1)[-1].lower()
     if base in _TIME_NAMES:
         return "time"
-    if base in _LAT_NAMES:
+    # HDF-EOS grids served from HDF4 name them per grid, e.g. "YDim_MODIS_MONTHLY_0_05DEG_CMG_LST".
+    if base in _LAT_NAMES or base.startswith("ydim_"):
         return "lat"
-    if base in _LON_NAMES:
+    if base in _LON_NAMES or base.startswith("xdim_"):
         return "lon"
     raise ProviderError(f"Unexpected dimension {dim_name!r} in the NASA data file.")
 
@@ -209,7 +223,10 @@ def parse_dmr(xml_text: str, field: str) -> VarLayout:
     raise ProviderError(f"{field} was not found in the NASA data file.")
 
 
-def decode_subset(content: bytes, layout: VarLayout, n_lat: int, n_lon: int, positive_only: bool = False) -> np.ndarray:
+def decode_subset(
+    content: bytes, layout: VarLayout, n_lat: int, n_lon: int, positive_only: bool = False,
+    overrides: tuple[tuple[str, float], ...] = (),
+) -> np.ndarray:
     """One DAP4 NetCDF-4 response as a decoded ``(lat, lon)`` float array (NaN = missing).
 
     Packing (fill value, scale factor, offset) is applied here from the file's own attributes, falling back
@@ -233,6 +250,7 @@ def decode_subset(content: bytes, layout: VarLayout, n_lat: int, n_lon: int, pos
         os.unlink(tmp_path)
     packing = dict(layout.attrs)
     packing.update({k: float(np.ravel(v)[0]) for k, v in file_attrs.items() if v is not None})
+    packing.update(dict(overrides))
 
     # The time index is a single slice ([0]); whether DAP keeps it as a size-1 axis or drops it, the
     # remaining cells are in storage order of the two spatial dims.
@@ -263,7 +281,7 @@ def weighted_sum(values: np.ndarray, lats: np.ndarray) -> tuple[float, float]:
 def read_subset(content: bytes, layout: VarLayout, grid: Grid, box: Box) -> float:
     """Area mean of one DAP4 NetCDF-4 response (NaN when every cell is missing)."""
     n_lat, n_lon = box.lat1 - box.lat0 + 1, box.lon1 - box.lon0 + 1
-    values = decode_subset(content, layout, n_lat, n_lon, positive_only=grid.positive_only)
+    values = decode_subset(content, layout, n_lat, n_lon, positive_only=grid.positive_only, overrides=grid.packing)
     total, weight = weighted_sum(values, box.lats(grid))
     return total / weight if weight > 0 else float("nan")
 
@@ -424,6 +442,9 @@ class EarthdataProvider:
             import earthaccess
 
             session = earthaccess.get_requests_https_session()
+            from requests.adapters import HTTPAdapter  # bigger pool: no "pool is full" warnings at 16 workers
+
+            session.mount("https://", HTTPAdapter(pool_connections=4, pool_maxsize=self._workers))
             self._local.session = session
         return session
 

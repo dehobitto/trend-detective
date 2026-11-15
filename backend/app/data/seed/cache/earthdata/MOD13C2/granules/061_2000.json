@@ -1,0 +1,13 @@
+{
+"2000-02-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000032.061.2020042083108",
+"2000-03-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000061.061.2020041172815",
+"2000-04-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000092.061.2020042094547",
+"2000-05-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000122.061.2020045185153",
+"2000-06-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000153.061.2020048051851",
+"2000-07-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000183.061.2020051165038",
+"2000-08-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000214.061.2020051032221",
+"2000-09-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000245.061.2020052141316",
+"2000-10-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000275.061.2020056031328",
+"2000-11-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000306.061.2020056154958",
+"2000-12-01": "https://opendap.earthdata.nasa.gov/collections/C2565788914-LPCLOUD/granules/MOD13C2.A2000336.061.2020058173915"
+}
