@@ -43,8 +43,9 @@ docs/       SPEC.md (this), API.md (contract — both sides MUST follow it)
    API; every takeaway was checked against the real data for the case's default dates.
 6. **Bring your own data**: upload a CSV (`date,value`) → appears as a dataset you can analyze/plot with the
    same pipeline.
-7. **Field guide chat (stub)**: floating button bottom-right opens a chat drawer. Backend `/api/chat`
-   returns a canned reply. Another teammate will plug in the real bot — keep it behind a single adapter.
+7. **Field guide chat**: floating button bottom-right opens a chat drawer. Backend `/api/chat` answers with an
+   LLM (`TD_CHAT_BACKEND=fieldguide`, OpenAI GPT by default, or Gemini) that knows the catalog and the student's current
+   area/variable/result; without an API key it falls back to a canned stub reply. Behind a single adapter.
 
 ## Backend architecture (FastAPI)
 
@@ -67,7 +68,7 @@ backend/
     processing/        timeseries.py (area mean, resample), preprocess.py (gap fill, deseasonalize/anomalies),
                        trends.py (OLS+t-test+CI, Mann-Kendall, Sen's slope) — pure numpy/scipy, unit tested
     jobs/              in-memory job store + runner (BackgroundTasks); interface allows swapping to a queue later
-    chat/              ChatBackend protocol + StubChatBackend
+    chat/              ChatBackend protocol + FieldGuideChatBackend (LLM) + StubChatBackend
   tests/               pytest for processing/trends, providers (stubbed HTTP) + API tests (test-only `fake` provider)
 ```
 

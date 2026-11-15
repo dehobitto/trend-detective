@@ -80,7 +80,10 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 | Variable | Default | Meaning |
 |---|---|---|
 | `TD_DATA_PROVIDER` | `live` | `live`: route each variable to its real source by `access` (`earthdata`, `blackmarble`, `noaa_gml`), no fallback; or a single provider name |
-| `TD_CHAT_BACKEND` | `stub` | Registered chat backend |
+| `TD_CHAT_BACKEND` | `stub` | `stub` (canned replies) or `fieldguide` (LLM field guide, see below) |
+| `TD_CHAT_PROVIDER` | `openai` | LLM behind `fieldguide`: `openai` or `gemini` |
+| `TD_CHAT_MODEL` | unset | Model id override (defaults: `gpt-5-mini`, `gemini-flash-latest`) |
+| `OPENAI_API_KEY` / `GEMINI_API_KEY` | unset | LLM key (also `TD_`-prefixed). Without the provider's key, `fieldguide` falls back to the stub. Never commit it |
 | `TD_CORS_ORIGINS` | `["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"]` | JSON list of allowed origins |
 | `TD_CACHE_DIR` | `backend/data/cache` | Downloaded data (gitignored); NOAA files in `noaa_gml/`, granule lists and monthly area means in `earthdata/` and `blackmarble/` |
 | `TD_CACHE_SEED_DIR` | `backend/app/data/seed/cache` | Committed area means for the example cases, copied into `TD_CACHE_DIR` at startup (never over existing files). Empty value disables it |
@@ -265,14 +268,21 @@ To add a source:
 The `product` field of each catalog variable holds the NASA product id and variable name
 (`"<ShortName>.<version>:<Variable>"`, e.g. `M2TMNXAER.5.12.4:DUSMASS`).
 
-## How to plug in the chatbot
+## Field guide chatbot
 
-1. Implement `ChatBackend` (`app/chat/base.py`): `async def reply(self, request: ChatRequest) -> ChatResponse`.
-   The request has the whole conversation plus context (`bbox`, `variable_id`, `result_summary`).
-   Return `stub=False`.
-2. Register it: `@register_chat_backend("fieldguide") def _factory(settings): return MyBot(...)` and import
-   the module in `app/chat/__init__.py`.
-3. Start with `TD_CHAT_BACKEND=fieldguide`. Add any API keys as new fields in `Settings`.
+`app/chat/fieldguide.py` (`TD_CHAT_BACKEND=fieldguide`) answers with an LLM: OpenAI GPT by default (`OPENAI_API_KEY`,
+prepaid credit), or Gemini with `TD_CHAT_PROVIDER=gemini` (free key at https://aistudio.google.com/apikey). Put the key in `backend/.env`
+(template: `.env.example`). Without a key the app still starts and the chat answers with the stub.
+
+- **Knowledge** is built from the catalog at startup: every variable's definition and "why it matters", and every
+  example case with its checked takeaway. A new variable or case in the YAML is known to the bot with no prompt edit.
+- **Context** per message: the student's variable, area (`bbox`) and the latest result's plain-English summary,
+  exactly what `ChatDrawer` sends. The prompt tells the model to use only those numbers and never invent statistics.
+- The last 21 messages are sent. LLM failures answer HTTP 503 with a readable `detail`, shown in the chat drawer.
+- Tests (`tests/test_chat_fieldguide.py`) inject a fake LLM, so they run offline; the test settings force the stub.
+
+To plug in a different bot: implement `ChatBackend` (`app/chat/base.py`), register it with
+`@register_chat_backend("name")`, import the module in `app/chat/__init__.py`, start with `TD_CHAT_BACKEND=name`.
 
 ## Uploading your own data
 

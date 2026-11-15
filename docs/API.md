@@ -119,7 +119,7 @@ type Dataset = { id: string; name: string; units: string; n: number; start: stri
 
 type ChatMessage = { role: "user" | "assistant"; content: string }
 type ChatRequest = { messages: ChatMessage[]; context: { bbox: BBox | null; variable_id: string | null; result_summary: string | null } }
-type ChatResponse = { message: ChatMessage; stub: boolean }
+type ChatResponse = { message: ChatMessage; stub: boolean }   // stub: false = LLM field guide; its LLM failing -> 503 ApiError
 
 type ApiError = { detail: string }   // FastAPI default shape; 4xx/5xx
 ```
