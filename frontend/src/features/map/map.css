@@ -340,9 +340,45 @@
 /* Far out, a click flies in: say so with the cursor. */
 .map.is-globe .maplibregl-canvas-container.maplibregl-interactive { cursor: pointer; }
 .map.is-globe .maplibregl-canvas-container.maplibregl-interactive:active { cursor: grabbing; }
-/* Far out: a soft blue glow of air behind the planet (MapLibre's own limb is thin on a light page). */
-.map.is-globe {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(47, 127, 216, 0.22) 0, rgba(47, 127, 216, 0.12) 30%, rgba(47, 127, 216, 0.04) 42%, transparent 58%),
-    var(--space);
+/* Far out: natural, restrained space behind the planet: deep blue-black (not pure black), sparse faint stars,
+   and a soft glow of air around the sphere. It fades in only while the map is "the globe" (zoomed out). */
+.map { isolation: isolate; }
+.map::before,
+.map::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 600ms var(--ease-out);
 }
+.map::before {
+  background: radial-gradient(ellipse at 50% 45%, #0e1a30 0%, #0a1222 45%, #060a14 100%);
+}
+.map::after {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(74, 144, 226, 0.28) 0, rgba(74, 144, 226, 0.1) 32%, transparent 46%),
+    radial-gradient(0.66px 0.66px at 82px 38px, rgba(255, 255, 255, 0.36), transparent),
+    radial-gradient(0.54px 0.54px at 210px 137px, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(0.51px 0.51px at 129px 54px, rgba(255, 255, 255, 0.46), transparent),
+    radial-gradient(0.54px 0.54px at 17px 61px, rgba(255, 255, 255, 0.46), transparent),
+    radial-gradient(0.55px 0.55px at 211px 144px, rgba(255, 255, 255, 0.41), transparent),
+    radial-gradient(0.88px 0.88px at 160px 149px, rgba(255, 255, 255, 0.49), transparent),
+    radial-gradient(0.89px 0.89px at 101px 12px, rgba(255, 255, 255, 0.36), transparent),
+    radial-gradient(0.75px 0.75px at 68px 148px, rgba(255, 255, 255, 0.61), transparent),
+    radial-gradient(0.84px 0.84px at 292px 157px, rgba(255, 255, 255, 0.65), transparent),
+    radial-gradient(0.84px 0.84px at 52px 297px, rgba(255, 255, 255, 0.51), transparent),
+    radial-gradient(0.93px 0.93px at 49px 280px, rgba(255, 255, 255, 0.62), transparent),
+    radial-gradient(0.8px 0.8px at 316px 105px, rgba(255, 255, 255, 0.61), transparent),
+    radial-gradient(0.85px 0.85px at 160px 238px, rgba(255, 255, 255, 0.59), transparent),
+    radial-gradient(1.29px 1.29px at 153px 127px, rgba(255, 255, 255, 0.81), transparent),
+    radial-gradient(1.07px 1.07px at 124px 41px, rgba(255, 255, 255, 0.76), transparent),
+    radial-gradient(1.23px 1.23px at 448px 175px, rgba(255, 255, 255, 0.69), transparent),
+    radial-gradient(0.62px 0.62px at 501px 37px, rgba(255, 255, 255, 0.73), transparent);
+  background-size: 100% 100%, 227px 227px, 227px 227px, 227px 227px, 227px 227px, 227px 227px, 227px 227px, 227px 227px, 331px 331px, 331px 331px, 331px 331px, 331px 331px, 331px 331px, 331px 331px, 509px 509px, 509px 509px, 509px 509px, 509px 509px;
+}
+.map.is-globe::before,
+.map.is-globe::after { opacity: 1; }
+/* Dark (ink) buttons stay legible over the space background. */
+.map-toolbar .btn--primary { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3), var(--shadow); }
