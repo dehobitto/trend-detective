@@ -182,3 +182,22 @@ type Place = { name: string; display_name: string; lat: number; lon: number; bbo
 | GET | `/api/grid/{variable_id}` | `date=YYYY-MM-01`, `west,south,east,north` (optional; default global), `res` (deg, optional; server caps size to ≤ 200×200) | `GridFrame` |
 | GET | `/api/grid/{variable_id}/dates` | – | `string[]` monthly dates available for the slider |
 | GET | `/api/geocode` | `q` (≥2 chars), `limit` (default 6) | `Place[]` (proxied to OSM Nominatim/Photon with caching; generic User-Agent) |
+
+## v3 additions (change maps)
+
+| Method | Path | Query | Returns |
+|---|---|---|---|
+| GET | `/api/grid/{variable_id}` | add `mode=value|anomaly` (default value). anomaly = value minus that calendar month's climatology over the variable's availability; diverging colormap centered on 0, symmetric min/max | `GridFrame` |
+| GET | `/api/grid/{variable_id}/trend` | `start`, `end` (YYYY-MM-01), optional bbox, `res`, `alpha` (0.05) | `TrendGrid` |
+
+```ts
+type TrendGrid = GridFrame & {           // values = slope per decade (on deseasonalized monthly series) per cell
+  date: string                           // = end
+  start: string; end: string
+  significant: (boolean | null)[]        // per cell, Mann-Kendall p < alpha (same length as values)
+  // units = "<variable units> per decade"; colormap diverging: falling = deep blue #07668A side, rising = ochre #9A5200 side, 0 = neutral light
+}
+```
+Globe overlay (frontend only): GIBS layers are fetched as one equirectangular image via WMS
+`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS={layer}&STYLES=&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH=2048&HEIGHT=1024&FORMAT=image/png&TRANSPARENT=TRUE&TIME={date}`;
+grid/anomaly/trend frames are rendered to a canvas texture from a global GridFrame.
