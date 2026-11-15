@@ -101,4 +101,7 @@ class Job(BaseModel):
     message: str | None
     request: AnalysisRequest
     result: AnalysisResult | None
+    preview: AnalysisResult | None = None
+    """While a big download is still running: a preliminary result on the data so far (night lights: yearly
+    points from the months downloaded so far). Its first warning says it is preliminary. Cleared when done."""
     created_at: dt.datetime

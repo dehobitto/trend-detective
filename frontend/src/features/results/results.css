@@ -90,3 +90,15 @@
 .compare__cta { display: grid; gap: 8px; justify-items: start; }
 .compare__result { display: grid; gap: 12px; }
 .compare__title { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+
+/* Preliminary result during a long download: dashed frame = "not final yet". */
+.preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 12px 8px;
+  border: 1.5px dashed var(--ink-dim);
+  border-radius: 10px;
+}
+.preview__label { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.preview__note { margin: -6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink); }

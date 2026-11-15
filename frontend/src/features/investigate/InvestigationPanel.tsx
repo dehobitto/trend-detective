@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Button } from '../../components/Button';
 import { needsNoArea, useStore } from '../../state/store';
+import { PreviewView } from '../results/PreviewView';
 import { ResultsView } from '../results/ResultsView';
 import { AnalysisOptions } from './AnalysisOptions';
 import { AreaStep } from './AreaStep';
@@ -60,6 +61,7 @@ export function InvestigationPanel() {
             {!hasArea && <p className="hint">Draw an area first, or choose a global record.</p>}
             {hasArea && !variableId && <p className="hint">Choose a variable first.</p>}
             {running && job && <JobProgress job={job} />}
+            {running && job?.preview && <PreviewView result={job.preview} />}
             {runError && (
               <p className="field-error" role="alert">
                 {runError}

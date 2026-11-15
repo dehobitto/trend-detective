@@ -69,6 +69,10 @@ type Job = {
                              // "Downloading from NASA: 340 of 1012 files. A new area takes a while the first time; after that it is instant."
   request: AnalysisRequest
   result: AnalysisResult | null
+  preview: AnalysisResult | null  // while a big download runs (night lights over a large area): a preliminary
+                             // result on the data so far, yearly points from the months already downloaded
+                             // (October of every year first, then April, ...). warnings[0] says it is
+                             // preliminary. Updated after every month pass; null when done or on error.
   created_at: string         // ISO datetime
 }
 
@@ -152,7 +156,9 @@ frontend gives up only when status, progress and message have not changed for 3 
 - cached area (all example cases, from the committed seed): well under a second;
 - new area, monthly products (GPM, MERRA-2, MODIS MOD11C3/MOD13C2, GLDAS sampled monthly): ~25–70 s;
 - new area, OMI NO₂ (4 days per month): 2–4 min; night lights: ~2 min for a city, ~6 min for a 5°×5° area
-  (big areas are sampled with a stride and say so in `warnings`).
+  (big areas are sampled with a stride and say so in `warnings`). Night-light downloads of 200+ files show a
+  preliminary yearly result (`Job.preview`) after the first month pass (a 20°×20° area, 672 files: first
+  answer at ~75 s of ~7 min). Tile windows are cached on their own, so a moved box re-downloads only new tiles.
 
 When a source fails, the job ends with `status: "error"` and a student-readable `message`. There is no
 fallback data.

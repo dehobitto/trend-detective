@@ -139,3 +139,46 @@ def test_big_areas_are_sampled_with_a_stride_and_say_so(settings, fake_laads):
     assert all(":2:" in c for c in fake_laads if ".dap.nc4" in c)
     assert series.iloc[0] == pytest.approx(20.0, rel=1e-3)
     assert "one pixel in 4" in series.attrs["notes"][0]
+
+
+def test_moved_box_reuses_the_tiles_it_shares(settings, fake_laads):
+    ntl = Catalog.from_dir().get("viirs_night_lights")
+    provider = create_provider("blackmarble", settings.model_copy(update={"earthdata_token": "t"}))
+    provider.fetch(ntl, ACROSS, dt.date(2012, 1, 1), dt.date(2014, 12, 31))
+    fake_laads.clear()
+    wider = BBox(west=79.5, south=28.0, east=80.7, north=29.0)  # same h25 window, bigger h26 window
+    provider.fetch(ntl, wider, dt.date(2012, 1, 1), dt.date(2014, 12, 31))
+    data = [c for c in fake_laads if ".dap.nc4" in c]
+    assert len(data) == 36 and all(".h26v06." in c for c in data)
+
+
+def test_big_download_goes_in_month_passes_with_previews(settings, fake_laads, monkeypatch):
+    from app.providers import blackmarble, fetch_partial
+
+    monkeypatch.setattr(blackmarble, "PREVIEW_MIN_JOBS", 1)
+    monkeypatch.setattr(blackmarble, "PREVIEW_MIN_YEARS", 2)
+    ntl = Catalog.from_dir().get("viirs_night_lights")
+    provider = create_provider("blackmarble", settings.model_copy(update={"earthdata_token": "t"}))
+    previews = []
+    with fetch_partial(lambda series, note: previews.append((series, note))):
+        final = provider.fetch(ntl, ACROSS, dt.date(2012, 1, 1), dt.date(2014, 12, 31))
+    data = [c for c in fake_laads if ".dap.nc4" in c]
+    assert all(re.search(r"\.A201[234]10\.", c) for c in data[:6])  # October of every year first
+    assert len(previews) == 11  # after every pass but the last
+    first, note = previews[0]
+    assert list(first.index.year) == [2012, 2013, 2014] and first.iloc[0] == pytest.approx(20.0, rel=1e-3)
+    assert note.startswith("Preliminary: 1 of 12 months")
+    assert len(final) == 36
+
+
+def test_annual_preview_is_not_biased_by_missing_months():
+    from app.providers.blackmarble import annual_preview
+
+    # every year: winter 20, summer 10; the trend is +1 per year. 2013 lacks its (bright) January.
+    values = {}
+    for year in (2012, 2013, 2014):
+        values[f"{year}-01-01"] = 20.0 + (year - 2012)
+        values[f"{year}-07-01"] = 10.0 + (year - 2012)
+    values["2013-01-01"] = None
+    out = annual_preview(values)
+    assert np.diff(out.to_numpy()) == pytest.approx([1.0, 1.0])

@@ -105,6 +105,8 @@ export type Job = {
   message: string | null;
   request: AnalysisRequest;
   result: AnalysisResult | null;
+  /** While a big download runs: a preliminary result on the data so far (warnings[0] says so). */
+  preview?: AnalysisResult | null;
   created_at: string;
 };
 

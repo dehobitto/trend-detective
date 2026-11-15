@@ -18,7 +18,7 @@ from app.processing import preprocess as prep
 from app.processing import timeseries as ts
 from app.processing import trends
 from app.processing.summary import build_summary
-from app.providers import DataProvider, ProviderError, UploadProvider, fetch_progress
+from app.providers import DataProvider, ProviderError, UploadProvider, fetch_partial, fetch_progress
 from app.providers.base import fetch_mask
 from app.schemas.analysis import AnalysisRequest, AnalysisResult, SeriesPoint, TrendStats
 
@@ -49,12 +49,13 @@ class AnalysisRunner:
         try:
             result = self._run(job_id, job.request)
         except (ProviderError, InvalidRequest, NotFound, ValueError) as exc:
-            self.store.update(job_id, status="error", message=str(exc))
+            self.store.update(job_id, status="error", message=str(exc), preview=None)
         except Exception:  # never leave a job hanging
             log.exception("Analysis job %s failed", job_id)
-            self.store.update(job_id, status="error", message="Something went wrong on the server. Please try again.")
+            self.store.update(job_id, status="error", message="Something went wrong on the server. Please try again.",
+                              preview=None)
         else:
-            self.store.update(job_id, status="done", progress=1.0, message="Done", result=result)
+            self.store.update(job_id, status="done", progress=1.0, message="Done", result=result, preview=None)
 
     def _stage(self, job_id: str, status: str, progress: float, message: str) -> None:
         self.store.update(job_id, status=status, progress=progress, message=message)
@@ -64,27 +65,52 @@ class AnalysisRunner:
         provider = plan.provider
         self._stage(job_id, "fetching", 0.1, f"Fetching {plan.variable.name} data from {_source(plan)}…")
 
-        def on_progress(done: int, total: int) -> None:
-            self._stage(
-                job_id, "fetching", 0.1 + 0.35 * done / max(total, 1),
-                f"Downloading from NASA: {done} of {total} files. "
-                "A new area takes a while the first time; after that it is instant.",
-            )
+        has_preview = False
 
-        with fetch_progress(on_progress), fetch_mask(plan.cells):
+        def on_progress(done: int, total: int) -> None:
+            tail = ("A first result is shown below; it sharpens as the rest arrives." if has_preview
+                    else "A new area takes a while the first time; after that it is instant.")
+            self._stage(job_id, "fetching", 0.1 + 0.35 * done / max(total, 1),
+                        f"Downloading from NASA: {done} of {total} files. {tail}")
+
+        def on_partial(series: pd.Series, note: str) -> None:
+            nonlocal has_preview
+            try:
+                preview = self._analyze(plan, request, series, [note], is_monthly=False, deseasonalize=False)
+            except (InvalidRequest, ValueError) as exc:  # too few points yet: just wait for more
+                log.debug("No preview for job %s yet: %s", job_id, exc)
+                return
+            except Exception:  # a preview must never break the real analysis
+                log.exception("Preview failed for job %s", job_id)
+                return
+            has_preview = True
+            self.store.update(job_id, preview=preview)
+
+        with fetch_progress(on_progress), fetch_partial(on_partial), fetch_mask(plan.cells):
             monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
         # Providers may attach notes ("sampled every ~N km…"); read them now, resampling drops attrs.
         provider_notes = list(monthly.attrs.get("notes", []))
 
         self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…")
-        is_monthly = plan.aggregation == "monthly"
+        return self._analyze(
+            plan, request, monthly, provider_notes,
+            is_monthly=plan.aggregation == "monthly", deseasonalize=bool(request.deseasonalize),
+            on_stage=lambda: self._stage(job_id, "analyzing", 0.75, "Testing whether the trend is real…"),
+        )
+
+    def _analyze(
+        self, plan: Plan, request: AnalysisRequest, monthly: pd.Series, provider_notes: list[str], *,
+        is_monthly: bool, deseasonalize: bool, on_stage=None,
+    ) -> AnalysisResult:
+        """Preprocess + trend tests + summary for a fetched series (also used for preliminary results)."""
         series = monthly if is_monthly or ts.infer_frequency(monthly.index) == "annual" else ts.to_annual(monthly)
-        processed = prep.preprocess(series, want_deseasonalized=bool(request.deseasonalize), is_monthly=is_monthly)
+        processed = prep.preprocess(series, want_deseasonalized=deseasonalize, is_monthly=is_monthly)
         analyzed = processed.tested
         if analyzed.notna().sum() < MIN_POINTS:
             raise InvalidRequest("Not enough data in this period to test for a trend. Try a longer date range.")
 
-        self._stage(job_id, "analyzing", 0.75, "Testing whether the trend is real…")
+        if on_stage is not None:
+            on_stage()
         analysis = trends.analyze(
             ts.decimal_years(analyzed.index),
             analyzed.to_numpy(),
@@ -104,7 +130,7 @@ class AnalysisRunner:
             series=_series_points(processed, analysis),
             stats=stats,
             summary=build_summary(stats, plan.variable.units, valid_index[0].year, valid_index[-1].year),
-            provider=provider.name,
+            provider=plan.provider.name,
             region_name=request.region_name if plan.cells else None,
             warnings=warnings,
         )

@@ -10,8 +10,13 @@ Black Marble is tiled, not one global grid: tile ``hHHvVV`` covers lon ``-180 + 
 span several tiles; for each month every tile's cos(lat)-weighted sum is fetched and the sums are combined.
 
 Granules come from CMR (``bounding_box`` = the bbox, one search per year, cached). Values (nW·cm⁻²·sr⁻¹,
-packed uint16 with scale 0.1 and fill 65535 — decoded from the file / DMR attributes) are cached per bbox
-in ``TD_CACHE_DIR/blackmarble/``. Login, session and DMR handling are shared with :mod:`earthdata`; the
+packed uint16 with scale 0.1 and fill 65535 — decoded from the file / DMR attributes) are cached twice in
+``TD_CACHE_DIR/blackmarble/``: the area mean per bbox (``values/``), and each tile window's weighted sum
+(``tiles/``), so a moved or resized box reuses the tiles it shares with earlier boxes.
+
+Big areas are slow (tiles x months requests), so downloads go in passes of one calendar month for every year
+(October of every year first, then April, ...). After each pass the provider reports a preliminary annual series
+for the whole area (:func:`app.providers.base.report_partial`): same quantity as the final result, only sparser. Login, session and DMR handling are shared with :mod:`earthdata`; the
 Earthdata token works for LAADS.
 """
 
@@ -32,7 +37,9 @@ import pandas as pd
 
 from app.catalog.models import CatalogVariable
 from app.config import Settings
-from app.providers.base import ProviderError, current_mask, mask_grid, mask_key, register_provider, report_progress
+from app.providers.base import (
+    ProviderError, current_mask, mask_grid, mask_key, register_provider, report_partial, report_progress,
+)
 from app.providers.earthdata import EarthdataProvider, VarLayout, _write_json, decode_subset, parse_product, weighted_sum
 from app.schemas.common import BBox
 
@@ -44,6 +51,14 @@ PIXEL_DEG = TILE_DEG / TILE_PIXELS
 MAX_SAMPLES = 40_000
 """Pixels fetched per month at most (~200 x 200). A bigger area is sampled every ``stride``-th pixel."""
 KM_PER_DEG = 111.0
+STRIDES = (1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256)
+"""Allowed strides: nearby box sizes land on the same stride, so their tile caches can be shared."""
+PASS_ORDER = (10, 4, 1, 7, 12, 3, 9, 6, 11, 2, 8, 5)
+"""Download order of calendar months. Each pass fetches one month of every year; the first few passes already
+cover all four seasons. October and April come first: dark nights at every latitude (no midnight sun)."""
+PREVIEW_MIN_JOBS = 200
+"""Below this many tile requests (~15 s) the download is quick enough without preliminary results."""
+PREVIEW_MIN_YEARS = 5
 _TILE_RE = re.compile(r"\.h(\d{2})v(\d{2})\.")
 
 
@@ -100,7 +115,29 @@ def tile_windows(bbox: BBox) -> list[TileWindow]:
 def pick_stride(windows: list[TileWindow]) -> int:
     """Smallest stride that keeps one month of all windows under :data:`MAX_SAMPLES` pixels."""
     total = sum((w.row1 - w.row0 + 1) * (w.col1 - w.col0 + 1) for w in windows)
-    return max(1, math.ceil(math.sqrt(total / MAX_SAMPLES)))
+    raw = max(1, math.ceil(math.sqrt(total / MAX_SAMPLES)))
+    return next((s for s in STRIDES if s >= raw), raw)
+
+
+def pass_of(date: str) -> int:
+    """Download pass of a month (``"2019-10-01"`` -> 0)."""
+    return PASS_ORDER.index(int(date[5:7]))
+
+
+def annual_preview(values: dict[str, float | None]) -> pd.Series:
+    """Annual series from whatever months are in so far, without seasonal bias.
+
+    Each month's values are taken as anomalies from that calendar month's mean over the years, averaged per
+    year and shifted back to the overall level: a year missing its (cloudy, or not yet downloaded) June does
+    not look darker or brighter than a year that has it.
+    """
+    s = pd.Series({pd.Timestamp(d): v for d, v in values.items()}, dtype=float).dropna()
+    if s.empty:
+        return pd.Series(dtype=float)
+    table = s.groupby([s.index.year, s.index.month]).mean().unstack()  # rows = years, columns = months
+    climatology = table.mean()
+    yearly = table.sub(climatology, axis=1).mean(axis=1) + climatology.mean()
+    return pd.Series(yearly.to_numpy(), index=pd.to_datetime([f"{y}-01-01" for y in yearly.index]), dtype=float)
 
 
 def sampling_note(stride: int) -> str:
@@ -108,6 +145,12 @@ def sampling_note(stride: int) -> str:
     return (f"This area is large, so night lights were sampled at one pixel in {stride * stride} "
             f"(about one point every {km:.0f} km) to keep the download fast. The trend and its significance "
             "are reliable; the exact brightness is approximate and very small towns may be missed.")
+
+
+def preview_note(months: int, stride: int) -> str:
+    sampled = f", sampled at one pixel in {stride * stride}" if stride > 1 else ""
+    return (f"Preliminary: {months} of 12 months of every year are downloaded so far{sampled}, so each point is "
+            "a yearly average. The full monthly result replaces this when the download finishes.")
 
 
 def granules_by_tile(items: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
@@ -176,7 +219,16 @@ class BlackMarbleProvider(EarthdataProvider):
             raise ProviderError(f"NASA has no {variable.name} data for this area between {start} and {end}.")
         missing = [d for d in dates if d not in cached]
         if missing and self.has_login:
-            cached.update(self._download(short_name, field, windows, {d: granules[d] for d in missing}, squares))
+            known = {d: cached[d] for d in dates if d in cached}
+
+            def on_pass(new: dict[str, float | None], months: int) -> None:
+                preview = annual_preview({**known, **new})
+                if preview.notna().sum() >= PREVIEW_MIN_YEARS:
+                    preview = variable.to_catalog_units(preview).rename(variable.id)
+                    report_partial(preview, preview_note(months, stride))
+
+            cached.update(self._download(short_name, version, field, windows, {d: granules[d] for d in missing},
+                                         squares, on_pass))
             _write_json(values_path, dict(sorted(cached.items())))
         elif missing and len(missing) > len(dates) / 2:
             raise ProviderError(
@@ -221,12 +273,49 @@ class BlackMarbleProvider(EarthdataProvider):
 
     # -- downloads ---------------------------------------------------------------------------------------
 
-    def _download(self, short_name: str, field: str, windows: list[TileWindow],
-                  granules: dict[str, dict[str, str]], squares=None) -> dict[str, float | None]:
+    def _tile_path(self, short_name: str, version: str, field: str, window: TileWindow, squares) -> Path:
+        name = (f"{version}_{field}_{window.tile}_{window.row0}-{window.row1}_{window.col0}-{window.col1}"
+                f"_s{window.stride}{mask_key(squares)}.json")
+        return self._cache_dir / short_name / "tiles" / name
+
+    def _download(self, short_name: str, version: str, field: str, windows: list[TileWindow],
+                  granules: dict[str, dict[str, str]], squares=None, on_pass=None) -> dict[str, float | None]:
+        """Area means for ``granules``' dates, from the tile cache where possible, downloading the rest in passes.
+
+        ``on_pass(values, months)`` is called after each completed pass but the last (big downloads only) with
+        every value known so far and how many calendar months of each year are in.
+        """
+        paths = {w: self._tile_path(short_name, version, field, w, squares) for w in windows}
+        tiles: dict[TileWindow, dict[str, list[float]]] = {
+            w: (json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}) for w, p in paths.items()
+        }
+        dates = sorted(granules, key=lambda d: (pass_of(d), d))
+        jobs = [(d, w, granules[d][w.tile]) for d in dates for w in windows if d not in tiles[w]]
+
+        results: dict[str, float | None] = {}
+        failed: set[str] = set()
+
+        def combine(upto: list[str]) -> None:
+            for d in upto:
+                if d in results or d in failed:
+                    continue
+                pairs = [tiles[w].get(d) for w in windows]
+                if any(p is None for p in pairs):
+                    failed.add(d)  # a tile failed: no mean of only part of the area
+                    continue
+                total, weight = sum(p[0] for p in pairs), sum(p[1] for p in pairs)
+                results[d] = total / weight if weight > 0 else None
+
+        def save() -> None:
+            for w, p in paths.items():
+                _write_json(p, dict(sorted(tiles[w].items())))
+
+        if not jobs:
+            combine(dates)
+            return results
+
         self._login()
-        first_date = next(iter(granules))
-        layout = self._layout(short_name, field, granules[first_date][windows[0].tile])
-        jobs = [(d, w, tiles[w.tile]) for d, tiles in granules.items() for w in windows]
+        layout = self._layout(short_name, field, jobs[0][2])
         log.info("Black Marble: %d tile subsets for %d months", len(jobs), len(granules))
 
         def one(job):
@@ -238,30 +327,38 @@ class BlackMarbleProvider(EarthdataProvider):
                 values = np.where(values < 0, np.nan, values)
                 if squares:
                     values = np.where(mask_grid(squares, window.lats(), window.lons()), values, np.nan)
-                return date, weighted_sum(values, window.lats()), None
+                return date, window, weighted_sum(values, window.lats()), None
             except ProviderError as exc:
-                return date, None, str(exc)
+                return date, window, None, str(exc)
 
-        sums: dict[str, list[float]] = {}
-        failed: set[str] = set()
+        # The last job of each pass: once pool.map (which keeps order) has yielded it, that pass is complete.
+        pass_ends = {
+            i: pass_of(job[0]) for i, job in enumerate(jobs)
+            if i + 1 == len(jobs) or pass_of(jobs[i + 1][0]) != pass_of(job[0])
+        }
+        last_pass = pass_of(jobs[-1][0])
+        preview = on_pass is not None and len(jobs) >= PREVIEW_MIN_JOBS
         errors: list[str] = []
         total = len(jobs)
         step = max(1, total // 100)
         report_progress(0, total)
         with ThreadPoolExecutor(max_workers=self._workers) as pool:
-            for done, (date, pair, error) in enumerate(pool.map(one, jobs), start=1):
+            for i, (date, window, pair, error) in enumerate(pool.map(one, jobs)):
+                done = i + 1
                 if done % step == 0 or done == total:
                     report_progress(done, total)
-                if error is not None:
-                    failed.add(date)
+                if error is None:
+                    tiles[window][date] = [float(pair[0]), float(pair[1])]
+                else:
                     errors.append(error)
-                    continue
-                acc = sums.setdefault(date, [0.0, 0.0])
-                acc[0] += pair[0]
-                acc[1] += pair[1]
+                if i in pass_ends:
+                    save()  # an interrupted download keeps every finished pass
+                    if preview and pass_ends[i] != last_pass:
+                        combine([d for d in dates if pass_of(d) <= pass_ends[i]])
+                        on_pass(dict(results), pass_ends[i] + 1)
+        combine(dates)
         if errors:
             log.warning("Black Marble: %d subsets failed (first: %s)", len(errors), errors[0])
-        results = {d: (s / w if w > 0 else None) for d, (s, w) in sums.items() if d not in failed}
         if not results and errors:
             raise ProviderError(errors[0])
         return results

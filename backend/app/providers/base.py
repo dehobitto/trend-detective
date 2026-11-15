@@ -45,6 +45,31 @@ def fetch_progress(callback: ProgressCallback) -> Iterator[None]:
         _progress.reset(token)
 
 
+PartialCallback = Callable[[pd.Series, str], None]
+"""``(series, note)``: a preliminary result while ``fetch`` is still downloading. ``series`` has the same
+shape ``fetch`` returns (or an annual-start index when only some months of every year are in); ``note``
+says, in student-readable words, how complete it is."""
+
+_partial: ContextVar[PartialCallback | None] = ContextVar("fetch_partial", default=None)
+
+
+@contextmanager
+def fetch_partial(callback: PartialCallback) -> Iterator[None]:
+    """Route ``report_partial`` calls made during ``fetch`` (same thread) to ``callback``."""
+    token = _partial.set(callback)
+    try:
+        yield
+    finally:
+        _partial.reset(token)
+
+
+def report_partial(series: pd.Series, note: str) -> None:
+    """Slow providers call this when a preliminary series is ready. A no-op unless a job is listening."""
+    callback = _partial.get()
+    if callback is not None:
+        callback(series, note)
+
+
 _mask: ContextVar["tuple[BBox, ...] | None"] = ContextVar("fetch_mask", default=None)
 
 
