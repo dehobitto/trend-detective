@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { api, initApi } from './api/client';
 import { Badge } from './components/Badge';
 import { Wordmark } from './components/Wordmark';
@@ -50,9 +51,11 @@ export default function App() {
       </div>
       {mapMounted && (
         <div className="layer layer--map" data-visible={onMap} aria-hidden={!onMap}>
-          <Suspense fallback={null}>
-            <MapView />
-          </Suspense>
+          <ErrorBoundary label="map">
+            <Suspense fallback={null}>
+              <MapView />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       )}
 

@@ -14,14 +14,15 @@ const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x
 
 /** Screen-space distance (px) from the box outline within which a press grabs the box instead of panning. */
 const EDGE_GRAB_PX = 10;
+/** Fingers are less precise than a mouse pointer. */
+const EDGE_GRAB_TOUCH_PX = 22;
 
 /** True when the point is on (near) the rectangle's outline. Inside the box, the map still pans. */
-function nearOutline(map: MlMap, b: BBox, p: { x: number; y: number }): boolean {
+function nearOutline(map: MlMap, b: BBox, p: { x: number; y: number }, e = EDGE_GRAB_PX): boolean {
   const nw = map.project([b.west, b.north]);
   const se = map.project([b.east, b.south]);
   const [x0, x1] = [Math.min(nw.x, se.x), Math.max(nw.x, se.x)];
   const [y0, y1] = [Math.min(nw.y, se.y), Math.max(nw.y, se.y)];
-  const e = EDGE_GRAB_PX;
   const withinOuter = p.x >= x0 - e && p.x <= x1 + e && p.y >= y0 - e && p.y <= y1 + e;
   const withinInner = p.x > x0 + e && p.x < x1 - e && p.y > y0 + e && p.y < y1 - e;
   return withinOuter && !withinInner;
@@ -60,7 +61,7 @@ export function useBoxSelect(map: MlMap | null) {
       const { drawing, bbox } = useStore.getState();
       if (drawing || shift) {
         gesture = { kind: 'draw', start: e.lngLat };
-      } else if (bbox && nearOutline(map, bbox, e.point)) {
+      } else if (bbox && nearOutline(map, bbox, e.point, 'touches' in e.originalEvent ? EDGE_GRAB_TOUCH_PX : EDGE_GRAB_PX)) {
         gesture = { kind: 'move', anchor: e.lngLat, original: bbox };
       } else {
         return;

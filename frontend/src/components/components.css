@@ -162,3 +162,8 @@
 @media (max-width: 760px) {
   .app[data-view='map'] .wordmark { width: calc(100vw - 2 * var(--edge) - 52px); }
 }
+
+.crash-note {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: 12px;
+  justify-items: center; background: var(--space); color: var(--ink); font-size: 15px;
+}
