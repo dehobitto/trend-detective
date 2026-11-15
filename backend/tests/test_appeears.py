@@ -8,7 +8,7 @@ import pytest
 
 from app.catalog import Catalog
 from app.providers import ProviderError, create_provider
-from app.providers.appeears import LAYERS, TaskPending, apply_scale, parse_product, parse_statistics, statistics_file, task_payload
+from app.providers.appeears import LAYERS, TaskPending, bbox_key, apply_scale, parse_product, parse_statistics, statistics_file, task_payload
 from app.schemas.common import BBox
 
 PHOENIX = BBox(west=-112.5, south=33.2, east=-111.6, north=33.8)
@@ -54,7 +54,7 @@ def test_parse_statistics_and_scale():
 @pytest.fixture
 def fake_appeears(monkeypatch):
     """Login, one task that is 'processing' for the first ``pending`` status checks, then a bundle with STATS."""
-    state = {"pending": 1, "submitted": 0, "calls": []}
+    state = {"pending": 1, "submitted": 0, "calls": [], "existing": [], "blips": 0}
 
     def respond(method, url, json=None):
         req = httpx.Request(method, url)
@@ -72,6 +72,13 @@ def fake_appeears(monkeypatch):
             state["submitted"] += 1
             assert kwargs["json"]["params"]["layers"] == [{"product": "MOD11A2.061", "layer": "LST_Night_1km"}]
             return httpx.Response(202, json={"task_id": "T1", "status": "pending"}, request=req)
+        if method == "GET" and url.endswith("/task"):
+            return httpx.Response(200, json=state["existing"], request=req)
+        if url.endswith("/task/T1") and state["blips"] > 0:
+            state["blips"] -= 1
+            if state["blips"] % 2:
+                raise httpx.ConnectError("network blip", request=req)
+            return httpx.Response(504, text="Gateway Timeout", request=req)
         if url.endswith("/task/T1"):
             status = "processing" if state["pending"] > 0 else "done"
             state["pending"] -= 1
@@ -111,3 +118,25 @@ def test_without_login_an_uncached_area_is_an_error(settings):
     lst = Catalog.from_dir().get("modis_lst_night")
     with pytest.raises(ProviderError, match="Earthdata login"):
         create_provider("appeears", settings).fetch(lst, PHOENIX, dt.date(2001, 1, 1), dt.date(2005, 12, 31))
+
+
+def test_network_blips_keep_the_task_and_an_existing_task_is_reused(settings, fake_appeears):
+    """A lost connection or a 5xx while waiting must not drop the task id (the old code resubmitted, going to
+    the back of NASA's queue each time); a task already on the account with the same name is reused."""
+    logged_in = settings.model_copy(update={"earthdata_username": "student", "earthdata_password": "secret",
+                                            "appeears_wait": 0, "appeears_poll": 0})
+    lst = Catalog.from_dir().get("modis_lst_night")
+    name = "trend-detective_MOD11A2.061_LST_Night_1km_" + bbox_key(PHOENIX)
+    fake_appeears["existing"] = [{"task_id": "T0", "task_name": name, "status": "error"},
+                                 {"task_id": "T1", "task_name": name, "status": "processing"}]
+    fake_appeears["blips"] = 2
+    provider = create_provider("appeears", logged_in)
+
+    for _ in range(2):  # a 504, then a dropped connection: still "preparing", task kept
+        with pytest.raises(TaskPending):
+            provider.fetch(lst, PHOENIX, dt.date(2001, 1, 1), dt.date(2001, 12, 31))
+    with pytest.raises(TaskPending):  # the task itself still processing
+        provider.fetch(lst, PHOENIX, dt.date(2001, 1, 1), dt.date(2001, 12, 31))
+    series = provider.fetch(lst, PHOENIX, dt.date(2001, 1, 1), dt.date(2001, 12, 31))
+    assert fake_appeears["submitted"] == 0  # reused the live task, never posted a new one
+    assert len(series) == 12

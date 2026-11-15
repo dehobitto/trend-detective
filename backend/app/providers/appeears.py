@@ -67,6 +67,14 @@ class TaskPending(ProviderError):
     """The AppEEARS task exists but is not finished yet."""
 
 
+class TaskFailed(ProviderError):
+    """AppEEARS itself reports the task as failed: a fresh task must be submitted."""
+
+
+class Unreachable(ProviderError):
+    """A network error or a 5xx from AppEEARS: transient, the task is still there."""
+
+
 # ---------------------------------------------------------------- pure helpers (unit-tested) ------------
 
 
@@ -204,9 +212,8 @@ class AppeearsProvider:
                     self._write_state(key, state)
                 try:
                     self._wait_done(state["task_id"], wait)
-                except ProviderError as exc:
-                    if not isinstance(exc, TaskPending):
-                        self._write_state(key, {})  # failed task: submit a fresh one next time
+                except TaskFailed:
+                    self._write_state(key, {})  # only a task NASA reports as failed is dropped
                     raise
                 values = self._download_statistics(state["task_id"], product, layer)
                 state["values"] = {d.date().isoformat(): v for d, v in values.items()}
@@ -249,23 +256,44 @@ class AppeearsProvider:
         try:
             r = httpx.request(method, f"{API}{path}", headers=self._headers(), timeout=self._timeout, **kwargs)
         except httpx.HTTPError as exc:
-            raise ProviderError("Couldn't reach NASA AppEEARS. Please try again later.") from exc
+            raise Unreachable("Couldn't reach NASA AppEEARS. Please try again later.") from exc
         if r.status_code in (401, 403):
             with self._lock:
                 self._token = None
             raise ProviderError("NASA AppEEARS refused the login. Check the Earthdata username and password.")
+        if r.status_code >= 500:
+            log.warning("AppEEARS %s %s -> %s", method, path, r.status_code)
+            raise Unreachable(f"NASA AppEEARS is having trouble right now ({r.status_code}). Please try again later.")
         if r.status_code >= 400:
             log.warning("AppEEARS %s %s -> %s %s", method, path, r.status_code, r.text[:300])
             raise ProviderError(f"NASA AppEEARS answered with an error ({r.status_code}).")
         return r
 
     def _submit(self, key: str, product: str, layer: str, bbox: BBox, start: dt.date, end: dt.date) -> str:
-        payload = task_payload(f"trend-detective_{key}"[:100], product, layer, bbox, start, end)
+        name = f"trend-detective_{key}"[:100]
+        existing = self._existing_task(name)
+        if existing:
+            log.info("AppEEARS task %s already exists for %s; reusing it", existing, key)
+            return existing
+        payload = task_payload(name, product, layer, bbox, start, end)
         task_id = self._request("POST", "/task", json=payload).json().get("task_id")
         if not task_id:
             raise ProviderError("NASA AppEEARS did not accept the request.")
         log.info("AppEEARS task %s submitted for %s", task_id, key)
         return task_id
+
+    def _existing_task(self, name: str) -> str | None:
+        """The live task of this account with this name that is closest to done (e.g. one submitted by a run
+        that lost its state), or None."""
+        try:
+            tasks = self._request("GET", "/task", params={"limit": 200}).json()
+        except (ProviderError, ValueError):
+            return None
+        live = [t for t in tasks if isinstance(t, dict) and t.get("task_name") == name
+                and t.get("status") not in ("error", "deleted", "expired")]
+        rank = {"done": 0, "processing": 1}  # closest to finished first, then the oldest (front of the queue)
+        live.sort(key=lambda t: (rank.get(str(t.get("status")), 2), str(t.get("created", ""))))
+        return live[0].get("task_id") if live else None
 
     def _status(self, task_id: str) -> str:
         return str(self._request("GET", f"/task/{task_id}").json().get("status", "unknown"))
@@ -273,11 +301,14 @@ class AppeearsProvider:
     def _wait_done(self, task_id: str, wait: float) -> None:
         deadline = time.monotonic() + wait
         while True:
-            status = self._status(task_id)
+            try:
+                status = self._status(task_id)
+            except Unreachable:
+                status = "unreachable"  # a blip: the task is still there, keep waiting
             if status == "done":
                 return
             if status in ("error", "deleted", "expired"):
-                raise ProviderError(f"NASA AppEEARS could not prepare this area (task {status}). Please try again.")
+                raise TaskFailed(f"NASA AppEEARS could not prepare this area (task {status}). Please try again.")
             if time.monotonic() + self._poll > deadline:
                 raise TaskPending(
                     f"NASA AppEEARS is preparing this area (status: {status}); it usually takes 2–10 minutes. "
