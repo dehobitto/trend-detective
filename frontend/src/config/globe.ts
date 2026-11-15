@@ -39,7 +39,7 @@ export const globeConfig = {
   /** Fly-to duration before the crossfade. */
   flyDurationMs: 1000,
   /** Initial camera focus. */
-  initialFocus: { lat: 18, lon: 12 },
+  initialFocus: { lat: 22, lon: -78 }, // the Americas face the viewer first, then the spin carries on from there
   /** A click only counts if the pointer moved fewer than this many px (otherwise it was a drag). */
   clickTolerancePx: 5,
   /** Relief strength (normal perturbation from the height map). */
