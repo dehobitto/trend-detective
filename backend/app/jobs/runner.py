@@ -21,6 +21,7 @@ from app.processing.summary import build_summary
 from app.providers import DataProvider, ProviderError, UploadProvider, fetch_progress
 from app.providers.base import fetch_mask
 from app.schemas.analysis import AnalysisRequest, AnalysisResult, SeriesPoint, TrendStats
+from app.processing.trend_significance import assess_trend
 
 log = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ class AnalysisRunner:
         self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…")
         is_monthly = plan.aggregation == "monthly"
         series = monthly if is_monthly or ts.infer_frequency(monthly.index) == "annual" else ts.to_annual(monthly)
+        want_deseasonalized = bool(request.deseasonalize)
         processed = prep.preprocess(series, want_deseasonalized=bool(request.deseasonalize), is_monthly=is_monthly)
         analyzed = processed.tested
         if analyzed.notna().sum() < MIN_POINTS:
@@ -103,7 +105,7 @@ class AnalysisRunner:
             analyzed_series="deseasonalized" if processed.deseasonalized is not None else "raw",
             series=_series_points(processed, analysis),
             stats=stats,
-            summary=build_summary(stats, plan.variable.units, valid_index[0].year, valid_index[-1].year),
+            summary=assess_trend(series, seasonal=processed.seasonal).summary(),
             provider=provider.name,
             region_name=request.region_name if plan.cells else None,
             warnings=warnings,

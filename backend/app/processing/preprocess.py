@@ -132,11 +132,15 @@ def preprocess(series: pd.Series, *, want_deseasonalized: bool, is_monthly: bool
         warnings.append(f"{remaining} period(s) have no data and were skipped.")
 
     anomalies = seasonal = None
-    if want_deseasonalized:
-        if is_monthly:
-            anomalies = deseasonalize(filled)
-            seasonal = seasonal_component(filled)
-        else:
-            warnings.append("Deseasonalizing only applies to monthly data, so the annual values were analyzed directly.")
+    #if want_deseasonalized:
+    #    if is_monthly:
+    #        anomalies = deseasonalize(filled)
+    #        seasonal = seasonal_component(filled)
+    #    else:
+    #        warnings.append("Deseasonalizing only applies to monthly data, so the annual values were analyzed directly.")
+
+    anomalies = deseasonalize(filled)
+    seasonal = seasonal_component(filled)
+
     was_filled = series.isna() & filled.notna()
     return Preprocessed(raw=filled, deseasonalized=anomalies, seasonal=seasonal, warnings=warnings, filled=was_filled)
