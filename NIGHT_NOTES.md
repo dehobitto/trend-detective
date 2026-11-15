@@ -22,7 +22,9 @@
   CSV format (columns/scaling in `providers/appeears.py`) and the OMNO2d v004 layout (group path, dimension order).
 - Fresh deploys start with an empty cache: first request per area takes tens of seconds (GES DISC) to minutes
   (AppEEARS). See `docs/DEPLOY.md`.
-- Not ported from the team repo yet: burned area (MCD64A1) and VIIRS night lights.
+- Not ported from the team repo yet: burned area (MCD64A1; needs every pixel to compute burned share).
+- VIIRS night lights (`blackmarble` provider, VNP46A3 monthly via LAADS OPeNDAP) are untested against the
+  real server too: confirm the LAADS DMR layout and that the Earthdata session is accepted by LAADS.
 - `requirements.txt` unpinned; Docker image never built locally (first build will be in CI).
 - Bundle chunks > 1 MB (three.js, maplibre); fine for a demo.
 

@@ -5,6 +5,7 @@
 =====================  ==============  ==========================================================
 Giovanni / GES DISC    ``earthdata``   GLDAS, GPM IMERG, OMI NO₂, MERRA-2 via GES DISC OPeNDAP
 AppEEARS               ``appeears``    MODIS land surface temperature and NDVI (AppEEARS area tasks)
+LAADS                  ``blackmarble`` VIIRS Black Marble nighttime lights via LAADS OPeNDAP
 NOAA GML               ``noaa_gml``    CO₂ / CH₄ monthly records
 =====================  ==============  ==========================================================
 
@@ -27,6 +28,7 @@ ACCESS_TO_PROVIDER = {
     "giovanni": "earthdata",
     "ges disc opendap": "earthdata",
     "appeears": "appeears",
+    "laads": "blackmarble",
     "noaa gml": "noaa_gml",
 }
 

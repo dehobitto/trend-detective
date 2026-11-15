@@ -55,4 +55,4 @@ def test_every_variable_has_a_real_data_source():
     from app.providers.live import provider_key
 
     for v in Catalog.from_dir().variables():
-        assert provider_key(v) in {"earthdata", "appeears", "noaa_gml"}, v.id
+        assert provider_key(v) in {"earthdata", "appeears", "blackmarble", "noaa_gml"}, v.id

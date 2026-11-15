@@ -4,7 +4,7 @@ Run from ``backend/``::
 
     .venv/bin/python -m app.prefetch              # NOAA + GES DISC (Earthdata) + AppEEARS for every example case
     .venv/bin/python -m app.prefetch --noaa       # only NOAA (no login needed)
-    .venv/bin/python -m app.prefetch --earthdata  # only GES DISC via OPeNDAP
+    .venv/bin/python -m app.prefetch --earthdata  # only GES DISC + LAADS (night lights) via OPeNDAP
     .venv/bin/python -m app.prefetch --appeears   # only AppEEARS (MODIS LST, NDVI)
     .venv/bin/python -m app.prefetch --list       # show what would be downloaded
 
@@ -28,6 +28,7 @@ from app.catalog import Catalog
 from app.config import get_settings
 from app.providers.appeears import AppeearsProvider, TaskPending
 from app.providers.base import ProviderError
+from app.providers.blackmarble import BlackMarbleProvider
 from app.providers.earthdata import EarthdataProvider
 from app.providers.live import ACCESS_TO_PROVIDER
 from app.providers.noaa_gml import parse_monthly, prefetch as prefetch_noaa
@@ -62,16 +63,17 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     settings = get_settings()
     catalog = Catalog.from_dir()
-    plan = plan_for(catalog, "earthdata")
+    plan = [(e, v, b, "earthdata") for e, v, b in plan_for(catalog, "earthdata")]
+    plan += [(e, v, b, "blackmarble") for e, v, b in plan_for(catalog, "blackmarble")]
     modis = plan_for(catalog, "appeears")
     only = [name for name in ("noaa", "earthdata", "appeears") if getattr(args, name)]
     wanted = set(only) or {"noaa", "earthdata", "appeears"}
 
     if args.list:
         print("NOAA GML: mauna_loa_co2, noaa_co2_marine, noaa_ch4_marine")
-        for source, items in (("Earthdata", plan), ("AppEEARS", modis)):
-            for example_id, variable, bbox in items:
-                print(f"{source}: {example_id:22s} {variable.id:20s} {variable.available_start}..{variable.available_end} {bbox}")
+        items = [(src, e, v, b) for e, v, b, src in plan] + [("appeears", e, v, b) for e, v, b in modis]
+        for source, example_id, variable, bbox in items:
+            print(f"{source:11s} {example_id:22s} {variable.id:20s} {variable.available_start}..{variable.available_end} {bbox}")
         return
 
     failed = 0
@@ -98,14 +100,14 @@ def main() -> None:
         modis = []
 
     if "earthdata" in wanted:
-        provider = EarthdataProvider(settings)
-        if not provider.has_login:
+        providers = {"earthdata": EarthdataProvider(settings), "blackmarble": BlackMarbleProvider(settings)}
+        if not providers["earthdata"].has_login:
             print("SKIP Earthdata: set TD_EARTHDATA_TOKEN (or TD_EARTHDATA_USERNAME + TD_EARTHDATA_PASSWORD).")
             plan = []
-        for example_id, variable, bbox in plan:
+        for example_id, variable, bbox, source in plan:
             t0 = time.time()
             try:
-                series = provider.fetch(variable, bbox, variable.available_start, variable.available_end)
+                series = providers[source].fetch(variable, bbox, variable.available_start, variable.available_end)
             except ProviderError as exc:
                 failed += 1
                 print(f"FAIL {example_id} / {variable.id}: {exc}")

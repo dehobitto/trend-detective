@@ -317,6 +317,29 @@
               legend_url: https://gibs.earthdata.nasa.gov/legends/MODIS_L3_NDVI_H.svg}
   location: null
 
+# ---------------------------------------------------------------- land: VIIRS Black Marble (LAADS) -------
+# VNP46A3 monthly composites, 15 arc-second tiles, through LAADS OPeNDAP (app/providers/blackmarble.py).
+
+- id: viirs_night_lights
+  name: Night lights
+  short_definition: How brightly the ground glows at night as seen from space, from street lights, buildings, industry and gas flares, in nanowatts per square centimeter per steradian (snow-free, viewed from straight above).
+  why_it_matters: Night lights grow where cities, roads and electricity spread and dim where people leave, power fails or wars strike, so they map human activity directly.
+  units: nW/cm²/sr
+  sphere: land
+  source: VIIRS Day/Night Band on the Suomi NPP satellite (NASA Black Marble)
+  mission_or_model: VIIRS
+  product: "VNP46A3.002:NearNadir_Composite_Snow_Free"
+  dataset: VIIRS Black Marble VNP46A3 v002
+  access: LAADS
+  temporal_resolution: monthly
+  available_start: 2012-01-01
+  available_end: 2025-12-31
+  coverage: land
+  map_layer: {kind: gibs, layer: VIIRS_SNPP_GapFilled_BRDF_Corrected_DayNightBand_Radiance, tile_matrix_set: GoogleMapsCompatible_Level8, format: png, max_zoom: 8,
+              time_step: daily, time_start: 2012-01-19, time_end: 2026-11-02,
+              legend_url: https://gibs.earthdata.nasa.gov/legends/VIIRS_DayNightBand_At_Sensor_Radiance_H.svg}
+  location: null
+
 # ---------------------------------------------------------------- atmosphere: greenhouse gas records -----
 # Ready-made single series (coverage "series"): no area to draw. Real access: the NOAA GML monthly text
 # files named in `product` (app/providers/noaa_gml.py).

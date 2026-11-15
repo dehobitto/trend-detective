@@ -26,7 +26,7 @@ VARIABLE_FIELDS = {
 
 def test_variables_and_examples(client):
     variables = client.get("/api/variables").json()
-    assert len(variables) == 17
+    assert len(variables) == 18
     assert all(set(v) == VARIABLE_FIELDS for v in variables)  # internal ratio_scale/conversion hidden
     assert {v["sphere"] for v in variables} == {"atmosphere", "land", "water"}
     by_id = {v["id"]: v for v in variables}
@@ -47,7 +47,7 @@ def test_variables_and_examples(client):
     assert client.get("/api/variables/nope").status_code == 404
 
     examples = client.get("/api/examples").json()
-    assert len(examples) == 9
+    assert len(examples) == 10
     for e in examples:
         assert e["variable_id"] in by_id and "center" in e and e["takeaway"]
         assert e["related_variable_id"] is None or e["related_variable_id"] in by_id

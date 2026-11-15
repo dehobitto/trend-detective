@@ -199,6 +199,7 @@ Needs username + password (a token alone works only for GES DISC).
 |---|---|---|---|
 | `earthdata` | `providers/earthdata.py` | GLDAS, OMNO2d, MERRA-2 M2TMNXAER, GPM IMERG (`Giovanni`) | GES DISC OPeNDAP subsets + our own area mean |
 | `appeears` | `providers/appeears.py` | MODIS MOD11A2 LST day/night, MOD13A3 NDVI (`AppEEARS`) | AppEEARS area task → statistics CSV |
+| `blackmarble` | `providers/blackmarble.py` | VIIRS Black Marble VNP46A3 night lights (`LAADS`) | LAADS OPeNDAP subsets per 10° tile, tiles combined; cache in `TD_CACHE_DIR/blackmarble/` |
 | `noaa_gml` | `providers/noaa_gml.py` | CO₂/CH₄ records (`NOAA GML`) | NOAA monthly text files |
 | `live` | `providers/live.py` | everything, by each variable's `access` | delegates to the providers above |
 

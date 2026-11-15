@@ -48,6 +48,7 @@ NS = {
 
 # Ordered preferences per catalog variable: the first layer present in GetCapabilities wins.
 CANDIDATES: dict[str, list[str]] = {
+    "viirs_night_lights": ["VIIRS_SNPP_GapFilled_BRDF_Corrected_DayNightBand_Radiance", "VIIRS_Black_Marble"],
     "modis_ndvi": ["MODIS_Terra_L3_NDVI_Monthly", "MODIS_Aqua_L3_NDVI_Monthly"],
     # GRACE mascons are total water storage anomalies: the closest GIBS has to GLDAS groundwater / TWS.
     "gldas_gws": ["GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI"],

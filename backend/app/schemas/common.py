@@ -89,7 +89,7 @@ class Variable(BaseModel):
     dataset: str
     """Dataset name as the team uses it, e.g. "GLDAS_CLSM025_DA1_D v2.2"."""
     access: str
-    """How real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "NOAA GML"."""
+    """How real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "LAADS" | "NOAA GML"."""
     location: Location | None = None
     """Station position for "series" variables measured at one place (Mauna Loa), else null."""
     map_layer: MapLayer | None = None

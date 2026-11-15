@@ -35,6 +35,13 @@ export const guideThemes: GuideTheme[] = [
     focus: { lat: 28.6, lon: 77.2 },
   },
   {
+    id: 'cities',
+    label: 'Growing cities',
+    hint: 'Are cities spreading? Night lights from space show where people build and live.',
+    variableIds: ['viirs_night_lights'],
+    focus: { lat: 28.6, lon: 77.2 },
+  },
+  {
     id: 'heat',
     label: 'Heat in cities',
     hint: 'Do cities stay hotter at night than they used to?',

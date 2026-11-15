@@ -26,7 +26,7 @@ type Variable = {
   // "series" = a ready-made single time series (station like Mauna Loa, or a global mean like NOAA marine CH4).
   // bbox is NOT needed/used for these; UI should skip the "draw an area" step and show a "Global record" note.
   dataset: string            // dataset name as the team uses it, e.g. "GLDAS_CLSM025_DA1_D v2.2"
-  access: string             // how real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "NOAA GML"
+  access: string             // how real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "LAADS" | "NOAA GML"
   location: { lat: number; lon: number; label: string } | null   // for "series" from a station (Mauna Loa), else null
 }
 

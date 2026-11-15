@@ -108,3 +108,15 @@
   center: {lat: 14.0, lon: 6.5}
   related_variable_id: gpm_precipitation
   takeaway: Compare greenness with rainfall over the same area; if vegetation changes while rain does not, people (grazing, farming) are the more likely cause.
+
+- id: delhi-lights
+  title: Is Delhi spreading out at night?
+  question: Have the night lights over Delhi grown brighter since 2012, as the city and its suburbs expand?
+  bbox: {west: 76.8, south: 28.3, east: 77.6, north: 28.9}
+  variable_id: viirs_night_lights
+  start: 2012-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 28.6, lon: 77.2}
+  related_variable_id: omi_no2
+  takeaway: Brighter nights mean more buildings, roads and traffic; compare with NO₂ over the same area to see whether pollution grows with the city.

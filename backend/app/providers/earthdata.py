@@ -89,6 +89,7 @@ GRIDS: dict[str, Grid] = {
 _LAT_NAMES = {"lat", "latitude", "ydim", "nlat"}
 _LON_NAMES = {"lon", "longitude", "xdim", "nlon"}
 _TIME_NAMES = {"time"}
+PACKING_ATTRS = ("_FillValue", "missing_value", "scale_factor", "add_offset")
 
 
 # ---------------------------------------------------------------- pure helpers (unit-tested) ------------
@@ -146,6 +147,9 @@ class VarLayout:
     """Fully qualified DAP4 name, e.g. ``/HDFEOS/GRIDS/ColumnAmountNO2/Data_Fields/ColumnAmountNO2TropCloudScreened``."""
     dims: tuple[str, ...]
     """``"time"``, ``"lat"`` or ``"lon"`` per dimension, in storage order."""
+    attrs: tuple[tuple[str, float], ...] = ()
+    """Packing attributes from the DMR (``scale_factor``, ``add_offset``, ``_FillValue``, ``missing_value``):
+    used when the subset file itself does not carry them."""
 
     @property
     def group(self) -> str | None:
@@ -192,44 +196,76 @@ def parse_dmr(xml_text: str, field: str) -> VarLayout:
         dims = tuple(_dim_role(d.get("name", "")) for d in element.findall(f"{DAP4_NS}Dim"))
         if sorted(d for d in dims if d != "time") != ["lat", "lon"]:
             raise ProviderError(f"{field} in the NASA data file is not a lat/lon grid.")
-        return VarLayout(path=path, dims=dims)
+        attrs = []
+        for attr in element.findall(f"{DAP4_NS}Attribute"):
+            name = attr.get("name", "")
+            value = attr.find(f"{DAP4_NS}Value")
+            if name in PACKING_ATTRS and value is not None and value.text:
+                try:
+                    attrs.append((name, float(value.text.strip())))
+                except ValueError:
+                    pass
+        return VarLayout(path=path, dims=dims, attrs=tuple(attrs))
     raise ProviderError(f"{field} was not found in the NASA data file.")
 
 
-def read_subset(content: bytes, layout: VarLayout, grid: Grid, box: Box) -> float:
-    """Area mean of one DAP4 NetCDF-4 response (NaN when every cell is missing)."""
+def decode_subset(content: bytes, layout: VarLayout, n_lat: int, n_lon: int, positive_only: bool = False) -> np.ndarray:
+    """One DAP4 NetCDF-4 response as a decoded ``(lat, lon)`` float array (NaN = missing).
+
+    Packing (fill value, scale factor, offset) is applied here from the file's own attributes, falling back
+    to the DMR's, so it is applied exactly once whatever the server copies into the subset file.
+    """
     import xarray as xr  # heavy import, only needed for real downloads
 
     with tempfile.NamedTemporaryFile(suffix=".nc4", delete=False) as tmp:
         tmp.write(content)
         tmp_path = tmp.name
     try:
-        with xr.open_dataset(tmp_path, engine="h5netcdf", group=layout.group) as ds:
+        with xr.open_dataset(tmp_path, engine="h5netcdf", group=layout.group, mask_and_scale=False) as ds:
             if layout.name not in ds:
                 raise ProviderError(f"{layout.name} is missing from NASA's response.")
-            values = np.asarray(ds[layout.name].values, dtype=float)
+            var = ds[layout.name]
+            values = np.asarray(var.values, dtype=float)
+            file_attrs = {k: var.attrs.get(k, var.encoding.get(k)) for k in PACKING_ATTRS}
     except (OSError, ValueError) as exc:
         raise ProviderError("NASA's data server sent an unreadable file.") from exc
     finally:
         os.unlink(tmp_path)
+    packing = dict(layout.attrs)
+    packing.update({k: float(np.ravel(v)[0]) for k, v in file_attrs.items() if v is not None})
 
     # The time index is a single slice ([0]); whether DAP keeps it as a size-1 axis or drops it, the
     # remaining cells are in storage order of the two spatial dims.
     spatial = [d for d in layout.dims if d != "time"]
-    n_lat, n_lon = box.lat1 - box.lat0 + 1, box.lon1 - box.lon0 + 1
     if values.size != n_lat * n_lon:
         raise ProviderError("NASA's response has an unexpected shape.")
     values = values.reshape((n_lat, n_lon) if spatial == ["lat", "lon"] else (n_lon, n_lat))
     if spatial == ["lon", "lat"]:
         values = values.T
-    values = np.where(np.abs(values) >= 1e30, np.nan, values)  # undecoded HDF-EOS fill values
+    for key in ("_FillValue", "missing_value"):
+        if key in packing:
+            values = np.where(values == packing[key], np.nan, values)
+    values = values * packing.get("scale_factor", 1.0) + packing.get("add_offset", 0.0)
+    values = np.where(np.abs(values) >= 1e30, np.nan, values)  # HDF-EOS fill values without attributes
     values = np.where(values <= -9990, np.nan, values)  # GLDAS / IMERG -9999
-    if grid.positive_only:
+    if positive_only:
         values = np.where(values > 0, values, np.nan)
-    weights = np.cos(np.deg2rad(box.lats(grid)))[:, None] * np.ones_like(values)
+    return values
+
+
+def weighted_sum(values: np.ndarray, lats: np.ndarray) -> tuple[float, float]:
+    """(sum of cos(lat)-weighted values, sum of weights) over the valid cells."""
+    weights = np.cos(np.deg2rad(lats))[:, None] * np.ones_like(values)
     weights = np.where(np.isnan(values), 0.0, weights)
-    total = weights.sum()
-    return float(np.nansum(values * weights) / total) if total > 0 else float("nan")
+    return float(np.nansum(values * weights)), float(weights.sum())
+
+
+def read_subset(content: bytes, layout: VarLayout, grid: Grid, box: Box) -> float:
+    """Area mean of one DAP4 NetCDF-4 response (NaN when every cell is missing)."""
+    n_lat, n_lon = box.lat1 - box.lat0 + 1, box.lon1 - box.lon0 + 1
+    values = decode_subset(content, layout, n_lat, n_lon, positive_only=grid.positive_only)
+    total, weight = weighted_sum(values, box.lats(grid))
+    return total / weight if weight > 0 else float("nan")
 
 
 def sample_dates(granules: dict[dt.date, str], grid: Grid, start: dt.date, end: dt.date) -> list[dt.date]:
@@ -433,10 +469,12 @@ class EarthdataProvider:
         path = self._cache_dir / short_name / "layout.json"
         stored = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         if field in stored:
-            layout = VarLayout(path=stored[field]["path"], dims=tuple(stored[field]["dims"]))
+            entry = stored[field]
+            layout = VarLayout(path=entry["path"], dims=tuple(entry["dims"]),
+                               attrs=tuple((k, float(v)) for k, v in entry.get("attrs", {}).items()))
         else:
             layout = parse_dmr(self._get(f"{sample_url}.dmr").decode("utf-8", "replace"), field)
-            stored[field] = {"path": layout.path, "dims": list(layout.dims)}
+            stored[field] = {"path": layout.path, "dims": list(layout.dims), "attrs": dict(layout.attrs)}
             _write_json(path, stored)
         self._layouts[key] = layout
         return layout
