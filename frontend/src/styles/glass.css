@@ -169,3 +169,22 @@
 .app .place-search__box[data-pressed='true'] { --dent: 1; }
 .app .place-search__box:focus-within { border-color: #ffffff; box-shadow: var(--glass-shadow), 0 0 0 3px rgba(255, 255, 255, 0.25); }
 @media (prefers-reduced-motion: reduce) { .app .place-search__box { transform: none; } }
+
+/* ---------- No half-shadows: flat glass. The tilt and the press stay, the shading and drop shadows go. ---------- */
+.app .place-search__box,
+.app .place-search__box:hover,
+.app .place-search__box:focus-within,
+.app .place-search__list { box-shadow: none; }
+.app .place-search__box:focus-within { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6); }
+.app .place-search__box::before,
+.app .curious__q::before { display: none; }
+.app .panel .assess,
+.app .panel .warnings,
+.app .panel .explainer,
+.app .panel .preview,
+.app .panel .verdict__takeaway,
+.app .panel .chart,
+.app .panel .stats,
+.app .panel .chart-tip { box-shadow: none; }
+.app .panel .verdict { box-shadow: inset 4px 0 0 var(--tone); }
+.app .panel { box-shadow: none; }
