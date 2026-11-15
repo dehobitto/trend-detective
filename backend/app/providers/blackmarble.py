@@ -23,7 +23,7 @@ import logging
 import math
 import re
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +32,7 @@ import pandas as pd
 
 from app.catalog.models import CatalogVariable
 from app.config import Settings
-from app.providers.base import ProviderError, current_mask, mask_grid, mask_key, register_provider
+from app.providers.base import ProviderError, current_mask, mask_grid, mask_key, register_provider, report_progress
 from app.providers.earthdata import EarthdataProvider, VarLayout, _write_json, decode_subset, parse_product, weighted_sum
 from app.schemas.common import BBox
 
@@ -41,6 +41,9 @@ log = logging.getLogger(__name__)
 TILE_DEG = 10.0
 TILE_PIXELS = 2400
 PIXEL_DEG = TILE_DEG / TILE_PIXELS
+MAX_SAMPLES = 40_000
+"""Pixels fetched per month at most (~200 x 200). A bigger area is sampled every ``stride``-th pixel."""
+KM_PER_DEG = 111.0
 _TILE_RE = re.compile(r"\.h(\d{2})v(\d{2})\.")
 
 
@@ -54,6 +57,8 @@ class TileWindow:
     row1: int
     col0: int
     col1: int
+    stride: int = 1
+    """Take every ``stride``-th row and column (OPeNDAP ``[start:stride:stop]``), for big areas."""
 
     @property
     def tile(self) -> str:
@@ -61,14 +66,15 @@ class TileWindow:
 
     def lats(self) -> np.ndarray:
         north = 90.0 - TILE_DEG * self.v
-        return north - PIXEL_DEG * (np.arange(self.row0, self.row1 + 1) + 0.5)
+        return north - PIXEL_DEG * (np.arange(self.row0, self.row1 + 1, self.stride) + 0.5)
 
     def lons(self) -> np.ndarray:
         west = -180.0 + TILE_DEG * self.h
-        return west + PIXEL_DEG * (np.arange(self.col0, self.col1 + 1) + 0.5)
+        return west + PIXEL_DEG * (np.arange(self.col0, self.col1 + 1, self.stride) + 0.5)
 
     def constraint(self, layout: VarLayout) -> str:
-        parts = {"time": "[0]", "lat": f"[{self.row0}:{self.row1}]", "lon": f"[{self.col0}:{self.col1}]"}
+        step = f"{self.stride}:" if self.stride > 1 else ""
+        parts = {"time": "[0]", "lat": f"[{self.row0}:{step}{self.row1}]", "lon": f"[{self.col0}:{step}{self.col1}]"}
         return layout.path + "".join(parts[d] for d in layout.dims)
 
 
@@ -89,6 +95,19 @@ def tile_windows(bbox: BBox) -> list[TileWindow]:
             row1c, col1c = min(TILE_PIXELS - 1, max(row0, row1)), min(TILE_PIXELS - 1, max(col0, col1))
             windows.append(TileWindow(h, v, row0, row1c, col0, col1c))
     return windows
+
+
+def pick_stride(windows: list[TileWindow]) -> int:
+    """Smallest stride that keeps one month of all windows under :data:`MAX_SAMPLES` pixels."""
+    total = sum((w.row1 - w.row0 + 1) * (w.col1 - w.col0 + 1) for w in windows)
+    return max(1, math.ceil(math.sqrt(total / MAX_SAMPLES)))
+
+
+def sampling_note(stride: int) -> str:
+    km = stride * PIXEL_DEG * KM_PER_DEG
+    return (f"This area is large, so night lights were sampled at one pixel in {stride * stride} "
+            f"(about one point every {km:.0f} km) to keep the download fast. The trend and its significance "
+            "are reliable; the exact brightness is approximate and very small towns may be missed.")
 
 
 def granules_by_tile(items: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
@@ -137,7 +156,10 @@ class BlackMarbleProvider(EarthdataProvider):
                 windows += [x for x in tile_windows(sub) if x.tile == w.tile]
         else:
             windows = tile_windows(bbox)
+        stride = pick_stride(windows)
+        windows = [replace(w, stride=stride) for w in windows]
         key = "_".join(f"{x:.3f}" for x in (bbox.west, bbox.south, bbox.east, bbox.north)) + mask_key(squares)
+        key += f"_s{stride}" if stride > 1 else ""  # full-resolution caches keep their old names
         values_path = self._cache_dir / short_name / "values" / f"{version}_{field}_{key}.json"
         cached: dict[str, float | None] = json.loads(values_path.read_text(encoding="utf-8")) if values_path.exists() else {}
         if not self.has_login and not cached:
@@ -166,7 +188,10 @@ class BlackMarbleProvider(EarthdataProvider):
             raise ProviderError(f"NASA has no valid {variable.name} values for this area.")
         monthly = raw.resample("MS").mean()
         full = pd.date_range(pd.Timestamp(start).replace(day=1), pd.Timestamp(end), freq="MS")
-        return variable.to_catalog_units(monthly.reindex(full).astype(float)).rename(variable.id)
+        series = variable.to_catalog_units(monthly.reindex(full).astype(float)).rename(variable.id)
+        if stride > 1:
+            series.attrs["notes"] = [sampling_note(stride)]
+        return series
 
     # -- granules ---------------------------------------------------------------------------------------
 
@@ -208,7 +233,7 @@ class BlackMarbleProvider(EarthdataProvider):
             date, window, url = job
             try:
                 content = self._get(f"{url}.dap.nc4?dap4.ce={window.constraint(layout)}")
-                n_lat, n_lon = window.row1 - window.row0 + 1, window.col1 - window.col0 + 1
+                n_lat, n_lon = len(window.lats()), len(window.lons())
                 values = decode_subset(content, layout, n_lat, n_lon)
                 values = np.where(values < 0, np.nan, values)
                 if squares:
@@ -220,8 +245,13 @@ class BlackMarbleProvider(EarthdataProvider):
         sums: dict[str, list[float]] = {}
         failed: set[str] = set()
         errors: list[str] = []
+        total = len(jobs)
+        step = max(1, total // 100)
+        report_progress(0, total)
         with ThreadPoolExecutor(max_workers=self._workers) as pool:
-            for date, pair, error in pool.map(one, jobs):
+            for done, (date, pair, error) in enumerate(pool.map(one, jobs), start=1):
+                if done % step == 0 or done == total:
+                    report_progress(done, total)
                 if error is not None:
                     failed.add(date)
                     errors.append(error)

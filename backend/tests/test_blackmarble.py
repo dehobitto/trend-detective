@@ -1,6 +1,8 @@
 """Black Marble (VIIRS night lights) provider: tile geometry, multi-tile combination, uint16 decoding. No network."""
 
 import datetime as dt
+from dataclasses import replace
+import re
 import io
 
 import numpy as np
@@ -82,7 +84,9 @@ def fake_laads(monkeypatch):
             if url.endswith(".dmr"):
                 r.content = DMR.encode()
                 return r
-            rows, cols = 240, 120  # 1° tall, 0.5° wide per tile
+            # answer with the shape the constraint asks for: [start:stop] or [start:stride:stop] per dim
+            spans = [(int(a), int(st or 1), int(b)) for a, st, b in re.findall(r"\[(\d+):(?:(\d+):)?(\d+)\]", url)]
+            rows, cols = (len(range(a, b + 1, st)) for a, st, b in spans)
             raw = np.full((rows, cols), 100 if ".h25v06." in url else 300)
             raw[0, 0] = 65535
             r.content = packed_nc4(raw, layout)
@@ -112,3 +116,26 @@ def test_without_login_nothing_cached_is_an_error(settings):
     ntl = Catalog.from_dir().get("viirs_night_lights")
     with pytest.raises(ProviderError, match="Earthdata login"):
         create_provider("blackmarble", settings).fetch(ntl, DELHI, dt.date(2012, 1, 1), dt.date(2020, 12, 31))
+
+
+def test_big_areas_are_sampled_with_a_stride_and_say_so(settings, fake_laads):
+    from app.providers.blackmarble import MAX_SAMPLES, pick_stride, tile_windows
+
+    # a city keeps every pixel; a 1° box (240 x 240 px) needs every 2nd; a 5° box every 6th
+    assert pick_stride(tile_windows(DELHI)) == 1
+    assert pick_stride(tile_windows(ACROSS)) == 2
+    big = tile_windows(BBox(west=75.0, south=25.0, east=80.0, north=30.0))
+    stride = pick_stride(big)
+    assert stride == 6 and sum(len(replace(w, stride=stride).lats()) * len(replace(w, stride=stride).lons())
+                               for w in big) <= MAX_SAMPLES
+
+    w = replace(tile_windows(ACROSS)[0], stride=2)
+    assert w.constraint(parse_dmr(DMR, "NearNadir_Composite_Snow_Free")).endswith(f"[{w.row0}:2:{w.row1}][{w.col0}:2:{w.col1}]")
+    assert len(w.lats()) == len(range(w.row0, w.row1 + 1, 2))
+
+    ntl = Catalog.from_dir().get("viirs_night_lights")
+    series = create_provider("blackmarble", settings.model_copy(update={"earthdata_token": "t"})).fetch(
+        ntl, ACROSS, dt.date(2012, 1, 1), dt.date(2012, 12, 31))
+    assert all(":2:" in c for c in fake_laads if ".dap.nc4" in c)
+    assert series.iloc[0] == pytest.approx(20.0, rel=1e-3)
+    assert "one pixel in 4" in series.attrs["notes"][0]
