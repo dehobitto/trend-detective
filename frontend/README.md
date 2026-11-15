@@ -65,6 +65,25 @@ src/
 The globe stays mounted (its render loop pauses while the map is shown); the map is lazy-mounted on the
 first hand-off and then kept, so transitions are a pure opacity crossfade.
 
+## Variable layer: modes, globe overlay, gestures
+
+- **Map mode** (layer dock, `layerStore.mode`): *Value* (GIBS imagery if the variable has it, else
+  `/api/grid`), *Change from normal* (`/api/grid?mode=anomaly`, monthly frames), *Trend*
+  (`/api/grid/{id}/trend` for the investigation period: one map, no play controls; cells that fail
+  Mann-Kendall are drawn faint and hatched; legend "Falling / Rising", `<units> per decade`).
+  Picking a variable opens it in *Trend*. Anomaly and trend always come from the backend grid
+  (synthetic for now; the dock says "demo data").
+- **Globe overlay** (`features/globe/GlobeOverlay.tsx`): the same layer is draped on a sphere just
+  above the ground (clouds fade out while it shows). GIBS: one WMS EPSG:4326 image per date; grid modes:
+  a global 2° frame painted to a canvas (`features/layers/gridRender.ts`, shared with the map). Frames
+  cross-fade and the next one is preloaded; land-only variables are cut along the real coastline with
+  the water mask. `useFrameSync` runs in `App`, so the globe and the map share frames/mode; the dock
+  shows on the globe too (right of the case index; at the top below 1080 px).
+- **Gestures** (`features/globe/wheelIntent.ts`, thresholds in `config/globe.ts` → `gestures`):
+  two-finger trackpad swipe turns the globe (with inertia), trackpad pinch (ctrl+wheel) zooms and hands
+  off to the map, a mouse wheel zooms as before. On the map a trackpad swipe pans
+  (`map/useTrackpadPan.ts`); pinch and mouse wheel zoom. Touch: one finger turns, two fingers zoom.
+
 ## Swapping the field-guide chat
 
 Every chat call goes through **`src/features/chat/chatAdapter.ts`**:

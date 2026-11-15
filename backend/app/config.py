@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     """A cached NOAA file older than this is downloaded again (a stale copy is used if that fails)."""
     http_timeout: float = 30.0
     """Seconds before an outgoing data download gives up."""
+    noaa_seed_dir: Path | None = BACKEND_DIR / "app" / "data" / "seed" / "noaa_gml"
+    """Read-only NOAA GML files committed with the code; used when a file is not cached and NOAA can't be
+    reached (copied into the cache, so a fresh download is tried again after the TTL). ``None`` disables it."""
     upload_dir: Path = BACKEND_DIR / "data" / "uploads"
     max_upload_bytes: int = 5 * 1024 * 1024
     max_jobs: int = 500
@@ -51,6 +54,9 @@ class Settings(BaseSettings):
     """Seconds a place-search answer is kept in memory."""
     nominatim_min_interval: float = 1.0
     """Nominatim usage policy: at most one request per this many seconds."""
+    static_dir: Path | None = None
+    """Built frontend (``frontend/dist``) to serve at ``/`` with an index.html fallback, for single-container
+    deploys. Only mounted when the directory contains ``index.html``; unset in local dev (Vite serves the UI)."""
 
 
 @lru_cache

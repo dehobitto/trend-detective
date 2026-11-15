@@ -7,6 +7,7 @@ import { ExampleCases } from './features/examples/ExampleCases';
 import { GlobeView } from './features/globe/GlobeView';
 import { InvestigationPanel } from './features/investigate/InvestigationPanel';
 import { LayerDock } from './features/layers/LayerDock';
+import { useFrameSync } from './features/layers/useFrameSync';
 import { MapHint, MapToolbar } from './features/map/MapToolbar';
 import { PlaceSearch } from './features/search/PlaceSearch';
 import { needsNoArea, useStore } from './state/store';
@@ -36,6 +37,8 @@ export default function App() {
   useEffect(() => {
     bootstrap();
   }, []);
+  // Variable layer frames/mode are shared by the globe overlay and the map overlay.
+  useFrameSync();
 
   const onMap = view === 'map';
   const showPanel = onMap && panelVisible;
@@ -66,6 +69,7 @@ export default function App() {
           <ExampleCases />
         </div>
       )}
+      {!onMap && transition === 'idle' && <LayerDock besidePanel={false} onGlobe />}
       {onMap && (
         <>
           <MapToolbar panelOpen={showPanel} />

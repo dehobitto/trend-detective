@@ -19,6 +19,7 @@ import pandas as pd
 
 from app.catalog import Catalog
 from app.catalog.models import CatalogVariable
+from app.grid.change import MIN_YEARS, diverging_colormap, monthly_climatology, trend_fields, value_cube
 from app.grid.landmask import land_fraction
 from app.providers.synthetic import grid_values
 from app.schemas.common import BBox
@@ -35,6 +36,15 @@ RANGE_SAMPLE_RES = 2.0
 RANGE_SAMPLE_MONTHS = 24
 
 GLOBAL_BBOX = BBox(west=-180, south=-90, east=180, north=90)
+TREND_GLOBAL_RES = 2.0
+"""Default cell size (degrees) of a whole-globe trend grid (180x90): answers cold in well under a second."""
+CHANGE_SAMPLE_RES = 3.0
+"""Coarse global grid used to fix the (stable) anomaly / trend color ranges."""
+CHANGE_RANGE_PERCENTILE = 98.0
+HOTSPOT_RANGE_SHARE = 0.75
+HOTSPOT_RANGE_CAP = 5.0
+"""The trend range covers this share of the strongest catalog hotspot's slope (its core may saturate), but at
+most HOTSPOT_RANGE_CAP x the background 98th percentile, so the rest of the world stays readable."""
 
 
 class GridNotAvailable(LookupError):
@@ -86,6 +96,11 @@ class GridService:
         self._frame_json = lru_cache(maxsize=512)(self._build_frame_json)
         self._range = lru_cache(maxsize=64)(self._compute_range)
         self._colormap = lru_cache(maxsize=64)(self._build_colormap)
+        self._anomaly_json = lru_cache(maxsize=256)(self._build_anomaly_json)
+        self._climatology = lru_cache(maxsize=16)(self._compute_climatology)
+        self._anomaly_r = lru_cache(maxsize=64)(self._compute_anomaly_range)
+        self._trend_json = lru_cache(maxsize=64)(self._build_trend_json)
+        self._trend_r = lru_cache(maxsize=64)(self._compute_trend_range)
 
     # ------------------------------------------------------------------ public
 
@@ -105,8 +120,10 @@ class GridService:
         index = pd.date_range(variable.available_start, variable.available_end, freq="MS")
         return [d.strftime("%Y-%m-%d") for d in index]
 
-    def frame_json(self, variable_id: str, date: dt.date, bbox: BBox | None, res: float | None) -> bytes:
-        """Serialized ``GridFrame`` (cached)."""
+    def frame_json(
+        self, variable_id: str, date: dt.date, bbox: BBox | None, res: float | None, mode: str = "value"
+    ) -> bytes:
+        """Serialized ``GridFrame`` (cached). ``mode="anomaly"``: value minus that calendar month's climatology."""
         variable = self.variable(variable_id)
         month = date.replace(day=1)
         first, last = variable.available_start.replace(day=1), variable.available_end
@@ -116,11 +133,50 @@ class GridService:
             )
         bbox = bbox or GLOBAL_BBOX
         width, height = grid_shape(bbox, res)
-        key = (round(bbox.west, 4), round(bbox.south, 4), round(bbox.east, 4), round(bbox.north, 4))
+        key = _key(bbox)
+        if mode == "anomaly":
+            return self._anomaly_json(variable_id, month, key, width, height)
+        if mode != "value":
+            raise GridRequestError(f"Unknown mode '{mode}': use value or anomaly.")
         return self._frame_json(variable_id, month, key, width, height)
 
-    def frame(self, variable_id: str, date: dt.date, bbox: BBox | None = None, res: float | None = None) -> dict:
-        return json.loads(self.frame_json(variable_id, date, bbox, res))
+    def trend_json(
+        self, variable_id: str, start: dt.date, end: dt.date, bbox: BBox | None, res: float | None, alpha: float = 0.05
+    ) -> bytes:
+        """Serialized ``TrendGrid`` (cached); the period is clamped to the variable's availability."""
+        variable = self.variable(variable_id)
+        months = pd.date_range(variable.available_start, variable.available_end, freq="MS")
+        first, last = months[0].date(), months[-1].date()
+        s, e = max(start.replace(day=1), first), min(end.replace(day=1), last)
+        if s > e:
+            raise GridRequestError(
+                f"No {variable.name} data between {start:%Y-%m} and {end:%Y-%m}: "
+                f"it is available from {first:%Y-%m} to {last:%Y-%m}."
+            )
+        if e.year - s.year + 1 < MIN_YEARS or (e.year - s.year) * 12 + e.month - s.month + 1 < MIN_YEARS * 12:
+            raise GridRequestError(f"A trend map needs at least {MIN_YEARS} years of data; pick a longer period.")
+        if not 0 < alpha < 1:
+            raise GridRequestError("alpha must be between 0 and 1.")
+        if bbox is None and res is None:
+            res = TREND_GLOBAL_RES
+        bbox = bbox or GLOBAL_BBOX
+        width, height = grid_shape(bbox, res)
+        return self._trend_json(variable_id, s, e, _key(bbox), width, height, round(alpha, 6))
+
+    def trend(self, variable_id: str, start: dt.date, end: dt.date, bbox: BBox | None = None,
+              res: float | None = None, alpha: float = 0.05) -> dict:
+        return json.loads(self.trend_json(variable_id, start, end, bbox, res, alpha))
+
+    def anomaly_range(self, variable_id: str) -> float:
+        return self._anomaly_r(variable_id)
+
+    def trend_range(self, variable_id: str) -> float:
+        return self._trend_r(variable_id)
+
+    def frame(
+        self, variable_id: str, date: dt.date, bbox: BBox | None = None, res: float | None = None, mode: str = "value"
+    ) -> dict:
+        return json.loads(self.frame_json(variable_id, date, bbox, res, mode))
 
     def value_range(self, variable_id: str) -> tuple[float, float]:
         return self._range(variable_id)
@@ -130,6 +186,10 @@ class GridService:
         for variable in self.catalog.variables():
             if not variable.is_series:
                 self._range(variable.id)
+        for variable in self.catalog.variables():
+            if not variable.is_series:
+                self._anomaly_r(variable.id)
+                self._trend_r(variable.id)
 
     def prewarm_in_background(self) -> threading.Thread:
         thread = threading.Thread(target=self.prewarm, name="grid-prewarm", daemon=True)
@@ -137,6 +197,117 @@ class GridService:
         return thread
 
     # ------------------------------------------------------------------ internals
+
+    def _mask(self, variable: CatalogVariable, lat_edges: np.ndarray, lon_edges: np.ndarray) -> np.ndarray | None:
+        """Boolean (rows, cols) of cells that have data, or None when every cell does."""
+        if variable.coverage not in ("land", "ocean"):
+            return None
+        land = land_fraction(lat_edges, lon_edges) >= LAND_THRESHOLD
+        return land if variable.coverage == "land" else ~land
+
+    def _cube(self, variable: CatalogVariable, index: pd.DatetimeIndex, bbox: BBox, width: int, height: int):
+        lat_edges, lon_edges = cell_edges(bbox, width, height)
+        mask = self._mask(variable, lat_edges, lon_edges)
+        return value_cube(variable, index, _centers(lat_edges), _centers(lon_edges), mask)
+
+    def _compute_climatology(self, variable_id: str, key: tuple, width: int, height: int) -> np.ndarray:
+        """(12, rows, cols) calendar-month means over the whole availability (built one calendar month at a time)."""
+        variable = self.variable(variable_id)
+        bbox = BBox(west=key[0], south=key[1], east=key[2], north=key[3])
+        index = pd.date_range(variable.available_start, variable.available_end, freq="MS")
+        out = np.full((12, height, width), np.nan)
+        for m in range(1, 13):
+            sub = index[index.month == m]
+            if len(sub):
+                out[m - 1] = self._cube(variable, sub, bbox, width, height).mean(axis=0)
+        return out
+
+    def _compute_anomaly_range(self, variable_id: str) -> float:
+        """Symmetric range R (anomalies span -R..R): 98th percentile of |anomaly| over a coarse global sample."""
+        variable = self.variable(variable_id)
+        index = pd.date_range(variable.available_start, variable.available_end, freq="MS")
+        width, height = grid_shape(GLOBAL_BBOX, CHANGE_SAMPLE_RES)
+        cube = self._cube(variable, index, GLOBAL_BBOX, width, height)
+        anom = np.abs(cube - monthly_climatology(cube, index.month.to_numpy())[index.month.to_numpy() - 1])
+        return self._symmetric_range(anom, height, width)
+
+    def _compute_trend_range(self, variable_id: str) -> float:
+        """Symmetric range R for slopes per decade over the full record (coarse global sample), widened so the
+        strongest catalog hotspot reaches at least HOTSPOT_RANGE_SHARE of it."""
+        variable = self.variable(variable_id)
+        index = pd.date_range(variable.available_start, variable.available_end, freq="MS")
+        width, height = grid_shape(GLOBAL_BBOX, CHANGE_SAMPLE_RES)
+        slope, _ = trend_fields(self._cube(variable, index, GLOBAL_BBOX, width, height), index)
+        r = self._symmetric_range(np.abs(slope)[None], height, width)
+        background = r
+        hotspots = variable.synthetic.hotspots if variable.synthetic else []
+        if hotspots:
+            lats = np.array([h.lat for h in hotspots])
+            lons = np.array([h.lon for h in hotspots])
+            at = value_cube(variable, index, lats, lons)
+            at = np.stack([at[:, i, i] for i in range(len(hotspots))], axis=1)[:, :, None]
+            hs, _ = trend_fields(at, index)
+            hot = HOTSPOT_RANGE_SHARE * float(np.nanmax(np.abs(hs)))
+            r = max(r, _nice(min(hot, HOTSPOT_RANGE_CAP * background), up=True))
+        return r
+
+    def _symmetric_range(self, absval: np.ndarray, height: int, width: int) -> float:
+        lat_edges, _ = cell_edges(GLOBAL_BBOX, width, height)
+        weights = np.broadcast_to(np.cos(np.deg2rad(_centers(lat_edges)))[:, None], (height, width))
+        weights = np.broadcast_to(weights, absval.shape)
+        ok = np.isfinite(absval)
+        if not ok.any():
+            return 1.0
+        (hi,) = _weighted_percentiles(absval[ok], weights[ok], (CHANGE_RANGE_PERCENTILE,))
+        hi = _nice(hi, up=True)
+        return hi if hi > 0 else 1.0
+
+    def _build_anomaly_json(self, variable_id: str, month: dt.date, key: tuple, width: int, height: int) -> bytes:
+        variable = self.variable(variable_id)
+        bbox = BBox(west=key[0], south=key[1], east=key[2], north=key[3])
+        values = self._values(variable, month, bbox, width, height)
+        anom = values - self._climatology(variable_id, key, width, height)[month.month - 1]
+        r = self._anomaly_r(variable_id)
+        return _dump({
+            "variable_id": variable.id,
+            "date": month.isoformat(),
+            "bbox": bbox.model_dump(),
+            "width": width,
+            "height": height,
+            "values": _rounded(anom, r),
+            "min": -r,
+            "max": r,
+            "units": variable.units,
+            "colormap": diverging_colormap(r),
+            "synthetic": True,
+        })
+
+    def _build_trend_json(
+        self, variable_id: str, start: dt.date, end: dt.date, key: tuple, width: int, height: int, alpha: float
+    ) -> bytes:
+        variable = self.variable(variable_id)
+        bbox = BBox(west=key[0], south=key[1], east=key[2], north=key[3])
+        index = pd.date_range(start, end, freq="MS")
+        slope, p = trend_fields(self._cube(variable, index, bbox, width, height), index)
+        r = self._trend_r(variable_id)
+        ok = np.isfinite(slope) & np.isfinite(p)
+        significant = np.where(ok, p < alpha, None).ravel().tolist()
+        return _dump({
+            "variable_id": variable.id,
+            "date": end.isoformat(),
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "bbox": bbox.model_dump(),
+            "width": width,
+            "height": height,
+            "values": _rounded(np.where(ok, slope, np.nan), r),
+            "significant": significant,
+            "min": -r,
+            "max": r,
+            "units": f"{variable.units} per decade",
+            "colormap": diverging_colormap(r),
+            "synthetic": True,
+        })
 
     def _values(self, variable: CatalogVariable, month: dt.date, bbox: BBox, width: int, height: int) -> np.ndarray:
         lat_edges, lon_edges = cell_edges(bbox, width, height)
@@ -211,3 +382,18 @@ class GridService:
             "synthetic": True,
         }
         return json.dumps(frame, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
+
+
+def _key(bbox: BBox) -> tuple[float, float, float, float]:
+    return (round(bbox.west, 4), round(bbox.south, 4), round(bbox.east, 4), round(bbox.north, 4))
+
+
+def _rounded(values: np.ndarray, span: float) -> list:
+    decimals = max(0, 4 - math.floor(math.log10(span)))
+    out = np.round(values, decimals).ravel().astype(object)
+    out[~np.isfinite(values.ravel())] = None
+    return out.tolist()
+
+
+def _dump(obj: dict) -> bytes:
+    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()

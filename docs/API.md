@@ -201,3 +201,12 @@ type TrendGrid = GridFrame & {           // values = slope per decade (on deseas
 Globe overlay (frontend only): GIBS layers are fetched as one equirectangular image via WMS
 `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS={layer}&STYLES=&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH=2048&HEIGHT=1024&FORMAT=image/png&TRANSPARENT=TRUE&TIME={date}`;
 grid/anomaly/trend frames are rendered to a canvas texture from a global GridFrame.
+
+## Deployment notes
+
+Production runs as one long-lived container (`Dockerfile`, see `docs/DEPLOY.md`): the same app serves the API
+under `/api` and the built frontend at `/` (`TD_STATIC_DIR`; unknown non-`/api` paths return `index.html`,
+unknown `/api/*` paths still return a JSON 404). The contract above is unchanged. Jobs and uploaded datasets
+are kept in process memory / container disk, so they disappear on a redeploy or restart: a `GET
+/api/analyses/{id}` or `/csv` for a job from before a restart returns 404, and the frontend should simply
+re-run the analysis. Run a single worker process.

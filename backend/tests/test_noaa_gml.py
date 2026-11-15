@@ -171,3 +171,23 @@ def test_synthetic_setting_forces_demo_data_even_with_a_cache(settings):
         result = analyze(c, variable_id="mauna_loa_co2", start="1958-03-01", end="1960-12-31")
     assert result["synthetic"] is True and result["provider"] == "synthetic"
     assert FALLBACK_WARNING not in result["warnings"]
+
+
+def test_bundled_seed_is_used_when_noaa_is_unreachable_and_nothing_is_cached(auto_settings):
+    from app.config import Settings
+
+    seeded = auto_settings.model_copy(update={"noaa_seed_dir": Settings.model_fields["noaa_seed_dir"].default})
+    with TestClient(create_app(seeded)) as c:  # conftest makes every download fail
+        result = analyze(c, variable_id="mauna_loa_co2", start="1990-01-01", end="2020-12-31")
+    assert result["synthetic"] is False and result["provider"] == "noaa_gml"
+    assert FALLBACK_WARNING not in result["warnings"]
+    assert (seeded.cache_dir / "noaa_gml" / "co2_mm_mlo.txt").exists()  # copied, so retried only after the TTL
+
+
+def test_bundled_seed_files_cover_every_noaa_variable():
+    from app.config import Settings
+
+    seed_dir = Settings.model_fields["noaa_seed_dir"].default
+    for v in Catalog.from_dir().variables():
+        if v.product.startswith("NOAA-GML:"):
+            assert len(parse_monthly((seed_dir / f"{file_name(v)}.txt").read_text(encoding="utf-8"))) > 100

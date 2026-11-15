@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Git pre-push guard: blocks the push if backend tests or the frontend typecheck/build fail.
+# Install with scripts/install-hooks.sh. Skip once (emergencies only): git push --no-verify
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+red() { printf '\033[31m%s\033[0m\n' "$*" >&2; }
+ok() { printf '\033[32m%s\033[0m\n' "$*"; }
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "pre-push: note: the working tree has uncommitted changes; checks run on the files on disk." >&2
+fi
+
+PY="$ROOT/backend/.venv/bin/python"
+[ -x "$PY" ] || PY="$(command -v python3)"
+echo "pre-push: backend tests"
+if ! (cd backend && "$PY" -m pytest -q -x -p no:cacheprovider); then
+  red "pre-push: backend tests failed - push blocked"; exit 1
+fi
+
+echo "pre-push: frontend typecheck + build"
+[ -d frontend/node_modules ] || (cd frontend && npm ci --no-audit --no-fund)
+OUT="$(mktemp -d)"
+trap 'rm -rf "$OUT"' EXIT
+if ! (cd frontend && npm run -s typecheck && npx vite build --outDir "$OUT" --emptyOutDir --logLevel warn); then
+  red "pre-push: frontend typecheck/build failed - push blocked"; exit 1
+fi
+ok "pre-push: all checks passed"

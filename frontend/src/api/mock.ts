@@ -5,7 +5,7 @@
  */
 import { MOCK_EXAMPLES, MOCK_STORY_TRENDS, MOCK_VARIABLES, type MockVariable } from './mockCatalog';
 import { mannKendall, ols, sensSlope } from './mockStats';
-import { mockGeocode, mockGrid, mockGridDates, mockMapLayer } from './mockGrid';
+import { mockAnomaly, mockGeocode, mockGrid, mockGridDates, mockMapLayer, mockTrend } from './mockGrid';
 import {
   UPLOAD_PREFIX,
   type AnalysisRequest,
@@ -417,7 +417,11 @@ export const mockApi: TrendApi = {
   },
   async getGrid(id, q) {
     await delay(60);
-    return mockGrid(findVariable(id), q);
+    return q.mode === 'anomaly' ? mockAnomaly(findVariable(id), q) : mockGrid(findVariable(id), q);
+  },
+  async getTrendGrid(id, q) {
+    await delay(120);
+    return mockTrend(findVariable(id), q);
   },
   async getGridDates(id) {
     return mockGridDates(findVariable(id));

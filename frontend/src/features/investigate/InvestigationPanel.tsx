@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Button } from '../../components/Button';
 import { needsNoArea, useStore } from '../../state/store';
 import { ResultsView } from '../results/ResultsView';
@@ -18,7 +18,10 @@ export function InvestigationPanel() {
   const job = useStore((s) => s.job);
   const runError = useStore((s) => s.runError);
   const run = useRunAnalysis();
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useStore((s) => s.panelCollapsed);
+  const setCollapsed = (c: boolean) => useStore.getState().set({ panelCollapsed: c });
+  // A fresh panel always opens unfolded.
+  useEffect(() => () => useStore.getState().set({ panelCollapsed: false }), []);
 
   const noArea = useStore(needsNoArea);
   const hasArea = !!bbox || noArea;

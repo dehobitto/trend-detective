@@ -3,7 +3,7 @@
  * Only mock.ts imports this. Fields are synthetic but smooth and deterministic.
  */
 import type { MockVariable } from './mockCatalog';
-import type { BBox, Colormap, GridFrame, GridQuery, MapLayer, Place } from './types';
+import type { BBox, Colormap, GridFrame, GridQuery, MapLayer, Place, TrendGrid, TrendQuery } from './types';
 
 /* ------------------------------------------------------------------ map_layer per variable */
 
@@ -139,6 +139,45 @@ export function mockGrid(v: MockVariable, q: GridQuery): GridFrame {
     units: v.units,
     colormap: ramp(cmap, PALETTES[cmap], min, max),
     synthetic: true,
+  };
+}
+
+/* ------------------------------------------------------------------ change maps (v3) */
+
+const DIVERGING = ['#07668A', '#6FA3BA', '#F2F4F5', '#C9A06A', '#9A5200'];
+const symmetric = (values: (number | null)[]) => {
+  const a = values.filter((x): x is number => x !== null).map(Math.abs).sort((x, y) => x - y);
+  const r = a.length ? a[Math.floor(a.length * 0.98)] || 1 : 1;
+  return Number(r.toPrecision(2));
+};
+
+/** Mock anomaly: this month minus the same calendar month of a reference year. */
+export function mockAnomaly(v: MockVariable, q: GridQuery): GridFrame {
+  const now = mockGrid(v, q);
+  const ref = mockGrid(v, { ...q, date: `2012-${q.date.slice(5, 7)}-01` });
+  const values = now.values.map((x, i) => (x === null || ref.values[i] === null ? null : Math.round((x - ref.values[i]!) * 1000) / 1000));
+  const r = symmetric(values);
+  return { ...now, values, min: -r, max: r, colormap: ramp('diverging', DIVERGING, -r, r) };
+}
+
+/** Mock trend: change between the first and last year of the period, per decade. */
+export function mockTrend(v: MockVariable, q: TrendQuery): TrendGrid {
+  const a = mockGrid(v, { date: q.start, bbox: q.bbox, res: q.res ?? 2 });
+  const b = mockGrid(v, { date: `${q.end.slice(0, 4)}-${q.start.slice(5, 7)}-01`, bbox: q.bbox, res: q.res ?? 2 });
+  const years = Math.max(1, Number(q.end.slice(0, 4)) - Number(q.start.slice(0, 4)));
+  const values = a.values.map((x, i) => (x === null || b.values[i] === null ? null : Math.round(((b.values[i]! - x) / years) * 10 * 1000) / 1000));
+  const r = symmetric(values);
+  return {
+    ...a,
+    date: q.end,
+    start: q.start,
+    end: q.end,
+    values,
+    significant: values.map((x) => (x === null ? null : Math.abs(x) > r * 0.25)),
+    min: -r,
+    max: r,
+    units: `${v.units} per decade`,
+    colormap: ramp('diverging', DIVERGING, -r, r),
   };
 }
 

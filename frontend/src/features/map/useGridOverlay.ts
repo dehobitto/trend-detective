@@ -3,8 +3,8 @@ import { useEffect } from 'react';
 import { api } from '../../api/client';
 import type { BBox, GridFrame } from '../../api/types';
 import { mapConfig } from '../../config/map';
-import { buildLut } from '../layers/frames';
-import { useLayers } from '../layers/layerStore';
+import { paintGrid } from '../layers/gridRender';
+import { useLayers, usesGrid, type MapMode } from '../layers/layerStore';
 import { OVERLAY_BEFORE } from './layers';
 
 const SRC = 'vgrid';
@@ -40,10 +40,7 @@ function queryFor(map: MlMap): Query {
 const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
 const latOf = (y: number) => (Math.atan(Math.sinh(y)) * 180) / Math.PI;
 
-/**
- * Paint a GridFrame onto a canvas in Web-Mercator rows (so the image source lines up with the map),
- * bilinear-interpolating values and leaving no-data cells transparent.
- */
+/** Paint a GridFrame onto a canvas in Web-Mercator rows (so the image source lines up with the map). */
 function renderFrame(f: GridFrame, canvas: HTMLCanvasElement): { coords: [[number, number], [number, number], [number, number], [number, number]] } {
   const north = Math.min(MAX_LAT, f.bbox.north);
   const south = Math.max(-MAX_LAT, f.bbox.south);
@@ -54,63 +51,7 @@ function renderFrame(f: GridFrame, canvas: HTMLCanvasElement): { coords: [[numbe
   const long = Math.min(cfg.gridCanvasPx, Math.max(f.width, f.height) * 4);
   const W = Math.max(2, Math.round(aspect > 1 ? long / aspect : long));
   const H = Math.max(2, Math.round(aspect > 1 ? long : long * aspect));
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d')!;
-  const img = ctx.createImageData(W, H);
-  const px = img.data;
-  const lut = buildLut(f.colormap, f.min, f.max);
-  const { width: gw, height: gh, values } = f;
-  const latSpan = f.bbox.north - f.bbox.south;
-  const scale = 255 / (f.max - f.min || 1);
-
-  // Column sample positions are the same for every row.
-  const c0 = new Int32Array(W);
-  const c1 = new Int32Array(W);
-  const cx = new Float32Array(W);
-  for (let i = 0; i < W; i++) {
-    const fc = Math.max(0, Math.min(gw - 1, ((i + 0.5) / W) * gw - 0.5));
-    c0[i] = Math.floor(fc);
-    c1[i] = Math.min(gw - 1, c0[i] + 1);
-    cx[i] = fc - c0[i];
-  }
-  for (let j = 0; j < H; j++) {
-    const lat = latOf(y0 - ((j + 0.5) / H) * (y0 - y1));
-    const fr = Math.max(0, Math.min(gh - 1, ((f.bbox.north - lat) / latSpan) * gh - 0.5));
-    const r0 = Math.floor(fr);
-    const r1 = Math.min(gh - 1, r0 + 1);
-    const ty = fr - r0;
-    for (let i = 0; i < W; i++) {
-      const tx = cx[i];
-      const v00 = values[r0 * gw + c0[i]];
-      const v01 = values[r0 * gw + c1[i]];
-      const v10 = values[r1 * gw + c0[i]];
-      const v11 = values[r1 * gw + c1[i]];
-      let sum = 0;
-      let wsum = 0;
-      const add = (v: number | null, w: number) => {
-        if (v !== null && v !== undefined && Number.isFinite(v)) {
-          sum += v * w;
-          wsum += w;
-        }
-      };
-      add(v00, (1 - tx) * (1 - ty));
-      add(v01, tx * (1 - ty));
-      add(v10, (1 - tx) * ty);
-      add(v11, tx * ty);
-      const o = (j * W + i) * 4;
-      if (wsum < 0.5) {
-        px[o + 3] = 0;
-        continue;
-      }
-      const k = Math.max(0, Math.min(255, Math.round((sum / wsum - f.min) * scale))) * 3;
-      px[o] = lut[k];
-      px[o + 1] = lut[k + 1];
-      px[o + 2] = lut[k + 2];
-      px[o + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
+  paintGrid(f, canvas, W, H, (y) => latOf(y0 - (y / H) * (y0 - y1)));
   const { west, east } = f.bbox;
   return {
     coords: [
@@ -124,15 +65,21 @@ function renderFrame(f: GridFrame, canvas: HTMLCanvasElement): { coords: [[numbe
 
 /** LRU-ish cache of frame fetches, shared across renders. */
 const cache = new Map<string, Promise<GridFrame>>();
-function fetchFrame(variableId: string, date: string, q: Query): Promise<GridFrame> {
-  const key = `${variableId}|${date}|${q.key}`;
+/** `date` is the month (value/anomaly) or "start/end" (trend). */
+function fetchFrame(variableId: string, mode: MapMode, date: string, q: Query): Promise<GridFrame> {
+  const key = `${variableId}|${mode}|${date}|${q.key}`;
   let p = cache.get(key);
   if (p) {
     cache.delete(key);
     cache.set(key, p); // refresh recency
     return p;
   }
-  p = api.getGrid(variableId, { date, bbox: q.bbox, res: q.res });
+  if (mode === 'trend') {
+    const [start, end] = date.split('/');
+    // A trend is one heavier map: ask for a coarser grid than a single frame.
+    const res = Math.max(q.res, (q.bbox.east - q.bbox.west) / cfg.trendCells);
+    p = api.getTrendGrid(variableId, { start, end, bbox: q.bbox, res: Math.round(res * 1e4) / 1e4 });
+  } else p = api.getGrid(variableId, { date, bbox: q.bbox, res: q.res, mode });
   p.catch(() => cache.delete(key));
   cache.set(key, p);
   while (cache.size > cfg.gridCacheSize) cache.delete(cache.keys().next().value!);
@@ -165,12 +112,13 @@ export function useGridOverlay(map: MlMap | null) {
         map.addSource(SRC, { type: 'image', url, coordinates: coords });
         map.addLayer({ id: SRC, type: 'raster', source: SRC, paint: { 'raster-opacity': overlayOn ? opacity : 0, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } }, OVERLAY_BEFORE);
       }
-      useLayers.getState().set({ gridLegend: { min: f.min, max: f.max, units: f.units, colormap: f.colormap, synthetic: f.synthetic } });
+      useLayers.getState().set({ gridLegend: { min: f.min, max: f.max, units: f.units, colormap: f.colormap, synthetic: f.synthetic, diverging: f.min < 0 && f.max > 0 && Math.abs(f.min + f.max) < 1e-9 } });
     };
 
     const sync = (moved = false) => {
       const s = useLayers.getState();
-      if (s.layer?.kind !== 'grid' || !s.variableId || !s.date) {
+      const trend = s.mode === 'trend';
+      if (!usesGrid(s) || !s.variableId || (trend ? !s.trendPeriod : !s.date)) {
         remove();
         query = null;
         return;
@@ -181,19 +129,20 @@ export function useGridOverlay(map: MlMap | null) {
         query = q;
       }
       const my = ++seq;
-      const { variableId, date, frames } = s;
+      const { variableId, frames, mode } = s;
+      const date = trend ? `${s.trendPeriod!.start}/${s.trendPeriod!.end}` : s.date!;
       const q = query;
       s.set({ loading: true });
-      fetchFrame(variableId, date, q)
+      fetchFrame(variableId, mode, date, q)
         .then((f) => {
           if (my !== seq) return;
           paint(f);
           useLayers.getState().set({ loading: false, overlayError: null });
           // Prefetch the next frames for smooth playback.
-          const i = frames.indexOf(date);
+          const i = trend ? -1 : frames.indexOf(date);
           for (let k = 1; k <= cfg.gridPrefetch && i >= 0; k++) {
             const next = frames[(i + k) % frames.length];
-            if (next) fetchFrame(variableId, next, q).catch(() => {});
+            if (next) fetchFrame(variableId, mode, next, q).catch(() => {});
           }
         })
         .catch((e) => {
@@ -209,7 +158,7 @@ export function useGridOverlay(map: MlMap | null) {
       if (s.layer !== p.layer || s.variableId !== p.variableId) {
         query = null;
         sync();
-      } else if (s.date !== p.date) sync();
+      } else if (s.mode !== p.mode || s.trendPeriod?.start !== p.trendPeriod?.start || s.trendPeriod?.end !== p.trendPeriod?.end || (s.date !== p.date && s.mode !== 'trend')) sync();
       else if ((s.opacity !== p.opacity || s.overlayOn !== p.overlayOn) && map.getLayer(SRC)) {
         map.setPaintProperty(SRC, 'raster-opacity', s.overlayOn ? s.opacity : 0);
       }

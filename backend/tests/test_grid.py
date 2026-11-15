@@ -133,3 +133,103 @@ def test_errors(client):
     assert r.status_code == 422 and "north" in r.json()["detail"]
     r = client.get("/api/grid/omi_no2", params={"date": "2010-01-01", "west": 20, "south": 0, "east": 10, "north": 5})
     assert r.status_code == 422 and "West must be smaller" in r.json()["detail"]
+
+
+# ------------------------------------------------------------------ v3: anomaly and trend maps
+
+def _arr(values):
+    return np.array([np.nan if x is None else x for x in values], dtype=float)
+
+
+def test_anomaly_frame_contract_and_symmetric_range(client):
+    r = client.get("/api/grid/modis_lst_day", params={"date": "2015-07-01", "mode": "anomaly"} | PUNJAB)
+    assert r.status_code == 200, r.text
+    f = r.json()
+    assert f["date"] == "2015-07-01" and f["units"] == "°C" and f["colormap"]["name"] == "diverging"
+    assert len(f["values"]) == f["width"] * f["height"]
+    assert f["min"] == -f["max"] and f["max"] > 0
+    stops = f["colormap"]["stops"]
+    assert stops[0] == [f["min"], "#07668A"] and stops[-1] == [f["max"], "#9A5200"]
+    assert [0.0, "#F2F4F5"] in stops
+    other = client.get("/api/grid/modis_lst_day", params={"date": "2003-01-01", "mode": "anomaly"}).json()
+    assert (other["min"], other["max"]) == (f["min"], f["max"])  # stable per variable
+    assert client.get("/api/grid/modis_lst_day", params={"date": "2015-07-01", "mode": "nope"}).status_code == 422
+
+
+def test_anomalies_average_to_zero(grid):
+    # Each calendar month's anomaly averages to ~0 over the record; over one year the global mean is small.
+    variable = grid.catalog.get("gpm_precipitation")
+    r = grid.anomaly_range("gpm_precipitation")
+    lats = np.linspace(90, -90, 46)
+    lats = (lats[:-1] + lats[1:]) / 2
+    means = []
+    for m in range(1, 13):
+        f = grid.frame("gpm_precipitation", dt.date(2012, m, 1), res=4.0, mode="anomaly")
+        means.append(area_mean(_arr(f["values"]).reshape(f["height"], f["width"])[None], lats)[0])
+    assert abs(np.mean(means)) < 0.1 * r
+    # And the value frame minus the anomaly frame is the same climatology every year.
+    a = [grid.frame("gpm_precipitation", dt.date(y, 7, 1), BBox(**PUNJAB), 1.0) for y in (2005, 2015)]
+    b = [grid.frame("gpm_precipitation", dt.date(y, 7, 1), BBox(**PUNJAB), 1.0, mode="anomaly") for y in (2005, 2015)]
+    clim = [_arr(x["values"]) - _arr(y["values"]) for x, y in zip(a, b)]
+    assert np.allclose(clim[0], clim[1], atol=1e-3)
+    assert variable.units == a[0]["units"]
+
+
+def test_trend_contract_and_default_global_resolution(client):
+    r = client.get("/api/grid/gpm_precipitation/trend", params={"start": "2001-01-01", "end": "2024-12-01"})
+    assert r.status_code == 200, r.text
+    f = r.json()
+    assert set(f) == {"variable_id", "date", "bbox", "width", "height", "values", "min", "max", "units", "colormap",
+                      "synthetic", "start", "end", "significant"}
+    assert (f["width"], f["height"]) == (180, 90)
+    assert f["date"] == f["end"] == "2024-12-01" and f["start"] == "2001-01-01"
+    assert f["units"] == "mm/day per decade" and f["min"] == -f["max"] > -1e9
+    assert len(f["values"]) == len(f["significant"]) == 180 * 90
+    assert all(isinstance(s, bool) for s in f["significant"])
+    land = client.get("/api/grid/gldas_gws/trend", params={"start": "2004-01-01", "end": "2024-12-01"} | PACIFIC).json()
+    assert all(v is None for v in land["values"]) and all(s is None for s in land["significant"])
+
+
+def _cell(f, lat, lon):
+    b = f["bbox"]
+    row = int((b["north"] - lat) / (b["north"] - b["south"]) * f["height"])
+    col = int((lon - b["west"]) / (b["east"] - b["west"]) * f["width"])
+    i = row * f["width"] + col
+    return f["values"][i], f["significant"][i]
+
+
+def test_trend_hotspots(grid):
+    gws = grid.trend("gldas_gws", dt.date(2004, 1, 1), dt.date(2024, 12, 1))
+    slope, sig = _cell(gws, 30.0, 75.5)
+    assert slope < -100 and sig is True  # Punjab groundwater depletion: ~-180 mm per decade
+    rain = grid.trend("gpm_precipitation", dt.date(2001, 1, 1), dt.date(2024, 12, 1))
+    slope, sig = _cell(rain, 30.0, 75.5)
+    assert sig is False and abs(slope) < rain["max"] / 2  # ... while Punjab rainfall has no trend
+    amazon, sig = _cell(rain, -6, -60)
+    assert amazon < 0 and sig is True
+    # Regional request at its own resolution agrees with the global map.
+    regional = grid.trend("gldas_gws", dt.date(2004, 1, 1), dt.date(2024, 12, 1), BBox(**PUNJAB), 1.0)
+    assert (regional["width"], regional["height"]) == (5, 4)
+    assert all(v is not None and v < 0 for v in regional["values"])
+
+
+def test_trend_errors_and_clamping(client):
+    p = {"start": "2010-01-01", "end": "2011-06-01"}
+    r = client.get("/api/grid/gldas_gws/trend", params=p)
+    assert r.status_code == 422 and "3 years" in r.json()["detail"]
+    assert client.get("/api/grid/mauna_loa_co2/trend", params={"start": "2000-01-01", "end": "2020-01-01"}).status_code == 404
+    r = client.get("/api/grid/omi_no2/trend", params={"start": "1990-01-01", "end": "2010-01-01"})
+    assert r.status_code == 200 and r.json()["start"] == "2004-10-01"  # clamped to availability
+    assert client.get("/api/grid/omi_no2/trend", params={"start": "2010-01-01", "end": "2005-01-01"}).status_code == 422
+
+
+def test_trend_is_fast(grid):
+    import time
+
+    grid.trend_range("modis_lst_day")
+    t = time.perf_counter()
+    grid.trend("modis_lst_day", dt.date(2001, 1, 1), dt.date(2024, 12, 1))
+    assert time.perf_counter() - t < 1.5
+    t = time.perf_counter()
+    grid.trend("modis_lst_day", dt.date(2001, 1, 1), dt.date(2024, 12, 1))
+    assert time.perf_counter() - t < 0.05  # cached

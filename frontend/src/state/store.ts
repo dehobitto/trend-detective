@@ -40,6 +40,8 @@ type State = {
   bbox: BBox | null;
   drawing: boolean;
   panelRequested: boolean;
+  /** Phones: the investigation bottom sheet is folded down to its grip (the timeline dock docks above it). */
+  panelCollapsed: boolean;
 
   variables: Variable[];
   examples: ExampleCase[];
@@ -90,6 +92,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   bbox: null,
   drawing: false,
   panelRequested: false,
+  panelCollapsed: false,
 
   variables: [],
   examples: [],

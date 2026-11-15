@@ -7,7 +7,6 @@ import { prefersReducedMotion } from '../../config/motion';
 import { wrapLon } from '../../lib/geo';
 import { useStore } from '../../state/store';
 import { useLayers } from '../layers/layerStore';
-import { useFrameSync } from '../layers/useFrameSync';
 import { BasemapSwitcher, PortalControl } from './BasemapControl';
 import { addBBoxLayers, buildStyle, setBasemap, setBBoxData } from './layers';
 import { registerOverlayProtocol } from './overlayProtocol';
@@ -15,6 +14,7 @@ import { useBoxSelect } from './useBoxSelect';
 import { useGibsOverlay } from './useGibsOverlay';
 import { useGridOverlay } from './useGridOverlay';
 import { useStationMarker } from './useStationMarker';
+import { useTrackpadPan } from './useTrackpadPan';
 import './map.css';
 
 /** Zoom that roughly matches the globe camera at the end of its fly-in (so the crossfade doesn't jump). */
@@ -108,9 +108,9 @@ export function MapView() {
 
   useBoxSelect(map);
   useStationMarker(map);
-  useFrameSync();
   useGibsOverlay(map);
   useGridOverlay(map);
+  useTrackpadPan(map);
 
   useEffect(() => {
     if (map) setBasemap(map, basemap);

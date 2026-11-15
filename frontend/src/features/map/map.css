@@ -127,7 +127,7 @@
 
 @media (max-width: 760px) {
   .map-hint {
-    top: 156px;
+    top: 200px; /* below the toolbar, which wraps to two rows on phones */
     font-size: 12px;
   }
   .map-toolbar {
@@ -135,6 +135,23 @@
   }
   .basemap-switch { width: auto; }
   .basemap-switch__opt { font-size: 0; gap: 0; padding: 3px; }
+  /* Phones: the bottom edge belongs to the sheet and the timeline dock, so the basemap switcher and
+     zoom buttons stack top-right under the chat button instead of hiding behind them. */
+  .map .maplibregl-ctrl-bottom-left {
+    top: 64px;
+    right: 0;
+    bottom: auto;
+    left: auto;
+    margin: 0 var(--edge) 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  /* Zoom, then basemaps, then attribution last so its expanded text never covers the search box. */
+  .map .maplibregl-ctrl-bottom-left .maplibregl-ctrl-group { order: 1; }
+  .map .maplibregl-ctrl-bottom-left .maplibregl-ctrl:not(.maplibregl-ctrl-group):not(.maplibregl-ctrl-attrib) { order: 2; }
+  .map .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib { order: 3; }
+  .map .maplibregl-ctrl-bottom-left .maplibregl-ctrl { margin: 0 0 8px; }
 }
 
 .station-marker { display: flex; align-items: center; gap: 8px; pointer-events: none; }

@@ -29,6 +29,7 @@ import datetime as dt
 import io
 import logging
 import os
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -93,6 +94,7 @@ class NoaaGmlProvider:
     def __init__(self, settings: Settings) -> None:
         self._base_url = settings.noaa_gml_base_url
         self._cache_dir = Path(settings.cache_dir) / "noaa_gml"
+        self._seed_dir = Path(settings.noaa_seed_dir) if settings.noaa_seed_dir else None
         self._ttl = settings.noaa_cache_ttl_days * 86400
         self._timeout = settings.http_timeout
         self._lock = threading.Lock()
@@ -131,7 +133,16 @@ class NoaaGmlProvider:
             if path.exists():
                 log.warning("Using stale NOAA GML cache %s (download failed)", path)
                 return path
-            raise
+            seed = self._seed_dir / f"{name}.txt" if self._seed_dir else None
+            if seed is None or not seed.exists():
+                raise
+            log.warning("Using bundled NOAA GML seed %s (download failed, no cache)", seed)
+            try:  # copy into the cache so the download is retried only after the TTL, not on every request
+                path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(seed, path)
+                return path
+            except OSError:
+                return seed
 
     def _download(self, name: str) -> Path:
         url = file_url(self._base_url, name)

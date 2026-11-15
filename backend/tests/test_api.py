@@ -304,3 +304,24 @@ def test_unexpected_errors_use_api_error_shape(settings):
     with TestClient(app, raise_server_exceptions=False) as c:
         r = c.get("/api/datasets")
     assert r.status_code == 500 and r.json() == {"detail": "Something went wrong on the server. Please try again."}
+
+
+def test_static_frontend_is_served_with_spa_fallback_when_configured(settings, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>TD</title>")
+    (dist / "assets" / "app.js").write_text("console.log(1)")
+    with TestClient(create_app(settings.model_copy(update={"static_dir": dist}))) as c:
+        assert "<title>TD</title>" in c.get("/").text
+        assert c.get("/assets/app.js").text == "console.log(1)"
+        assert "<title>TD</title>" in c.get("/some/client/route").text
+        assert c.get("/api/health").json()["status"] == "ok"
+        assert c.get("/api/no-such-endpoint").status_code == 404
+
+
+def test_static_frontend_is_not_mounted_by_default(client):
+    assert client.get("/").status_code == 404

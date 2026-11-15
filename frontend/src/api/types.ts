@@ -70,7 +70,16 @@ export type GridFrame = {
   synthetic: boolean;
 };
 
-export type GridQuery = { date: string; bbox?: BBox; res?: number };
+export type GridQuery = { date: string; bbox?: BBox; res?: number; mode?: 'value' | 'anomaly' };
+
+/** v3: per-cell trend map. values = slope per decade of the deseasonalized monthly series. */
+export type TrendGrid = GridFrame & {
+  start: string;
+  end: string;
+  /** Per cell: Mann-Kendall p < alpha (null where there is no data). */
+  significant: (boolean | null)[];
+};
+export type TrendQuery = { start: string; end: string; bbox?: BBox; res?: number; alpha?: number };
 
 export type Place = { name: string; display_name: string; lat: number; lon: number; bbox: BBox | null; kind: string };
 
@@ -194,6 +203,8 @@ export interface TrendApi {
   /** v2 */
   getGrid(variableId: string, q: GridQuery, signal?: AbortSignal): Promise<GridFrame>;
   getGridDates(variableId: string): Promise<string[]>;
+  /** v3 */
+  getTrendGrid(variableId: string, q: TrendQuery, signal?: AbortSignal): Promise<TrendGrid>;
   geocode(q: string, limit?: number, signal?: AbortSignal): Promise<Place[]>;
 }
 

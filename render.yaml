@@ -1,0 +1,21 @@
+# Render Blueprint: one Docker web service (API at /api + frontend at /). See docs/DEPLOY.md.
+# Dashboard -> New -> Blueprint -> pick this repo. Deploys only after GitHub CI checks pass on main.
+services:
+  - type: web
+    name: trend-detective
+    runtime: docker
+    plan: free                 # 512 MB RAM; see docs/DEPLOY.md "Memory" before demo day
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass   # wait for the GitHub Actions CI checks on the commit
+    envVars:
+      - key: TD_DATA_PROVIDER
+        value: auto
+      - key: TD_GRID_PREWARM
+        value: "false"         # prewarm peaks ~560 MB; too much for 512 MB instances
+      # Later, for real NASA data (secret, set in the dashboard, never in git):
+      # - key: TD_EARTHDATA_TOKEN
+      #   sync: false

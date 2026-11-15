@@ -2,7 +2,8 @@ import { useEffect, useMemo } from 'react';
 import { mapConfig } from '../../config/map';
 import { useSelectedVariable, useStore } from '../../state/store';
 import { cssGradient, formatFrame, nearestFrame } from './frames';
-import { useLayers } from './layerStore';
+import { Segmented } from '../../components/Segmented';
+import { useLayers, type MapMode } from './layerStore';
 import './layers.css';
 
 const cfg = mapConfig.variableLayer;
@@ -46,10 +47,22 @@ function yearTicks(frames: string[]) {
  * Docked bottom bar for the variable map layer: show/hide, opacity, legend, and a timeline
  * (play/pause, step, scrubber with year ticks, speed) like a weather-radar app.
  */
-export function LayerDock({ besidePanel }: { besidePanel: boolean }) {
+const MODES: { value: MapMode; label: string }[] = [
+  { value: 'value', label: 'Value' },
+  { value: 'anomaly', label: 'Change from normal' },
+  { value: 'trend', label: 'Trend' },
+];
+
+const yearSpan = (p: { start: string; end: string }) => {
+  const f = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return `${f(p.start)} – ${f(p.end)}`;
+};
+
+export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boolean; onGlobe?: boolean }) {
   const variable = useSelectedVariable();
-  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, gridLegend, overlayError, set } = useLayers();
+  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, gridLegend, overlayError, mode, trendPeriod, set } = useLayers();
   const job = useStore((s) => s.job);
+  const sheetCollapsed = useStore((s) => s.panelCollapsed);
 
   const idx = useMemo(() => (date ? frames.indexOf(date) : -1), [frames, date]);
   const ticks = useMemo(() => yearTicks(frames), [frames]);
@@ -73,20 +86,22 @@ export function LayerDock({ besidePanel }: { besidePanel: boolean }) {
     return () => window.clearTimeout(t);
   }, [playing, date, speedIdx, frames]);
 
-  if (!layer || !variable || frames.length === 0) return null;
+  if (!layer || !variable || (frames.length === 0 && mode !== 'trend')) return null;
+  const trend = mode === 'trend';
+  const imagery = layer.kind === 'gibs' && mode === 'value';
 
   const step = (d: number) => {
     if (idx < 0) return;
     set({ playing: false, date: frames[Math.max(0, Math.min(frames.length - 1, idx + d))] });
   };
-  const stepKind = layer.kind === 'gibs' && !(layer.time_step === 'daily' && cfg.dailyFrameStep === 'monthly') ? layer.time_step : 'monthly';
+  const stepKind = imagery && !(layer.time_step === 'daily' && cfg.dailyFrameStep === 'monthly') ? layer.time_step : 'monthly';
 
   // Analysed period, if a result is on screen.
   const req = job?.status === 'done' && job.result && job.request.variable_id === variable.id ? job.request : null;
   const mark = (d: string) => (frames.length > 1 ? nearestFrame(frames, d) / (frames.length - 1) : 0);
 
   return (
-    <section className="layer-dock" data-beside-panel={besidePanel} aria-label="Map layer and timeline">
+    <section className="layer-dock" data-on-globe={onGlobe} data-beside-panel={besidePanel} data-sheet-collapsed={besidePanel && sheetCollapsed} aria-label="Map layer and timeline">
       <div className="layer-dock__head">
         <button
           type="button"
@@ -101,8 +116,18 @@ export function LayerDock({ besidePanel }: { besidePanel: boolean }) {
         <div className="layer-dock__title">
           <span className="layer-dock__name">{variable.name}</span>
           <span className="layer-dock__src">
-            {layer.kind === 'gibs' ? 'NASA GIBS imagery' : gridLegend?.synthetic ? 'Gridded values · demo data' : 'Gridded values'}
+            {imagery
+              ? 'NASA GIBS imagery'
+              : `${mode === 'trend' ? 'Trend, seasons removed' : mode === 'anomaly' ? 'Versus the usual for that month' : 'Gridded values'}${gridLegend?.synthetic ? ' · demo data' : ''}`}
           </span>
+        </div>
+        <div className="layer-dock__mode">
+          <Segmented
+            label="What the map shows"
+            value={mode}
+            options={MODES}
+            onChange={(m) => set({ mode: m, playing: false, gridLegend: null, overlayError: null })}
+          />
         </div>
         <Legend />
         <label className="layer-dock__opacity" title="Layer opacity">
@@ -112,6 +137,13 @@ export function LayerDock({ besidePanel }: { besidePanel: boolean }) {
       </div>
 
       <div className="layer-dock__time">
+        {trend ? (
+          <p className="layer-dock__periodtext">
+            <span className="layer-dock__date">{trendPeriod ? yearSpan(trendPeriod) : '—'}</span>
+            <span className="layer-dock__hint">One map for the whole period. Faint, hatched areas: change not statistically significant.</span>
+          </p>
+        ) : (
+        <>
         <div className="layer-dock__transport">
           <button type="button" className="ld-btn" aria-label="Previous frame" onClick={() => step(-1)} disabled={idx <= 0}>
             <IconPrev />
@@ -174,9 +206,11 @@ export function LayerDock({ besidePanel }: { besidePanel: boolean }) {
         >
           {cfg.speeds[speedIdx].label}
         </button>
+        </>
+        )}
       </div>
       {overlayError && <p className="layer-dock__error">{overlayError}</p>}
-      {!overlayError && frameMissing && !loading && (
+      {!overlayError && imagery && frameMissing && !loading && (
         <p className="layer-dock__note" role="status">
           No satellite image for this {stepKind === 'daily' ? 'day' : stepKind === 'yearly' ? 'year' : 'month'}.
         </p>
@@ -188,7 +222,8 @@ export function LayerDock({ besidePanel }: { besidePanel: boolean }) {
 function Legend() {
   const layer = useLayers((s) => s.layer);
   const grid = useLayers((s) => s.gridLegend);
-  if (layer?.kind === 'gibs') {
+  const mode = useLayers((s) => s.mode);
+  if (layer?.kind === 'gibs' && mode === 'value') {
     return layer.legend_url ? (
       <span className="layer-dock__legend-imgwrap">
         <img className="layer-dock__legend-img" src={layer.legend_url} alt="Colour legend for this layer" />
@@ -198,6 +233,23 @@ function Legend() {
     );
   }
   if (!grid) return <span className="layer-dock__legend" aria-hidden />;
+  if (grid.diverging && mode !== 'value') {
+    const [lo, hi] = mode === 'trend' ? ['Falling', 'Rising'] : ['Below normal', 'Above normal'];
+    return (
+      <div className="layer-dock__legend" role="img" aria-label={`Colour scale: ${lo.toLowerCase()} in blue down to ${fmtNum(grid.min)}, no change in grey, ${hi.toLowerCase()} in ochre up to ${fmtNum(grid.max)} ${grid.units}`}>
+        <span className="layer-dock__scale layer-dock__scale--ends">
+          <span className="layer-dock__fall">{lo}</span>
+          <span className="layer-dock__rise">{hi}</span>
+        </span>
+        <span className="layer-dock__ramp" style={{ background: cssGradient(grid.colormap, grid.min, grid.max) }} />
+        <span className="layer-dock__scale">
+          <span>{fmtNum(grid.min)}</span>
+          <span className="layer-dock__units" title={grid.units}>{grid.units}</span>
+          <span>+{fmtNum(grid.max)}</span>
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="layer-dock__legend" role="img" aria-label={`Colour scale from ${fmtNum(grid.min)} to ${fmtNum(grid.max)} ${grid.units}`}>
       <span className="layer-dock__ramp" style={{ background: cssGradient(grid.colormap, grid.min, grid.max) }} />

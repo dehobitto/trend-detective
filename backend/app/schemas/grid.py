@@ -32,3 +32,13 @@ class GridFrame(BaseModel):
     units: str
     colormap: Colormap
     synthetic: bool
+
+
+class TrendGrid(GridFrame):
+    """Per-cell trend map (docs/API.md, "v3 additions"). ``values`` = OLS slope per decade of the
+    deseasonalized monthly series; ``units`` = "<variable units> per decade"; ``date`` = ``end``."""
+
+    start: dt.date
+    end: dt.date
+    significant: list[bool | None]
+    """Per cell: Mann-Kendall (on annual means) p < alpha; null where there is no data."""

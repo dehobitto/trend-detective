@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import api_router
 from app.api.deps import Services
@@ -58,7 +61,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(Exception, unhandled_error_handler)
     app.include_router(api_router)
+    if settings.static_dir and (Path(settings.static_dir) / "index.html").is_file():
+        app.mount("/", SpaStaticFiles(directory=settings.static_dir, html=True), name="frontend")
     return app
+
+
+class SpaStaticFiles(StaticFiles):
+    """Serves the built frontend; unknown non-API paths get index.html (client-side routes)."""
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404 or path == "api" or path.startswith("api/"):
+                raise
+            return await super().get_response("index.html", scope)
 
 
 app = create_app()

@@ -1,13 +1,14 @@
 import { OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import { PerspectiveCamera, Quaternion, Spherical, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { clampLat, latLonToVector3, vector3ToLatLon } from '../../lib/geo';
 import { useStore } from '../../state/store';
 import { globeUniforms } from './sun';
+import { createWheelClassifier } from './wheelIntent';
 
 type Flight = {
   fromDir: Vector3;
@@ -25,6 +26,8 @@ const camRight = new Vector3();
 const camUp = new Vector3();
 const qIdentity = new Quaternion();
 const qStep = new Quaternion();
+const sph = new Spherical();
+const gcfg = globeConfig.gestures;
 
 /**
  * Owns the camera: orbit controls, idle auto-rotation, the "sun" that follows the viewer,
@@ -32,6 +35,9 @@ const qStep = new Quaternion();
  */
 export function CameraRig() {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
+  const domElement = useThree((s) => s.gl.domElement);
+  /** Two-finger trackpad swipe: input this frame (radians) and the coasting velocity after it. */
+  const swipe = useRef({ theta: 0, phi: 0, vTheta: 0, vPhi: 0, active: false });
   const size = useThree((s) => s.size);
   // Rest distance that keeps the whole globe in frame on narrow (portrait) screens too.
   const restDistance = useMemo(() => {
@@ -59,6 +65,8 @@ export function CameraRig() {
   const transition = useStore((s) => s.transition);
   const focus = useStore((s) => s.focus);
   const peek = useStore((s) => s.peek);
+
+  if (import.meta.env.DEV) (window as unknown as { __tdCamera: PerspectiveCamera }).__tdCamera = camera; // tests / screenshots
 
   // Initial framing.
   useEffect(() => {
@@ -157,7 +165,78 @@ export function CameraRig() {
     };
   }, [camera, reduced]);
 
-  useFrame(() => {
+  // Trackpad: two-finger swipe turns the globe, pinch (ctrl+wheel) zooms; a mouse wheel keeps zooming
+  // through OrbitControls. Listens on the canvas' parent in the capture phase, so it runs before OrbitControls.
+  useEffect(() => {
+    const host = domElement.parentElement;
+    if (!host) return;
+    const classify = createWheelClassifier();
+    let endTimer = 0;
+    const onWheel = (e: WheelEvent) => {
+      const c = controls.current;
+      if (!c || !c.enabled || flight.current) return;
+      const intent = classify(e);
+      if (intent === 'zoom' && !e.ctrlKey) return; // mouse wheel: OrbitControls' own dolly
+      e.preventDefault();
+      e.stopPropagation();
+      window.clearTimeout(resumeTimer.current);
+      c.autoRotate = false;
+      if (intent === 'zoom') {
+        const k = Math.exp(-Math.min(Math.abs(e.deltaY), 50) * gcfg.pinchZoomPerDelta);
+        if (e.deltaY < 0) c.dollyIn(k);
+        else if (e.deltaY > 0) c.dollyOut(k);
+      } else {
+        // Slower when close to the ground, so the surface keeps up with the fingers.
+        const dist = camera.position.length();
+        const scale = gcfg.swipeRadPerPx * Math.max(0.12, Math.min(1.2, (dist - 1) / (restRef.current - 1)));
+        swipe.current.theta += e.deltaX * scale;
+        swipe.current.phi += e.deltaY * scale;
+        swipe.current.active = true;
+      }
+      window.clearTimeout(endTimer);
+      endTimer = window.setTimeout(() => {
+        resumeTimer.current = window.setTimeout(() => {
+          if (!flight.current && !reduced && controls.current) controls.current.autoRotate = true;
+        }, globeConfig.resumeRotationAfterMs);
+      }, gcfg.gestureGapMs);
+    };
+    host.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => {
+      host.removeEventListener('wheel', onWheel, { capture: true });
+      window.clearTimeout(endTimer);
+    };
+  }, [domElement, camera, reduced]);
+
+  useFrame((_, dt) => {
+    // Apply the swipe (and its inertia) by orbiting the camera; OrbitControls picks the new position up.
+    const sw = swipe.current;
+    if (sw.active || Math.abs(sw.vTheta) + Math.abs(sw.vPhi) > 1e-5) {
+      let dTheta: number;
+      let dPhi: number;
+      if (sw.active) {
+        dTheta = sw.theta;
+        dPhi = sw.phi;
+        const frames = Math.max(1, Math.min(dt, 0.1) * 60);
+        sw.vTheta = reduced ? 0 : dTheta / frames;
+        sw.vPhi = reduced ? 0 : dPhi / frames;
+      } else {
+        const decay = Math.pow(gcfg.swipeFriction, Math.min(dt, 0.1) * 60);
+        sw.vTheta *= decay;
+        sw.vPhi *= decay;
+        dTheta = sw.vTheta * Math.min(dt, 0.1) * 60;
+        dPhi = sw.vPhi * Math.min(dt, 0.1) * 60;
+      }
+      sw.theta = sw.phi = 0;
+      sw.active = false;
+      if (!flight.current) {
+        sph.setFromVector3(camera.position);
+        sph.theta += dTheta;
+        sph.phi = Math.max(gcfg.minPolar, Math.min(gcfg.maxPolar, sph.phi + dPhi));
+        camera.position.setFromSpherical(sph);
+        camera.lookAt(0, 0, 0);
+        controls.current?.update();
+      } else sw.vTheta = sw.vPhi = 0;
+    }
     const f = flight.current;
     if (f) {
       const t = f.dur === 0 ? 1 : Math.min(1, (performance.now() - f.t0) / f.dur);
@@ -195,6 +274,8 @@ export function CameraRig() {
         rotateSpeed={0.5}
         zoomSpeed={0.7}
         minDistance={globeConfig.minDistance}
+        minPolarAngle={gcfg.minPolar}
+        maxPolarAngle={gcfg.maxPolar}
         maxDistance={Math.max(globeConfig.maxDistance, restDistance * 1.4)}
         autoRotate={!reduced}
         autoRotateSpeed={globeConfig.autoRotateSpeed}

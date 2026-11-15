@@ -11,6 +11,20 @@ type Mode = 'analyzed' | 'raw';
 const toT = (d: string) => Date.parse(`${d}T00:00:00Z`);
 const year = (t: number) => String(new Date(t).getUTCFullYear());
 
+/** Ticks on 1 January only, thinned to at most ~7, so short records never repeat a year label. */
+function yearTicks(rows: Row[]): number[] | undefined {
+  if (rows.length < 2) return undefined;
+  const y0 = new Date(rows[0].t).getUTCFullYear();
+  const y1 = new Date(rows[rows.length - 1].t).getUTCFullYear();
+  const step = [1, 2, 5, 10, 20, 25, 50].find((k) => (y1 - y0) / k <= 6) ?? 100;
+  const out: number[] = [];
+  for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) {
+    const t = Date.UTC(y, 0, 1);
+    if (t >= rows[0].t && t <= rows[rows.length - 1].t) out.push(t);
+  }
+  return out.length >= 2 ? out : undefined;
+}
+
 function ChartTooltip({ active, payload, units }: { active?: boolean; payload?: { payload: Row }[]; units: string }) {
   if (!active || !payload?.length) return null;
   const r = payload[0].payload;
@@ -84,6 +98,7 @@ export function TrendChart({ result, height = 230 }: { result: AnalysisResult; h
               scale="time"
               domain={['dataMin', 'dataMax']}
               tickFormatter={year}
+              ticks={yearTicks(rows)}
               stroke={colors.inkDim}
               tick={{ fill: colors.inkDim, fontSize: 12 }}
               tickLine={false}

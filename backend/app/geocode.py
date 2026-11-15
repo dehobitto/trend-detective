@@ -152,7 +152,7 @@ class Geocoder:
         raise GeocodeError("Place search is unavailable right now (" + "; ".join(errors) + "). Try again later.")
 
     def _photon(self, query: str, limit: int) -> list[Place]:
-        r = self.client.get(self.photon_url, params={"q": query, "limit": limit})
+        r = self.client.get(self.photon_url, params={"q": query, "limit": limit, "lang": "en"})
         r.raise_for_status()
         return places_from_photon(r.json())[:limit]
 
@@ -162,7 +162,7 @@ class Geocoder:
             if wait > 0:
                 time.sleep(wait)
             try:
-                r = self.client.get(self.nominatim_url, params={"format": "jsonv2", "q": query, "limit": limit})
+                r = self.client.get(self.nominatim_url, params={"format": "jsonv2", "q": query, "limit": limit, "accept-language": "en"})
             finally:
                 self._nominatim_last = time.monotonic()
         r.raise_for_status()

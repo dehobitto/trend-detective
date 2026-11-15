@@ -71,8 +71,8 @@ const empty: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 export function addBBoxLayers(map: MlMap) {
   map.addSource(BBOX_SOURCE, { type: 'geojson', data: empty });
   map.addLayer({ id: BBOX_FILL, type: 'fill', source: BBOX_SOURCE, paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.08 } });
-  map.addLayer({ id: BBOX_CASING, type: 'line', source: BBOX_SOURCE, paint: { 'line-color': '#0b1020', 'line-width': 4.5, 'line-opacity': 0.55 } });
-  map.addLayer({ id: BBOX_LINE, type: 'line', source: BBOX_SOURCE, paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.95 } });
+  map.addLayer({ id: BBOX_CASING, type: 'line', source: BBOX_SOURCE, paint: { 'line-color': '#0b1020', 'line-width': 5.5, 'line-opacity': 0.55 } });
+  map.addLayer({ id: BBOX_LINE, type: 'line', source: BBOX_SOURCE, paint: { 'line-color': '#ffffff', 'line-width': 2.5, 'line-opacity': 0.95 } });
 }
 
 export function setBBoxData(map: MlMap, bbox: BBox | null) {

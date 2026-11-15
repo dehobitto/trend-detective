@@ -39,7 +39,9 @@ export function CompareView({ job, relatedId }: { job: Job; relatedId: string })
       {!other?.result && (
         <div className="compare__cta">
           <p className="notes notes--small">
-            Same area, same years, a different clue. If {related.name.toLowerCase()} did not change, something else explains the trend above.
+            {job.request.bbox
+              ? `Same area, same years, a different clue. If ${related.name.toLowerCase()} did not change, something else explains the trend above.`
+              : `Same years, a second record. Does ${related.name.toLowerCase()} tell the same story?`}
           </p>
           <Button size="s" variant="quiet" onClick={run} disabled={running}>
             {running ? 'Comparing…' : `Compare with ${related.name.toLowerCase()}`}

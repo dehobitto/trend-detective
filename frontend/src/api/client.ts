@@ -11,6 +11,7 @@ import type {
   Job,
   Place,
   TrendApi,
+  TrendGrid,
   Variable,
 } from './types';
 
@@ -86,9 +87,17 @@ export const httpApi: TrendApi = {
     const p = new URLSearchParams({ date: q.date });
     if (q.bbox) for (const k of ['west', 'south', 'east', 'north'] as const) p.set(k, String(q.bbox[k]));
     if (q.res) p.set('res', String(q.res));
+    if (q.mode && q.mode !== 'value') p.set('mode', q.mode);
     return request<GridFrame>(`/grid/${encodeURIComponent(id)}?${p}`, { signal });
   },
   getGridDates: (id) => request<string[]>(`/grid/${encodeURIComponent(id)}/dates`),
+  getTrendGrid: (id, q, signal) => {
+    const p = new URLSearchParams({ start: q.start, end: q.end });
+    if (q.bbox) for (const k of ['west', 'south', 'east', 'north'] as const) p.set(k, String(q.bbox[k]));
+    if (q.res) p.set('res', String(q.res));
+    if (q.alpha) p.set('alpha', String(q.alpha));
+    return request<TrendGrid>(`/grid/${encodeURIComponent(id)}/trend?${p}`, { signal });
+  },
   geocode: (q, limit = 6, signal) => request<Place[]>(`/geocode?${new URLSearchParams({ q, limit: String(limit) })}`, { signal }),
 };
 

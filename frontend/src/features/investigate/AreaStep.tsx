@@ -83,7 +83,7 @@ export function AreaStep() {
         </p>
       )}
       <div className="area__actions">
-        <span className="hint">Drag the box on the map to move it.</span>
+        <span className="hint">Drag the box edge to move it.</span>
         <Button size="s" variant="ghost" onClick={() => set({ drawing: true })}>
           Redraw
         </Button>

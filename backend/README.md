@@ -76,8 +76,10 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 | `TD_NOAA_CACHE_TTL_DAYS` | `7` | A cached NOAA file older than this is downloaded again (stale copy used if that fails) |
 | `TD_NOAA_GML_BASE_URL` | `https://gml.noaa.gov/webdata/ccgg/trends` | Where `<gas>/<file>.txt` are downloaded from |
 | `TD_HTTP_TIMEOUT` | `30` | Seconds before a data download gives up |
+| `TD_NOAA_SEED_DIR` | `backend/app/data/seed/noaa_gml` | Committed NOAA files used when nothing is cached and NOAA is unreachable (copied into the cache) |
 | `TD_UPLOAD_DIR` | `backend/data/uploads` | Where uploaded CSV datasets are stored |
 | `TD_MAX_UPLOAD_BYTES` | `5242880` | Upload size limit |
+| `TD_STATIC_DIR` | unset | Built frontend (`frontend/dist`) served at `/` with index.html fallback; set by the Docker image (`docs/DEPLOY.md`) |
 | `TD_MAX_JOBS` | `500` | In-memory job history size |
 | `TD_GRID_PREWARM` | `true` | Compute every variable's map color range in a background thread at startup |
 | `TD_PHOTON_URL` | `https://photon.komoot.io/api/` | Place search, tried first |
@@ -100,6 +102,7 @@ app/
   grid/            service.py (/api/grid frames, color ranges, caching), landmask.py (land fraction per cell)
   geocode.py       Photon -> Nominatim place search with TTL cache and Nominatim rate limit
   data/            landmask.npy (committed: 1600x800 land/sea bits from the frontend water texture)
+                   seed/noaa_gml/ (committed NOAA CO₂/CH₄ files, offline fallback for the NOAA provider)
   tools/           gibs_layers.py (refresh GIBS map layers), build_landmask.py (rebuild data/landmask.npy)
   providers/       base.py (DataProvider protocol + registry, Route), synthetic.py, upload.py,
                    noaa_gml.py (real CO₂/CH₄ records), real-data stubs nasa_giovanni.py (Giovanni / GES DISC),
@@ -183,7 +186,7 @@ crossing the 180° line become `null`). 502 with a readable `detail` when both f
 `ch4/ch4_mm_gl`; public, no auth). It parses column 4 (the monthly mean, "average"; values ≤ -9 such as
 `-9.99`/`-99.99` are missing), returns a complete month-start series, and caches the raw file in
 `TD_CACHE_DIR/noaa_gml/` for `TD_NOAA_CACHE_TTL_DAYS`. If a refresh fails, the stale copy is used; with no
-copy at all, `auto` falls back to synthetic data and the result says "Couldn't reach NOAA; showing demo
+cached copy the committed seed in `app/data/seed/noaa_gml/` is used (`TD_NOAA_SEED_DIR`); with neither, `auto` falls back to synthetic data and the result says "Couldn't reach NOAA; showing demo
 data." (plus the usual "Demo data" warning, `synthetic: true`). Under `live` the same failure is a job error.
 
 Routing (`providers/live.py`): `auto` and `live` implement `route(variable) -> Route(provider, fallback,
@@ -231,3 +234,23 @@ The `product` field of each catalog variable holds the NASA product id and varia
 `POST /api/datasets` with a CSV file (header `date,value`, ISO dates). Daily or irregular data is averaged
 to months; yearly data is analyzed as annual. Then run an analysis with `variable_id: "upload:<id>"`
 (the bbox may be omitted for uploads, as for `series` variables).
+
+## Change maps (API.md "v3 additions")
+
+- `GET /api/grid/{id}?date=…&mode=anomaly` — value minus that calendar month's climatology (mean over the
+  variable's whole availability, cached per grid). Range is symmetric `-R..R`, stable per variable
+  (R = 98th percentile of |anomaly| on a 3° global sample); colormap `diverging`
+  (#07668A falling … #F2F4F5 at 0 … #9A5200 rising). Units unchanged.
+- `GET /api/grid/{id}/trend?start&end[&west,south,east,north][&res][&alpha=0.05]` — `TrendGrid`: per-cell OLS
+  slope **per decade** of the deseasonalized monthly series (each calendar month's mean over the period
+  removed; closed form, vectorized over cells) plus `significant` per cell. Units `"<units> per decade"`,
+  `date = end`; dates are clamped to availability, < 3 years → 422. Global default resolution 2° (180×90,
+  ~0.2–0.6 s cold, cached afterwards); regional requests use the normal grid size (≤ 200×200).
+- **Significance uses Mann-Kendall on annual means** of the deseasonalized series (years with < 6 months
+  dropped; normal approximation, var(S) = n(n−1)(2n+5)/18). This keeps the pairwise sign sum cheap
+  (~300 pairs per cell instead of ~45 000) and removes most month-to-month autocorrelation. The area
+  analysis (`/api/analyses`) still runs MK on the monthly series, so a borderline cell can disagree with it.
+- Trend colour range: 98th percentile of |slope| on a 3° global sample, widened toward 75 % of the strongest
+  catalog hotspot but at most 5× the background (hotspot cores such as Punjab groundwater may saturate).
+  Ranges are prewarmed in the background at startup with the value ranges.
+- Code: `app/grid/change.py` (vectorized cube, climatology, slope, MK), `app/grid/service.py`.

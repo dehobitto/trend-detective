@@ -7,6 +7,7 @@ import { useStore } from '../../state/store';
 import { Atmosphere } from './Atmosphere';
 import { CameraRig } from './CameraRig';
 import { Earth } from './Earth';
+import { GlobeOverlay } from './GlobeOverlay';
 import { StationMarker } from './StationMarker';
 import './globe.css';
 
@@ -51,6 +52,7 @@ export function GlobeView() {
               flyTo({ lat, lon });
             }}
           />
+          <GlobeOverlay />
           <Atmosphere />
           <StationMarker />
         </Suspense>

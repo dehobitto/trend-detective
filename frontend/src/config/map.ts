@@ -123,6 +123,8 @@ export const mapConfig = {
     gridCacheSize: 48,
     /** Target cells across the view for /api/grid (server caps at 200x200). */
     gridCells: 160,
+    /** Target cells across the view for a trend map (/api/grid/{id}/trend: heavier, so coarser). */
+    trendCells: 100,
     /** Rendered canvas size (long side, px) for grid frames (bilinear-resampled, Mercator-corrected). */
     gridCanvasPx: 640,
     /** Playback speeds: ms per frame. */

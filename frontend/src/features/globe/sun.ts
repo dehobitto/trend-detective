@@ -8,4 +8,6 @@ import { Vector3 } from 'three';
 export const globeUniforms = {
   uSun: { value: new Vector3(0, 0, 1) },
   uCloudShift: { value: 0 },
+  /** 1 = normal clouds; lowered while a data overlay is draped on the globe. */
+  uCloudAlpha: { value: 1 },
 };

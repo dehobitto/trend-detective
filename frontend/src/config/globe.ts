@@ -44,6 +44,38 @@ export const globeConfig = {
   cloudPeriodS: 1800,
   /** Outer limb shell radius: thin, like the real ~100 km of visible air. */
   atmosphereScale: 1.035,
+  /** Trackpad / touch gestures (see features/globe/wheelIntent.ts). */
+  gestures: {
+    /** Wheel events further apart than this start a new gesture (re-classified). */
+    gestureGapMs: 180,
+    /** A whole, purely vertical pixel delta at least this big is a mouse-wheel notch (Chrome: 100/120, Firefox: 48+). */
+    mouseMinStep: 40,
+    /** Two-finger swipe: radians of globe turn per pixel of scroll at the resting distance (scaled down when close). */
+    swipeRadPerPx: 0.004,
+    /** Inertia after the swipe: velocity kept per 1/60 s. */
+    swipeFriction: 0.9,
+    /** Pinch: zoom factor per unit of deltaY (ctrlKey wheel). */
+    pinchZoomPerDelta: 0.01,
+    /** Polar limits (radians from the north pole) so a vertical swipe can't flip the globe over. */
+    minPolar: 0.15,
+    maxPolar: Math.PI - 0.15,
+  },
+  /** Variable layer draped over the globe (between the ground and the cloud shell). */
+  overlay: {
+    altitude: 1.003,
+    /** GIBS WMS image width (px); height is half. */
+    wmsWidth: 2048,
+    /** Grid / anomaly / trend frames: request resolution (deg) and canvas texture width (px). */
+    gridRes: 2,
+    canvasWidth: 1024,
+    /** Cross-fade between timeline frames, and fade in/out of the whole overlay. */
+    crossFadeMs: 350,
+    showFadeMs: 400,
+    /** Cloud opacity while an overlay is shown (0 = hidden). */
+    cloudAlphaWithOverlay: 0.08,
+    /** Loaded frame textures kept in memory. */
+    cacheSize: 6,
+  },
   /** Opacity of the limb at its densest. */
   atmosphereStrength: 0.85,
 } as const;

@@ -1,0 +1,19 @@
+# Keep the build context small and secret-free.
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.env
+**/.env.*
+!frontend/.env.example
+.git
+.github
+.claude
+docs
+scripts
+frontend/dist
+frontend/tsconfig.tsbuildinfo
+backend/data
+backend/tests
+NASA Space Apps Challenge*

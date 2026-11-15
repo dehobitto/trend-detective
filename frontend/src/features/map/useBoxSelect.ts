@@ -4,13 +4,28 @@ import type { BBox } from '../../api/types';
 import { mapConfig } from '../../config/map';
 import { normalizeBBox } from '../../lib/geo';
 import { useStore } from '../../state/store';
-import { BBOX_FILL, setBBoxData } from './layers';
+import { BBOX_LINE, setBBoxData } from './layers';
 
 type Gesture =
   | { kind: 'draw'; start: LngLat }
   | { kind: 'move'; anchor: LngLat; original: BBox };
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+
+/** Screen-space distance (px) from the box outline within which a press grabs the box instead of panning. */
+const EDGE_GRAB_PX = 10;
+
+/** True when the point is on (near) the rectangle's outline. Inside the box, the map still pans. */
+function nearOutline(map: MlMap, b: BBox, p: { x: number; y: number }): boolean {
+  const nw = map.project([b.west, b.north]);
+  const se = map.project([b.east, b.south]);
+  const [x0, x1] = [Math.min(nw.x, se.x), Math.max(nw.x, se.x)];
+  const [y0, y1] = [Math.min(nw.y, se.y), Math.max(nw.y, se.y)];
+  const e = EDGE_GRAB_PX;
+  const withinOuter = p.x >= x0 - e && p.x <= x1 + e && p.y >= y0 - e && p.y <= y1 + e;
+  const withinInner = p.x > x0 + e && p.x < x1 - e && p.y > y0 + e && p.y < y1 - e;
+  return withinOuter && !withinInner;
+}
 
 function shifted(b: BBox, dLng: number, dLat: number): BBox {
   const w = b.east - b.west;
@@ -24,7 +39,7 @@ function shifted(b: BBox, dLng: number, dLat: number): BBox {
 /**
  * Rectangle selection on the map.
  *  - "Draw area" mode (store.drawing) or Shift+drag draws a new rectangle.
- *  - Dragging inside an existing rectangle moves it.
+ *  - Dragging the rectangle's outline moves it; dragging inside it pans the map as usual.
  * Map drag-pan is disabled while a gesture is in progress.
  */
 export function useBoxSelect(map: MlMap | null) {
@@ -34,11 +49,18 @@ export function useBoxSelect(map: MlMap | null) {
     let draft: BBox | null = null;
     const canvas = map.getCanvasContainer();
 
+    let edgeHover = false;
+    const setEdgeHover = (on: boolean) => {
+      if (on === edgeHover || !map.style || !map.getLayer(BBOX_LINE)) return;
+      edgeHover = on;
+      map.setPaintProperty(BBOX_LINE, 'line-width', on ? 3.5 : 2.5);
+    };
+
     const begin = (e: MapMouseEvent | MapTouchEvent, shift: boolean) => {
       const { drawing, bbox } = useStore.getState();
       if (drawing || shift) {
         gesture = { kind: 'draw', start: e.lngLat };
-      } else if (bbox && map.queryRenderedFeatures(e.point, { layers: [BBOX_FILL] }).length > 0) {
+      } else if (bbox && nearOutline(map, bbox, e.point)) {
         gesture = { kind: 'move', anchor: e.lngLat, original: bbox };
       } else {
         return;
@@ -84,11 +106,13 @@ export function useBoxSelect(map: MlMap | null) {
         update(e.lngLat);
         return;
       }
-      // Hover affordance.
+      // Hover affordance: move cursor + a heavier outline while the edge is grabbable.
       const { drawing, bbox } = useStore.getState();
       const shift = 'shiftKey' in e.originalEvent && (e.originalEvent as MouseEvent).shiftKey;
+      const edge = !drawing && !shift && !!bbox && nearOutline(map, bbox, e.point);
+      setEdgeHover(edge);
       if (drawing || shift) canvas.style.cursor = 'crosshair';
-      else if (bbox && map.queryRenderedFeatures(e.point, { layers: [BBOX_FILL] }).length) canvas.style.cursor = 'move';
+      else if (edge) canvas.style.cursor = 'move';
       else canvas.style.cursor = '';
     };
     // Holding Shift arms drawing: switch off drag-pan so maplibre never starts a pan on that press.
@@ -98,6 +122,13 @@ export function useBoxSelect(map: MlMap | null) {
         map.dragPan.disable();
         canvas.style.cursor = 'crosshair';
       } else if (!useStore.getState().drawing) {
+        map.dragPan.enable();
+        canvas.style.cursor = '';
+      }
+    };
+    // A Shift keyup can be lost (e.g. window switch); never leave panning disabled by accident.
+    const onBlur = () => {
+      if (!gesture && !useStore.getState().drawing) {
         map.dragPan.enable();
         canvas.style.cursor = '';
       }
@@ -125,6 +156,7 @@ export function useBoxSelect(map: MlMap | null) {
     window.addEventListener('keydown', onKey);
     window.addEventListener('keydown', onShift);
     window.addEventListener('keyup', onShift);
+    window.addEventListener('blur', onBlur);
 
     // Draw mode: crosshair + no panning at all, so a drag never moves the map.
     const unsub = useStore.subscribe((s, prev) => {
@@ -145,6 +177,7 @@ export function useBoxSelect(map: MlMap | null) {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keydown', onShift);
       window.removeEventListener('keyup', onShift);
+      window.removeEventListener('blur', onBlur);
       unsub();
     };
   }, [map]);

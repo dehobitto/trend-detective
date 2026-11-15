@@ -46,6 +46,7 @@ const earthFragment = /* glsl */ `
   uniform vec3 uSun;
   uniform vec3 uAtmo;
   uniform float uCloudShift;
+  uniform float uCloudAlpha;
   uniform float uBumpScale;
   uniform float uExposure;
   uniform vec2 uTexel;
@@ -72,9 +73,9 @@ const earthFragment = /* glsl */ `
     // The BMNG ocean is almost black; from orbit the open sea reads as deep blue.
     day = mix(day, day * vec3(0.8, 0.95, 1.2) + vec3(0.003, 0.011, 0.032), water);
 
-    float cl = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0)).r;
+    float cl = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0)).r * uCloudAlpha;
     // Shadow sampled a touch away from the sun so it sits beside its cloud near the terminator.
-    float clShadow = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0) - 0.0015 * vec2(dot(uSun, east), dot(uSun, north))).r;
+    float clShadow = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0) - 0.0015 * vec2(dot(uSun, east), dot(uSun, north))).r * uCloudAlpha;
 
     float ndl = dot(bn, uSun);
     float geo = dot(n, uSun);
@@ -114,6 +115,7 @@ const cloudFragment = /* glsl */ `
   uniform vec3 uSun;
   uniform vec3 uAtmo;
   uniform float uCloudShift;
+  uniform float uCloudAlpha;
   uniform float uExposure;
   varying vec2 vUv;
   varying vec3 vN;
@@ -129,7 +131,7 @@ const cloudFragment = /* glsl */ `
     col = mix(col, uAtmo, limb * 0.5 * smoothstep(-0.3, 0.5, geo));
     col = 1.0 - exp(-col * uExposure);
     // Thin cloud is see-through; thick cloud is opaque.
-    float a = clamp(cl * 1.2, 0.0, 0.95);
+    float a = clamp(cl * 1.2, 0.0, 0.95) * uCloudAlpha;
     gl_FragColor = vec4(col, a);
     #include <colorspace_fragment>
   }
@@ -168,6 +170,7 @@ export function Earth({ onPick, onHover, interactive }: Props) {
         uClouds: { value: clouds },
         uSun: globeUniforms.uSun,
         uCloudShift: globeUniforms.uCloudShift,
+        uCloudAlpha: globeUniforms.uCloudAlpha,
         uAtmo: atmo,
         uBumpScale: { value: globeConfig.bumpScale },
         uExposure: exposure,
@@ -182,6 +185,7 @@ export function Earth({ onPick, onHover, interactive }: Props) {
         uClouds: { value: clouds },
         uSun: globeUniforms.uSun,
         uCloudShift: globeUniforms.uCloudShift,
+        uCloudAlpha: globeUniforms.uCloudAlpha,
         uAtmo: atmo,
         uExposure: exposure,
       },
