@@ -10,7 +10,6 @@ import { Earth } from './Earth';
 import { Starfield } from './Starfield';
 import { GlobeOverlay } from './GlobeOverlay';
 import { Graticule } from './Graticule';
-import { LongitudeScale } from './LongitudeScale';
 import { StationMarker } from './StationMarker';
 import { globeUniforms } from './sun';
 import type { Camera } from 'three';
@@ -26,7 +25,6 @@ export function GlobeView() {
   const [paused, setPaused] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
-  const scaleRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<Camera | null>(null);
 
   // Hover readout is written straight to the DOM: a React state update here would re-render the whole
@@ -99,10 +97,8 @@ export function GlobeView() {
           <Starfield />
         </Suspense>
         <CameraRig />
-        <LongitudeScale target={scaleRef} />
       </Canvas>
       <div ref={tipRef} className="globe__hover" hidden aria-hidden />
-      <div ref={scaleRef} className="lon-scale" hidden aria-hidden data-on={interactive} />
     </div>
   );
 }

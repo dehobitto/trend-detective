@@ -355,7 +355,7 @@ export function CameraRig() {
         minDistance={globeConfig.minDistance}
         minPolarAngle={gcfg.minPolar}
         maxPolarAngle={gcfg.maxPolar}
-        maxDistance={Math.max(globeConfig.maxDistance, restDistance * 1.4)}
+        maxDistance={restDistance} // never further out than the default framing
         autoRotate={!reduced}
         autoRotateSpeed={globeConfig.autoRotateSpeed}
       />
