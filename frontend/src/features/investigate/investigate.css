@@ -276,3 +276,89 @@ select:disabled { opacity: 0.5; }
 .var-info p { margin: 0 0 6px; }
 .var-info__dim { color: var(--ink-dim); }
 .var-info__meta { font-size: 12.5px; color: var(--ink-faint); }
+
+/* ---------- picker toggle ---------- */
+.picker-wrap { display: grid; gap: 12px; }
+.picker-toggle { display: flex; }
+
+/* ---------- phenomenon picker ---------- */
+.phen-row { border-top: 1px solid var(--line); margin: 0 -10px 0 -12px; }
+.phen-row__line { display: flex; align-items: center; }
+.phen-row .phen-opt { flex: 1; margin: 0; border-top: 0; }
+.phen-opt {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  padding: 10px 8px 10px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+.phen-opt:hover { background: var(--wash); }
+.phen-opt[aria-checked='true'] { background: var(--wash); }
+.phen-opt__name { font-size: 14.5px; font-weight: 700; }
+.phen-opt__tagline { font-size: 13px; color: var(--ink-dim); line-height: 1.4; }
+
+.phen-info { padding: 2px 12px 14px; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.phen-info p { margin: 0 0 8px; }
+.phen-info__vars { display: grid; gap: 8px; }
+.phen-info__var { padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-s); }
+.phen-info__var-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.phen-info__var-head strong { font-size: 13.5px; }
+.phen-info__var-role { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-dim); line-height: 1.4; }
+
+.phen-expect {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.phen-expect--up { background: color-mix(in srgb, var(--rise) 15%, transparent); color: var(--rise); }
+.phen-expect--down { background: color-mix(in srgb, var(--fall) 15%, transparent); color: var(--fall); }
+.phen-expect--stable { background: var(--panel-raised); color: var(--ink-dim); }
+
+.phen-vars-list { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
+
+/* ---------- variable checkbox ---------- */
+.var-check {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--panel);
+  flex: none;
+  vertical-align: middle;
+  position: relative;
+}
+.var-check--on { background: var(--ink); border-color: var(--ink); }
+.var-check--on::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--panel);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.var-opt[role='checkbox'] { display: flex; align-items: center; gap: 8px; }
+.var-opt[role='checkbox'] .var-opt__name,
+.var-opt[role='checkbox'] .var-opt__units { display: inline; }
+
+.var-picker__bar { display: flex; align-items: center; justify-content: space-between; padding: 0 0 4px; }
+
+/* ---------- phenomenon progress ---------- */
+.phen-progress { display: grid; gap: 4px; }
+.phen-progress__var { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+.phen-progress__name { font-weight: 600; }
+.phen-progress__status { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.phen-progress__status--done { color: var(--rise); }
+.phen-progress__status--error { color: var(--danger); }

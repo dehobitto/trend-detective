@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import type { Aggregation, BBox, Dataset, ExampleCase, Job, RegionShape, Variable } from '../api/types';
+import type { Aggregation, BBox, Dataset, ExampleCase, Job, Phenomenon, RegionShape, Variable } from '../api/types';
 import { appConfig } from '../config/app';
 import { mapConfig } from '../config/map';
+import { PHENOMENA } from '../features/investigate/phenomena';
 
 export type View = 'globe' | 'map';
 /** Globe-side animation phase. 'flyingIn' ends with view = 'map'; 'flyingOut' runs after returning. */
@@ -77,6 +78,16 @@ type State = {
   catalogError: string | null;
 
   variableId: string | null;
+  /** Multiple variables selected via checkboxes in variable mode. */
+  selectedVariableIds: string[];
+  /** 'variable' = single variable, 'phenomenon' = multi-variable investigation. */
+  pickerMode: 'variable' | 'phenomenon';
+  /** Currently selected phenomenon (null when in variable mode). */
+  phenomenonId: string | null;
+  /** Jobs for each variable in a phenomenon, keyed by variable_id. */
+  phenomenonJobs: Record<string, Job | null>;
+  /** Error from any variable in a phenomenon run. */
+  phenomenonError: string | null;
   start: string;
   end: string;
   aggregation: Aggregation;
@@ -116,6 +127,11 @@ type Actions = {
   applyRegion: (r: RegionShape) => void;
   applyExample: (ex: ExampleCase) => void;
   selectVariable: (id: string) => void;
+  toggleVariable: (id: string) => void;
+  selectPhenomenon: (phenomenon: Phenomenon) => void;
+  /** Apply a phenomenon with a specific bbox (from an example case). */
+  applyPhenomenonExample: (phenomenon: Phenomenon, bbox: BBox | null, center: { lat: number; lon: number }, start: string, end: string, deseasonalize: boolean) => void;
+  setPickerMode: (mode: 'variable' | 'phenomenon') => void;
   peekAt: (to: LatLon) => void;
   clearResult: () => void;
 };
@@ -142,6 +158,11 @@ export const useStore = create<State & Actions>((set, get) => ({
   catalogError: null,
 
   variableId: null,
+  selectedVariableIds: [],
+  pickerMode: 'variable',
+  phenomenonId: null,
+  phenomenonJobs: {},
+  phenomenonError: null,
   start: appConfig.defaults.start,
   end: appConfig.defaults.end,
   aggregation: 'monthly',
@@ -208,6 +229,11 @@ export const useStore = create<State & Actions>((set, get) => ({
       bbox: ex.bbox,
       region: null,
       variableId: ex.variable_id,
+      selectedVariableIds: [ex.variable_id],
+      pickerMode: 'variable',
+      phenomenonId: null,
+      phenomenonJobs: {},
+      phenomenonError: null,
       start: ex.start,
       end: ex.end,
       deseasonalize: ex.deseasonalize,
@@ -222,7 +248,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   selectVariable: (id) => {
     const s = get();
     const v = s.variables.find((x) => x.id === id);
-    const patch: Partial<State> = { variableId: id, job: null, runError: null };
+    const patch: Partial<State> = { variableId: id, selectedVariableIds: [id], job: null, runError: null, phenomenonId: null, phenomenonJobs: {}, phenomenonError: null };
     if (v) Object.assign(patch, clampRange(s.start, s.end, v));
     const ds = s.datasets.find((d) => `upload:${d.id}` === id);
     if (ds) {
@@ -230,6 +256,110 @@ export const useStore = create<State & Actions>((set, get) => ({
       patch.end = ds.end;
     }
     set(patch);
+  },
+
+  toggleVariable: (id) => {
+    const s = get();
+    const prev = s.selectedVariableIds;
+    const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+    // Clamp date range to intersection of all selected variables.
+    const vars = next.map((vid) => s.variables.find((v) => v.id === vid)).filter((v): v is Variable => !!v);
+    let start = s.start;
+    let end = s.end;
+    if (vars.length) {
+      const latestStart = vars.reduce((a, v) => (v.available_start > a ? v.available_start : a), vars[0].available_start);
+      const earliestEnd = vars.reduce((a, v) => (v.available_end < a ? v.available_end : a), vars[0].available_end);
+      const clamped = clampRange(s.start, s.end, { ...vars[0], available_start: latestStart, available_end: earliestEnd });
+      start = clamped.start;
+      end = clamped.end;
+    }
+    set({
+      selectedVariableIds: next,
+      variableId: next.length === 1 ? next[0] : null,
+      job: null,
+      runError: null,
+      phenomenonJobs: {},
+      phenomenonError: null,
+      start,
+      end,
+    });
+  },
+
+  selectPhenomenon: (phenomenon) => {
+    const s = get();
+    // Date range = intersection of all phenomenon variables' available ranges.
+    const vars = phenomenon.variables
+      .map((ve) => s.variables.find((v) => v.id === ve.variable_id))
+      .filter((v): v is Variable => !!v);
+    let start = s.start;
+    let end = s.end;
+    if (vars.length) {
+      const latestStart = vars.reduce((a, v) => (v.available_start > a ? v.available_start : a), vars[0].available_start);
+      const earliestEnd = vars.reduce((a, v) => (v.available_end < a ? v.available_end : a), vars[0].available_end);
+      const clamped = clampRange(s.start, s.end, { ...vars[0], available_start: latestStart, available_end: earliestEnd });
+      start = clamped.start;
+      end = clamped.end;
+    }
+    set({
+      phenomenonId: phenomenon.id,
+      variableId: null,
+      job: null,
+      runError: null,
+      phenomenonJobs: {},
+      phenomenonError: null,
+      start,
+      end,
+    });
+  },
+
+  applyPhenomenonExample: (phenomenon, bbox, center, start, end, deseasonalize) => {
+    const s = get();
+    // Clamp to intersection of phenomenon variables.
+    const vars = phenomenon.variables
+      .map((ve) => s.variables.find((v) => v.id === ve.variable_id))
+      .filter((v): v is Variable => !!v);
+    let rangeStart = start;
+    let rangeEnd = end;
+    if (vars.length) {
+      const latestStart = vars.reduce((a, v) => (v.available_start > a ? v.available_start : a), vars[0].available_start);
+      const earliestEnd = vars.reduce((a, v) => (v.available_end < a ? v.available_end : a), vars[0].available_end);
+      const clamped = clampRange(start, end, { ...vars[0], available_start: latestStart, available_end: earliestEnd });
+      rangeStart = clamped.start;
+      rangeEnd = clamped.end;
+    }
+    set({
+      bbox,
+      region: null,
+      pickerMode: 'phenomenon',
+      phenomenonId: phenomenon.id,
+      variableId: null,
+      selectedVariableIds: [],
+      job: null,
+      runError: null,
+      phenomenonJobs: {},
+      phenomenonError: null,
+      activeExample: null,
+      start: rangeStart,
+      end: rangeEnd,
+      deseasonalize,
+      aggregation: 'monthly',
+    });
+    get().flyTo(center, true);
+  },
+
+  setPickerMode: (mode) => {
+    const s = get();
+    if (mode === s.pickerMode) return;
+    set({
+      pickerMode: mode,
+      // Clear selection when switching modes.
+      variableId: mode === 'variable' ? s.variableId : null,
+      phenomenonId: mode === 'phenomenon' ? s.phenomenonId : null,
+      job: null,
+      runError: null,
+      phenomenonJobs: {},
+      phenomenonError: null,
+    });
   },
 
   peekAt: (to) => set((s) => ({ peek: { ...to, nonce: (s.peek?.nonce ?? 0) + 1 } })),
@@ -254,8 +384,16 @@ export function clampRange(start: string, end: string, v: Variable): { start: st
 /** The selected catalog variable (undefined for uploads or nothing selected). */
 export const useSelectedVariable = () => useStore((s) => s.variables.find((v) => v.id === s.variableId));
 
-/** True when the current choice needs no map area: a global record ("series") or an upload. */
-export function needsNoArea(s: Pick<State, 'variables' | 'variableId'>): boolean {
+/** True when the current choice needs no map area: a global record ("series"), an upload, or a global phenomenon. */
+export function needsNoArea(s: Pick<State, 'variables' | 'variableId' | 'selectedVariableIds' | 'pickerMode' | 'phenomenonId'>): boolean {
+  if (s.pickerMode === 'phenomenon' && s.phenomenonId) {
+    const ph = PHENOMENA.find((p) => p.id === s.phenomenonId);
+    return ph?.global ?? false;
+  }
+  // Multi-variable: all must be series for no area.
+  if (s.selectedVariableIds.length > 1) {
+    return s.selectedVariableIds.every((id) => s.variables.find((v) => v.id === id)?.coverage === 'series');
+  }
   if (!s.variableId) return false;
   if (s.variableId.startsWith('upload:')) return true;
   return s.variables.find((v) => v.id === s.variableId)?.coverage === 'series';

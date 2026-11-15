@@ -213,3 +213,29 @@ export interface TrendApi {
 export const UPLOAD_PREFIX = 'upload:';
 
 export const isSeriesVariable = (v: Variable | undefined | null) => v?.coverage === 'series';
+
+/* ------------------------------------------------------------------ phenomena (multi-variable investigations) */
+
+export type VariableExpectation = {
+  variable_id: string;
+  /** What the phenomenon predicts for this variable. */
+  expect: 'significant_up' | 'significant_down' | 'not_significant';
+  /** Short label shown next to the variable name. */
+  expect_label: string;
+  /** One-line explanation of why this variable matters for the phenomenon. */
+  role: string;
+};
+
+export type Phenomenon = {
+  id: string;
+  name: string;
+  /** Short tagline shown in the picker list. */
+  tagline: string;
+  /** What the phenomenon claims (shown in the results header). */
+  hypothesis: string;
+  /** Detailed description of the phenomenon. */
+  description: string;
+  variables: VariableExpectation[];
+  /** True when all variables are global series (no area needed). */
+  global: boolean;
+};

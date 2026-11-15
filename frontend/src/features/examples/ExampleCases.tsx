@@ -1,6 +1,8 @@
 import { forwardRef, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { ExampleCase } from '../../api/types';
+import { api } from '../../api/client';
 import { resolveGuideThemes, type ResolvedTheme } from '../../config/guide';
+import { EXAMPLE_PHENOMENON_MAP, PHENOMENA } from '../investigate/phenomena';
 import { useStore } from '../../state/store';
 import './examples.css';
 
@@ -11,10 +13,36 @@ type Mode = { step: 'cases' } | { step: 'what' } | { step: 'where'; theme: Resol
  * with the area and variable already chosen. "Help me choose" swaps the card's contents for a short
  * two-question guide (what, then where) that ends in the same places.
  */
+/** Apply an example — route through phenomenon mode if it maps to one. */
+function smartApply(ex: ExampleCase) {
+  const s = useStore.getState();
+  const entry = EXAMPLE_PHENOMENON_MAP[ex.id];
+  const ph = entry ? PHENOMENA.find((p) => p.id === entry.phenomenonId) : null;
+  if (ph) {
+    s.applyPhenomenonExample(ph, ex.bbox, ex.center, ex.start, ex.end, ex.deseasonalize);
+    if (entry.osm) void adoptInvestigationRegion(entry.osm, ex.bbox);
+  } else {
+    s.applyExample(ex);
+  }
+}
+
+/** Fetch OSM boundary for an investigation example and apply it to the store. */
+async function adoptInvestigationRegion(osm: string, placeholderBbox: import('../../api/types').BBox | null) {
+  try {
+    const region = await api.getRegionShape(osm);
+    const s = useStore.getState();
+    const b = s.bbox;
+    if (placeholderBbox && b && b.west === placeholderBbox.west && b.south === placeholderBbox.south && b.east === placeholderBbox.east && b.north === placeholderBbox.north) {
+      s.applyRegion(region);
+    }
+  } catch {
+    useStore.getState().set({ mapNotice: 'No boundary available. Using rectangle instead.' });
+  }
+}
+
 export function ExampleCases() {
   const examples = useStore((s) => s.examples);
   const variables = useStore((s) => s.variables);
-  const applyExample = useStore((s) => s.applyExample);
   const flat = useStore((s) => s.flat);
   const transition = useStore((s) => s.transition);
   const [focused, setFocused] = useState<string | null>(null);
@@ -76,7 +104,7 @@ export function ExampleCases() {
         </p>
         <div className="cases__list" onMouseLeave={() => setFocused(null)}>
           {examples.map((x) => (
-            <CaseButton key={x.id} id={x.id} label={x.title} meta={coords(x.center)} disabled={busy} onFocusChange={setFocused} onClick={() => applyExample(x)} />
+            <CaseButton key={x.id} id={x.id} label={x.title} meta={coords(x.center)} disabled={busy} onFocusChange={setFocused} onClick={() => smartApply(x)} />
           ))}
         </div>
         {themes.length > 0 && (
@@ -103,7 +131,7 @@ export function ExampleCases() {
 
   const isWhat = mode.step === 'what';
   const title = isWhat ? 'What do you want to investigate?' : 'Where?';
-  const options = isWhat ? themeOptions(themes, chooseTheme) : whereOptions(mode.theme, applyExample);
+  const options = isWhat ? themeOptions(themes, chooseTheme) : whereOptions(mode.theme, smartApply);
   const current = options.find((o) => o.id === focused);
   const primary = !isWhat ? mode.theme.variables[0] : null;
   const defaultLede = isWhat

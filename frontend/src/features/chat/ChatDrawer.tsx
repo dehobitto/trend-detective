@@ -51,7 +51,13 @@ export function ChatDrawer({
     try {
       const res = await chatAdapter.send({
         messages: next.filter((m) => m !== GREETING),
-        context: { bbox: s.bbox, variable_id: s.variableId, result_summary: s.job?.result?.summary ?? null },
+        context: {
+          bbox: s.bbox,
+          variable_id: s.variableId,
+          result_summary: s.pickerMode === 'phenomenon' && s.phenomenonId
+            ? Object.values(s.phenomenonJobs).filter((j) => j?.result?.summary).map((j) => j!.result!.summary).join(' | ') || null
+            : s.job?.result?.summary ?? null,
+        },
       });
       setStub(res.stub);
       setMessages((m) => [...m, res.message]);

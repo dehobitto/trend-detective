@@ -1,5 +1,7 @@
 # Trend Detective
 
+**Live demo: https://trend-detective-lrva.onrender.com**
+
 **NASA Space Apps Challenge 2026** · Challenge: [Be An Earth System Trend Detective!](https://www.spaceappschallenge.org/2026/challenges/earth-system-trend-detective/)
 
 **A tool for detecting human impact on Earth from trends in NASA satellite data.**

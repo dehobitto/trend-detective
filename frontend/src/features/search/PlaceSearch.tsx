@@ -4,6 +4,7 @@ import { api } from '../../api/client';
 import type { BBox, ExampleCase, Place } from '../../api/types';
 import { mapConfig } from '../../config/map';
 import { useStore } from '../../state/store';
+import { EXAMPLE_PHENOMENON_MAP, PHENOMENA, groupExamplesByPhenomenon, type PhenomenonExample } from '../investigate/phenomena';
 import { useLayers } from '../layers/layerStore';
 import './search.css';
 
@@ -26,16 +27,11 @@ export function areaFor(p: Place): BBox {
 /** Places with a real boundary (OSM relations: countries, states, districts, cities). */
 const hasBoundary = (p: Place) => !!p.osm && p.osm.startsWith('R');
 
-/**
- * "Use this area" on a place with a boundary: fetch it, approximated by squares, and make it the area
- * (outline on the map, the average covers only the squares). Until it arrives the place's rectangle stands in.
- */
 async function adoptRegion(p: Place, placeholder: BBox) {
   try {
     const region = await api.getRegionShape(p.osm as string);
     const s = useStore.getState();
     const b = s.bbox;
-    // Only if the user has not drawn something else meanwhile.
     if (b && b.west === placeholder.west && b.south === placeholder.south && b.east === placeholder.east && b.north === placeholder.north) {
       s.applyRegion(region);
       if (s.view === 'map') useLayers.getState().flyMap({ center: { lat: p.lat, lon: p.lon }, bounds: region.bbox });
@@ -45,7 +41,6 @@ async function adoptRegion(p: Place, placeholder: BBox) {
   }
 }
 
-/** Go to a place: from the globe this runs the fly-in hand-off; on the map it flies there. */
 export function goToPlace(p: Place, useArea: boolean) {
   const s = useStore.getState();
   const bounds = useArea ? areaFor(p) : p.bbox;
@@ -58,22 +53,50 @@ export function goToPlace(p: Place, useArea: boolean) {
   else useLayers.getState().flyMap({ center, bounds, zoom: cfg.pointZoom });
 }
 
-/** Example cases whose title or question mentions every word of the query ("spain", "andalusia", "delhi air"). */
+/** Keywords that show all example cases / investigations. */
+const SHOW_ALL_KEYWORDS = ['example', 'examples', 'investigation', 'investigations', 'case', 'cases', 'demo'];
+
+/** Match examples whose title or question mentions every word of the query. */
 function matchExamples(examples: ExampleCase[], q: string): ExampleCase[] {
-  const words = q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
+  const lower = q.toLowerCase().trim();
+  // Show all examples for magic keywords.
+  if (SHOW_ALL_KEYWORDS.includes(lower)) return examples;
+  const words = lower.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
   if (!words.length) return [];
   return examples
     .filter((ex) => {
       const hay = `${ex.title} ${ex.question}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     })
-    .slice(0, 3);
+    .slice(0, 5);
 }
 
-/** Open an example: its area, variable and dates; from the globe it flies in, on the map it flies there. */
+/** Fetch OSM boundary for an investigation example and apply it to the store. */
+async function adoptInvestigationRegion(osm: string, placeholderBbox: BBox | null) {
+  try {
+    const region = await api.getRegionShape(osm);
+    const s = useStore.getState();
+    // Only apply if the bbox hasn't changed since we started fetching.
+    const b = s.bbox;
+    if (placeholderBbox && b && b.west === placeholderBbox.west && b.south === placeholderBbox.south && b.east === placeholderBbox.east && b.north === placeholderBbox.north) {
+      s.applyRegion(region);
+    }
+  } catch (e) {
+    useStore.getState().set({ mapNotice: `${e instanceof Error ? e.message : 'No boundary available'}. Using rectangle instead.` });
+  }
+}
+
+/** Open an example: if it maps to a phenomenon, switch to phenomenon mode; otherwise single variable. */
 function openExample(ex: ExampleCase) {
+  const entry = EXAMPLE_PHENOMENON_MAP[ex.id];
+  const ph = entry ? PHENOMENA.find((p) => p.id === entry.phenomenonId) : null;
   const s = useStore.getState();
-  s.applyExample(ex);
+  if (ph) {
+    s.applyPhenomenonExample(ph, ex.bbox, ex.center, ex.start, ex.end, ex.deseasonalize);
+    if (entry.osm) void adoptInvestigationRegion(entry.osm, ex.bbox);
+  } else {
+    s.applyExample(ex);
+  }
   if (s.view === 'map' && !s.flat) useLayers.getState().flyMap({ center: ex.center, bounds: ex.bbox ?? undefined, zoom: cfg.pointZoom });
 }
 
@@ -87,8 +110,15 @@ export function PlaceSearch() {
   const [error, setError] = useState('');
   const view = useStore((s) => s.view);
   const examples = useStore((s) => s.examples);
-  const exMatches = q.trim().length >= 2 ? matchExamples(examples, q) : [];
-  const total = exMatches.length + results.length;
+
+  // Group matched examples by phenomenon (dedup same-region entries).
+  const rawMatches = q.trim().length >= 2 ? matchExamples(examples, q) : [];
+  const phenGroups = groupExamplesByPhenomenon(rawMatches);
+  // Also keep ungrouped examples (those without a phenomenon mapping).
+  const ungroupedExamples = rawMatches.filter((ex) => !EXAMPLE_PHENOMENON_MAP[ex.id]);
+  const exCount = phenGroups.length + ungroupedExamples.length;
+
+  const total = exCount + results.length;
   const busy = useStore((s) => s.transition !== 'idle');
   const listId = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -98,6 +128,12 @@ export function PlaceSearch() {
   useEffect(() => {
     const text = q.trim();
     if (text.length < 2) {
+      setResults([]);
+      setStatus('idle');
+      return;
+    }
+    // Don't geocode magic keywords.
+    if (SHOW_ALL_KEYWORDS.includes(text.toLowerCase())) {
       setResults([]);
       setStatus('idle');
       return;
@@ -132,6 +168,14 @@ export function PlaceSearch() {
     return () => window.removeEventListener('pointerdown', onDown);
   }, []);
 
+  const choosePhenExample = (pg: PhenomenonExample) => {
+    const ex = pg.example as ExampleCase;
+    openExample({ ...ex, id: pg.example.id });
+    setQ('');
+    setOpen(false);
+    input.current?.blur();
+  };
+
   const chooseExample = (ex: ExampleCase) => {
     openExample(ex);
     setQ('');
@@ -155,18 +199,25 @@ export function PlaceSearch() {
       e.preventDefault();
       setActive((a) => (total ? (a - 1 + total) % total : 0));
     } else if (e.key === 'Enter') {
-      if (active < exMatches.length) {
+      // Grouped phenomenon examples first, then ungrouped, then places.
+      if (active < phenGroups.length) {
         e.preventDefault();
-        chooseExample(exMatches[active]);
+        choosePhenExample(phenGroups[active]);
         return;
       }
-      const p = results[active - exMatches.length];
+      const ugIdx = active - phenGroups.length;
+      if (ugIdx < ungroupedExamples.length) {
+        e.preventDefault();
+        chooseExample(ungroupedExamples[ugIdx]);
+        return;
+      }
+      const p = results[active - exCount];
       if (p) {
         e.preventDefault();
         choose(p, e.shiftKey);
       }
     } else if (e.key === 'Escape') {
-      e.stopPropagation(); // don't also cancel box drawing
+      e.stopPropagation();
       if (open && q) setOpen(false);
       else {
         setQ('');
@@ -193,7 +244,7 @@ export function PlaceSearch() {
           aria-autocomplete="list"
           aria-activedescendant={showList && active < total ? `${listId}-${active}` : undefined}
           aria-label="Search for a place"
-          placeholder="Search places"
+          placeholder='Search places or type "examples"'
           value={q}
           disabled={busy}
           onChange={(e) => {
@@ -215,14 +266,33 @@ export function PlaceSearch() {
       </div>
       {showList && (
         <ul className="place-search__list" id={listId} role="listbox" aria-label="Places">
-          {exMatches.map((ex, i) => (
+          {/* Phenomenon-grouped examples */}
+          {phenGroups.map((pg, i) => (
             <li
-              key={ex.id}
+              key={`ph-${pg.phenomenonId}-${pg.example.id}`}
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === active}
               className="place-search__item place-search__item--case"
               onMouseEnter={() => setActive(i)}
+            >
+              <button type="button" className="place-search__go" onClick={() => choosePhenExample(pg)}>
+                <span className="place-search__kicker">Investigation</span>
+                <span className="place-search__name">{pg.phenomenon.name} — {pg.region}</span>
+                <span className="place-search__where">{pg.phenomenon.tagline}</span>
+                <span className="place-search__vars">{pg.phenomenon.variables.length} variables</span>
+              </button>
+            </li>
+          ))}
+          {/* Ungrouped examples (no phenomenon mapping) */}
+          {ungroupedExamples.map((ex, i) => (
+            <li
+              key={ex.id}
+              id={`${listId}-${phenGroups.length + i}`}
+              role="option"
+              aria-selected={phenGroups.length + i === active}
+              className="place-search__item place-search__item--case"
+              onMouseEnter={() => setActive(phenGroups.length + i)}
             >
               <button type="button" className="place-search__go" onClick={() => chooseExample(ex)}>
                 <span className="place-search__kicker">Example case</span>
@@ -232,16 +302,16 @@ export function PlaceSearch() {
             </li>
           ))}
           {status === 'loading' && total === 0 && <li className="place-search__msg">Searching…</li>}
-          {status === 'empty' && !exMatches.length && <li className="place-search__msg">No places found.</li>}
+          {status === 'empty' && !exCount && <li className="place-search__msg">No places found.</li>}
           {status === 'error' && <li className="place-search__msg place-search__msg--err">{error}</li>}
           {results.map((p, i) => (
             <li
               key={`${p.display_name}-${i}`}
-              id={`${listId}-${i + exMatches.length}`}
+              id={`${listId}-${i + exCount}`}
               role="option"
-              aria-selected={i + exMatches.length === active}
+              aria-selected={i + exCount === active}
               className="place-search__item"
-              onMouseEnter={() => setActive(i + exMatches.length)}
+              onMouseEnter={() => setActive(i + exCount)}
             >
               <button type="button" className="place-search__go" onClick={() => choose(p)}>
                 <span className="place-search__name">{p.name}</span>
