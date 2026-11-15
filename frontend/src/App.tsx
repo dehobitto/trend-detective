@@ -105,7 +105,7 @@ export default function App() {
       )}
       {onMap && (
         <>
-          <MapToolbar panelOpen={showPanel} />
+          <MapToolbar />
           <MapHint />
           <LayerDock besidePanel={showPanel} />
           <MapJobToast besidePanel={showPanel} />

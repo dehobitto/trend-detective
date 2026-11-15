@@ -6,10 +6,10 @@ import { wrapLon } from '../../lib/geo';
 import { prefersReducedMotion } from '../../config/motion';
 import { globeConfig } from '../../config/globe';
 import { distanceForZoom, globeScreenOffset, handoff, matchedZoom } from '../globe/handoff';
-import { IconBack, IconList, IconRect, IconUpload } from '../../components/icons';
+import { IconBack, IconList, IconRect } from '../../components/icons';
 
 /** Map tools, docked top-left under the wordmark. */
-export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
+export function MapToolbar() {
   const drawing = useStore((s) => s.drawing);
   const set = useStore((s) => s.set);
   const backToGlobe = useStore((s) => s.backToGlobe);
@@ -70,11 +70,6 @@ export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
       <Button variant={drawing ? 'primary' : 'quiet'} aria-pressed={drawing} onClick={() => set({ drawing: !drawing })} title="Or hold Shift and drag">
         <IconRect /> {drawing ? 'Drawing…' : 'Draw area'}
       </Button>
-      {!panelOpen && (
-        <Button variant="quiet" onClick={() => set({ panelRequested: true })}>
-          <IconUpload /> Global records or your data
-        </Button>
-      )}
     </div>
   );
 }
