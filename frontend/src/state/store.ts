@@ -29,9 +29,9 @@ function readFlat(): boolean {
     const v = new URLSearchParams(window.location.search).get('view');
     if (v === '2d') return true;
     if (v === '3d') return false;
-    return window.localStorage.getItem(mapConfig.flatStorageKey) !== '3d'; // the seamless globe is the default
+    return window.localStorage.getItem(mapConfig.flatStorageKey) === '2d';
   } catch {
-    return true;
+    return false;
   }
 }
 function saveFlat(flat: boolean) {

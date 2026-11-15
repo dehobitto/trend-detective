@@ -119,8 +119,6 @@ export function BeforeAfter({ map }: { map: MlMap | null }) {
     const sync = () => m2.jumpTo({ center: map.getCenter(), zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() });
     const resize = () => m2.resize();
     m2.once('style.load', () => {
-      const type = map.getProjection()?.type;
-      if (type && type !== 'mercator') m2.setProjection({ type }); // same sphere as the main map
       m2.addSource(BEFORE_ID, { type: 'raster', tiles: [gibsTileUrl(layer, pair[0])], tileSize: 256, maxzoom: layer.max_zoom });
       m2.addLayer(
         { id: BEFORE_ID, type: 'raster', source: BEFORE_ID, paint: { 'raster-opacity': useLayers.getState().opacity, 'raster-fade-duration': 0 } },

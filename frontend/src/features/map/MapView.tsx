@@ -17,8 +17,6 @@ import { registerOverlayProtocol } from './overlayProtocol';
 import { useBoxSelect } from './useBoxSelect';
 import { useGibsOverlay } from './useGibsOverlay';
 import { useRegionLayers } from './useRegionLayers';
-import { useSeamlessGlobe } from './useSeamlessGlobe';
-import { formatLat, formatLon } from '../../lib/geo';
 import { useStationMarker } from './useStationMarker';
 import { useTrackpadPan } from './useTrackpadPan';
 import './map.css';
@@ -47,36 +45,11 @@ const lngLatBounds = (b: BBox): [[number, number], [number, number]] => [
   [b.east, b.north],
 ];
 
-/**
- * Seamless mode: a true sphere at every zoom (MapLibre "vertical-perspective"). Its "globe" type would morph
- * into Web Mercator around zoom 11–12, which shifts shapes mid-zoom; a sphere seen from close up already looks
- * flat, so we never switch. Plus a thin atmosphere. Classic mode keeps Web Mercator behind the three.js globe.
- */
-export const SEAMLESS_PROJECTION = 'vertical-perspective';
-
-export function applyProjection(m: MlMap, globe: boolean) {
-  m.setProjection({ type: globe ? SEAMLESS_PROJECTION : 'mercator' });
-  if (globe) {
-    // A blue limb of air around the planet (strong far out, gone once you are down near the ground).
-    m.setSky({
-      'sky-color': '#2f7fd8',
-      'horizon-color': '#9cc8f2',
-      'fog-color': '#e6eaee',
-      'sky-horizon-blend': 0.5,
-      'horizon-fog-blend': 0.8,
-      'fog-ground-blend': 1,
-      'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 4, 0.9, 7, 0],
-    });
-  }
-}
-
 /** Frame a place: fit its bbox (capped zoom), or centre on the point. */
 function goTo(m: MlMap, center: { lat: number; lon: number }, bounds: BBox | null | undefined, zoom: number | undefined, animate = true) {
   const duration = animate ? dur(mapConfig.flyMs) : 0;
-  if (bounds) {
-    const cam = m.cameraForBounds(lngLatBounds(bounds), { padding: fitPadding(), maxZoom: mapConfig.search.maxZoom });
-    if (cam) m.flyTo({ ...cam, duration: duration * 1.4, essential: true }); // an arc reads better on the globe too
-  } else m.flyTo({ center: [center.lon, center.lat], zoom: zoom ?? mapConfig.search.pointZoom, duration });
+  if (bounds) m.fitBounds(lngLatBounds(bounds), { padding: fitPadding(), maxZoom: mapConfig.search.maxZoom, duration });
+  else m.flyTo({ center: [center.lon, center.lat], zoom: zoom ?? mapConfig.search.pointZoom, duration });
 }
 
 export function MapView() {
@@ -99,7 +72,7 @@ export function MapView() {
       style: buildStyle(useLayers.getState().basemap),
       center: [focus.lon, focus.lat],
       zoom: 3.5,
-      minZoom: useStore.getState().flat ? mapConfig.globeMinZoom : mapConfig.minZoom,
+      minZoom: mapConfig.minZoom,
       maxZoom: mapConfig.maxZoom,
       attributionControl: false,
       dragRotate: false,
@@ -120,7 +93,6 @@ export function MapView() {
     setSwitcherHost(switcher.el);
     // 'style.load' fires as soon as the style is parsed; 'load' would wait for every first tile.
     m.once('style.load', () => {
-      applyProjection(m, useStore.getState().flat);
       addBBoxLayers(m);
       setBBoxData(m, useStore.getState().bbox);
       setMap(m);
@@ -151,7 +123,6 @@ export function MapView() {
 
   useBoxSelect(map);
   useRegionLayers(map);
-  const hover = useSeamlessGlobe(map);
   useStationMarker(map);
   useGibsOverlay(map);
   useTrackpadPan(map);
@@ -159,14 +130,6 @@ export function MapView() {
   useEffect(() => {
     if (map) setBasemap(map, basemap);
   }, [map, basemap]);
-
-  // Seamless mode <-> classic globe hand-off: switch the map's projection.
-  const flat = useStore((s) => s.flat);
-  useEffect(() => {
-    if (!map) return;
-    applyProjection(map, flat);
-    map.setMinZoom(flat ? mapConfig.globeMinZoom : mapConfig.minZoom);
-  }, [map, flat]);
 
   // Keep the drawn rectangle in sync with the store (panel edits, examples, clears).
   useEffect(() => {
@@ -191,23 +154,15 @@ export function MapView() {
     m.resize();
     const { focus, bbox: b } = useStore.getState();
     if (mapEnter.fitBBox && b) {
-      if (useStore.getState().flat) {
-        // Seamless globe: an arc (out, turn the planet, down) instead of a straight zoom.
-        const cam = m.cameraForBounds(lngLatBounds(b), { padding: fitPadding(), maxZoom: mapConfig.fitMaxZoom });
-        if (cam) m.flyTo({ ...cam, duration: dur(mapConfig.flyMs * 1.8), essential: true });
-      } else m.fitBounds(lngLatBounds(b), { padding: fitPadding(), duration: dur(900), maxZoom: mapConfig.fitMaxZoom });
+      m.fitBounds(lngLatBounds(b), { padding: fitPadding(), duration: dur(900), maxZoom: mapConfig.fitMaxZoom });
     } else if (mapEnter.bounds) {
       goTo(m, focus, mapEnter.bounds, mapEnter.zoom);
-    } else if (useStore.getState().flat) {
-      // Seamless globe: one continuous flight from wherever the camera is down to the place.
-      const zoom = mapEnter.zoom ?? mapConfig.arrivalZoom;
-      if (mapEnter.nonce === 1 && zoom < mapConfig.arrivalZoom) m.jumpTo({ center: [focus.lon, focus.lat], zoom });
-      else m.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(zoom, Math.min(m.getZoom(), zoom)), duration: dur(mapConfig.flyMs * 1.6), essential: true });
     } else {
       // Start exactly where and as big as the globe left off (same scale, same screen point), then glide
       // the rest of the way in: the crossfade itself has nothing to jump.
       const zoom = mapEnter.zoom ?? (mapEnter.via === 'wheel' ? mapConfig.wheelArrivalZoom : mapConfig.arrivalZoom);
-      placeLikeGlobe(m, focus.lat, focus.lon, handoffZoom(focus.lat, m));
+      if (!useStore.getState().flat) placeLikeGlobe(m, focus.lat, focus.lon, handoffZoom(focus.lat, m));
+      else m.jumpTo({ center: [focus.lon, focus.lat], zoom: Math.min(m.getZoom(), zoom) });
       m.easeTo({ center: [focus.lon, focus.lat], zoom: Math.max(zoom, m.getZoom()), duration: dur(mapConfig.flyMs), easing: (t) => 1 - Math.pow(1 - t, 3) });
     }
   }, [map, mapEnter]);
@@ -253,11 +208,6 @@ export function MapView() {
     <>
       <div ref={container} className="map" aria-label="Map. Draw a rectangle to choose the area to investigate." />
       {switcherHost && <BasemapSwitcher host={switcherHost} />}
-      {hover && (
-        <div className="globe-coords" style={{ transform: `translate(${hover.x + 14}px, ${hover.y + 14}px)` }} aria-hidden>
-          {formatLat(hover.lat)} {formatLon(hover.lon)}
-        </div>
-      )}
       <BeforeAfter map={map} />
       <BoxScanner map={map} />
     </>

@@ -7,8 +7,8 @@ export function FlatSwitch() {
   const setFlat = useStore((s) => s.setFlat);
   return (
     <div className="flat-switch">
-      <Button variant="quiet" size="s" onClick={() => setFlat(true)} title="Seamless globe: the map itself is the globe and flattens as you zoom in (lighter, no hand-off). Remembered on this device." aria-label="Seamless globe">
-        <IconMap /> <span className="flat-switch__label">Seamless globe</span>
+      <Button variant="quiet" size="s" onClick={() => setFlat(true)} title="Use the flat map instead of the globe. Remembered on this device." aria-label="2D map only">
+        <IconMap /> <span className="flat-switch__label">2D map only</span>
       </Button>
     </div>
   );

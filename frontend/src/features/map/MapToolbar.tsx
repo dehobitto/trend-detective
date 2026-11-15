@@ -23,7 +23,7 @@ export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
       {flat ? (
         <>
           <Button variant="quiet" onClick={() => setFlat(false)} title="Switch back to the 3D globe (remembered on this device)">
-            <IconBack /> Classic globe
+            <IconBack /> 3D globe
           </Button>
           <Button variant={casesOpen ? 'primary' : 'quiet'} aria-pressed={casesOpen} onClick={() => set({ casesOpen: !casesOpen, drawing: false, ...(!casesOpen ? { panelCollapsed: true } : {}) })}>
             <IconList /> Examples

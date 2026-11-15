@@ -86,15 +86,10 @@ export const mapConfig = {
   wheelArrivalZoom: 4.5,
   /** Zooming out below this returns to the globe. */
   returnToGlobeZoom: 1.7,
-  /**
-   * Seamless mode (no three.js globe): the map itself is a globe (MapLibre "globe" projection) that flattens
-   * into the normal map as you zoom in. Start with the planet filling about three quarters of the window.
-   */
-  flatStartZoom: () => Math.max(0.6, Math.log2((0.75 * Math.min(window.innerWidth, window.innerHeight) * Math.PI) / 512)),
-  /** Seamless mode: how far out the globe can be zoomed. */
-  globeMinZoom: 0.3,
+  /** 2D-only mode: start zoomed out so the whole world fits the window width (clamped to minZoom). */
+  flatStartZoom: () => Math.max(1, Math.log2(window.innerWidth / 512) + 0.15),
   /** 2D-only mode is remembered on this device; ?view=2d or ?view=3d in the URL overrides it. */
-  flatStorageKey: 'td.view.v2', // v2: the seamless globe became the default (old choices are not carried over)
+  flatStorageKey: 'td.view',
   /** Hard limits for the map itself. */
   minZoom: 1,
   maxZoom: 18,
