@@ -15,8 +15,10 @@ services:
       - key: TD_DATA_PROVIDER
         value: live
       # Real NASA data needs an Earthdata login (secrets: set in the dashboard, never in git).
-      # Username + password serve both GES DISC (OPeNDAP) and AppEEARS; a token alone serves only GES DISC.
+      # Username + password + token together is the verified setup (GES DISC, LP DAAC MODIS, LAADS night lights).
       - key: TD_EARTHDATA_USERNAME
         sync: false
       - key: TD_EARTHDATA_PASSWORD
+        sync: false
+      - key: TD_EARTHDATA_TOKEN
         sync: false

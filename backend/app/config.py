@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     data_provider: str = "live"
     """Name of the registered DataProvider used for catalog variables. ``live``: route each variable to its
-    real source by its ``access`` field (NOAA GML, ``earthdata`` for GES DISC, ``appeears`` for MODIS);
+    real source by its ``access`` field (NOAA GML, ``earthdata`` for GES DISC and MODIS, ``blackmarble`` for night lights);
     or a single provider name. There is no demo / synthetic data."""
     chat_backend: str = "stub"
     cors_origins: list[str] = [

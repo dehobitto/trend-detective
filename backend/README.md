@@ -5,9 +5,10 @@ statistics (OLS + t-test + confidence intervals, Mann-Kendall, Sen's slope) and 
 The API contract is [`../docs/API.md`](../docs/API.md); architecture is in [`../docs/SPEC.md`](../docs/SPEC.md).
 
 All data is real (default `TD_DATA_PROVIDER=live`; there is no demo data). Each variable is routed by its
-catalog `access`: GES DISC products (GLDAS, GPM IMERG, OMI NO₂, MERRA-2) via OPeNDAP (`earthdata`), MODIS
-land surface temperature and NDVI via AppEEARS (`appeears`), the three greenhouse-gas records (Mauna Loa CO₂,
-global marine CO₂ and CH₄) from NOAA GML (`noaa_gml`). NASA sources need an Earthdata login (see
+catalog `access`: GES DISC products (GLDAS, GPM IMERG, OMI NO₂, MERRA-2) and MODIS monthly land surface
+temperature and NDVI (LP DAAC) via OPeNDAP (`earthdata`), VIIRS Black Marble night lights via LAADS OPeNDAP
+(`blackmarble`), the three greenhouse-gas records (Mauna Loa CO₂, global marine CO₂ and CH₄) from NOAA GML
+(`noaa_gml`). NASA sources need an Earthdata login (see
 "Environment variables"); when a source fails, the analysis fails with a readable message instead of
 falling back to anything.
 
@@ -20,8 +21,9 @@ falling back to anything.
 |---|---|---|---|---|
 | GLDAS_CLSM025_DA1_D v2.2 (daily, 0.25°, 2003-02 →) | `gldas_gws` → GWS_tavg, `gldas_tws` → TWS_tavg | mm | land | Giovanni |
 | OMNO2d v004 (daily, 0.25°, 2004-10 →) | `omi_no2` → ColumnAmountNO2TropCloudScreened | 10¹⁵ molecules/cm² (from molecules/cm²) | global | Giovanni |
-| MODIS MOD11A2 v061 (8-day, 1 km, 2000-03 →) | `modis_lst_day` → LST_Day_1km, `modis_lst_night` → LST_Night_1km | °C (from K) | land | AppEEARS |
-| MODIS MOD13A3 v061 (monthly, 1 km, 2000-02 →) | `modis_ndvi` → _1_km_monthly_NDVI | unitless | land | AppEEARS |
+| MODIS MOD11C3 v061 (monthly, 0.05°, 2000-03 →) | `modis_lst_day` → LST_Day_CMG, `modis_lst_night` → LST_Night_CMG | °C (from K) | land | Earthdata OPeNDAP |
+| MODIS MOD13C2 v061 (monthly, 0.05°, 2000-02 →) | `modis_ndvi` → CMG_0_05_Deg_Monthly_NDVI | unitless | land | Earthdata OPeNDAP |
+| VIIRS Black Marble VNP46A3 v002 (monthly, 15″ ≈ 500 m, 2012-01 →) | `viirs_night_lights` → NearNadir_Composite_Snow_Free | nW/cm²/sr | land | LAADS |
 | MERRA-2 M2TMNXAER v5.12.4 (monthly, 1980 →) | `merra2_dust` DUSMASS, `merra2_bc` BCSMASS, `merra2_oc` OCSMASS, `merra2_so2` SO2SMASS, `merra2_so4` SO4SMASS | µg/m³ (from kg/m³) | global | Giovanni |
 | | `merra2_aod` TOTEXTTAU, `merra2_sulfate_aod` SUEXTTAU | unitless | global | Giovanni |
 | GPM_3IMERGM v07 (monthly, 0.1°, 2000-06 →) | `gpm_precipitation` → precipitation | mm/day (from mm/hr) | global | Giovanni |
@@ -42,9 +44,11 @@ block at the end of `variables.yaml` shows where they go.
 - **Unit conversion** from the native product units is stored per variable in the internal `conversion`
   block (`value * scale + offset`, applied with `CatalogVariable.to_catalog_units`).
 - `examples.yaml` holds the one-click detective cases, each with an optional `related_variable_id`
-  ("compare with", e.g. Punjab groundwater vs. rainfall) and a one-sentence `takeaway`. 9 cases: Punjab
-  groundwater / rain, Delhi NO₂, China SO₂, Phoenix nights, Mauna Loa CO₂, global methane, Rondônia forest
-  (NDVI) and Sahel greening (NDVI vs. rainfall).
+  ("compare with", e.g. Punjab groundwater vs. rainfall) and a short `takeaway`. 10 cases: Punjab
+  groundwater / rain, Delhi NO₂, China sulfate haze (vs. SO₂), Phoenix nights (vs. days), Mauna Loa CO₂,
+  global methane, Rondônia forest (NDVI), Sahel greening (NDVI vs. rainfall) and Delhi night lights (vs. NO₂).
+  Every takeaway was checked against the real data for the case's default dates (2026-11-15); re-check
+  them if you change a case's area or dates.
 
 ## Run
 
@@ -53,8 +57,16 @@ cd backend
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 cp .env.example .env                # then fill in your Earthdata login
-.venv/bin/python -m app.prefetch   # optional but recommended: fill data/cache/ for every example case
 .venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+Or from the repo root: `./start.sh` (installs what is missing, starts backend and frontend; `--test` runs the
+checks). The example cases work at once without any download: their series are committed in
+`app/data/seed/cache/`. After changing a case or adding one:
+
+```bash
+.venv/bin/python -m app.prefetch              # download what the cases need into data/cache/
+.venv/bin/python -m app.prefetch --save-seed  # copy it into app/data/seed/cache/, then commit
 ```
 
 Interactive docs: http://localhost:8000/docs. Tests: `.venv/bin/python -m pytest` (no network: the app
@@ -67,15 +79,15 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TD_DATA_PROVIDER` | `live` | `live`: route each variable to its real source by `access` (`earthdata`, `appeears`, `noaa_gml`), no fallback; or a single provider name |
+| `TD_DATA_PROVIDER` | `live` | `live`: route each variable to its real source by `access` (`earthdata`, `blackmarble`, `noaa_gml`), no fallback; or a single provider name |
 | `TD_CHAT_BACKEND` | `stub` | Registered chat backend |
 | `TD_CORS_ORIGINS` | `["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"]` | JSON list of allowed origins |
-| `TD_CACHE_DIR` | `backend/data/cache` | Downloaded source files (gitignored); NOAA files go in `noaa_gml/`, Earthdata granule lists and area means in `earthdata/`, AppEEARS task ids and statistics in `appeears/` |
-| `TD_EARTHDATA_TOKEN` | unset | NASA Earthdata Login bearer token (also read as `EARTHDATA_TOKEN`). Enough for GES DISC; AppEEARS prefers username + password. Never commit it |
-| `TD_EARTHDATA_USERNAME` / `TD_EARTHDATA_PASSWORD` | unset | Earthdata login for GES DISC and AppEEARS (also `EARTHDATA_USERNAME`/`EARTHDATA_USER`, `EARTHDATA_PASSWORD`/`EARTHDATA_PASS`, the team's `.env` names). Template: `backend/.env.example` |
-| `TD_EARTHDATA_WORKERS` | `8` | Parallel OPeNDAP requests per analysis |
-| `TD_APPEEARS_WAIT` | `90` | Seconds an analysis waits for a running AppEEARS task before answering "still preparing" |
-| `TD_APPEEARS_POLL` | `10` | Seconds between AppEEARS task status checks |
+| `TD_CACHE_DIR` | `backend/data/cache` | Downloaded data (gitignored); NOAA files in `noaa_gml/`, granule lists and monthly area means in `earthdata/` and `blackmarble/` |
+| `TD_CACHE_SEED_DIR` | `backend/app/data/seed/cache` | Committed area means for the example cases, copied into `TD_CACHE_DIR` at startup (never over existing files). Empty value disables it |
+| `TD_EARTHDATA_TOKEN` | unset | NASA Earthdata Login bearer token (also read as `EARTHDATA_TOKEN`). Never commit it |
+| `TD_EARTHDATA_USERNAME` / `TD_EARTHDATA_PASSWORD` | unset | Earthdata login (also `EARTHDATA_USERNAME`/`EARTHDATA_USER`, `EARTHDATA_PASSWORD`/`EARTHDATA_PASS`, the team's `.env` names). Template: `backend/.env.example`. Verified with username + password and a token set together: GES DISC, LP DAAC and LAADS all work |
+| `TD_EARTHDATA_WORKERS` | `16` | Parallel OPeNDAP requests per analysis (8 → 16 cut a new-area GLDAS fetch from 40 s to 26 s; more barely helps, NASA's per-request latency dominates) |
+| `TD_APPEEARS_WAIT` / `TD_APPEEARS_POLL` | `90` / `10` | Only for the unused `appeears` provider |
 | `TD_NOAA_CACHE_TTL_DAYS` | `7` | A cached NOAA file older than this is downloaded again (stale copy used if that fails) |
 | `TD_NOAA_GML_BASE_URL` | `https://gml.noaa.gov/webdata/ccgg/trends` | Where `<gas>/<file>.txt` are downloaded from |
 | `TD_HTTP_TIMEOUT` | `30` | Seconds before a data download gives up |
@@ -102,11 +114,15 @@ app/
   schemas/         pydantic models mirroring docs/API.md (geocode.py: Place)
   catalog/         variables.yaml, examples.yaml, loader (validated at startup)
   geocode.py       Photon -> Nominatim place search with TTL cache and Nominatim rate limit
-  data/            seed/noaa_gml/ (committed NOAA CO₂/CH₄ files, offline fallback for the NOAA provider)
+  seed.py          install the committed real-data seed into the cache at startup; export it (`prefetch --save-seed`)
+  regions.py       named areas: OSM boundary (Nominatim lookup) -> grid squares + simplified outline
+  data/            seed/noaa_gml/ (committed NOAA CO₂/CH₄ files, offline fallback for the NOAA provider),
+                   seed/cache/ (committed area means for every example case: earthdata/, blackmarble/)
   tools/           gibs_layers.py (refresh GIBS map layers)
   providers/       base.py (DataProvider protocol + registry, Route), upload.py (user CSVs),
                    noaa_gml.py (CO₂/CH₄ records), earthdata.py (GLDAS / GPM / OMI / MERRA-2 via GES DISC
-                   OPeNDAP), appeears.py (MODIS LST and NDVI via AppEEARS),
+                   OPeNDAP, MODIS MOD11C3 / MOD13C2 via LP DAAC OPeNDAP), blackmarble.py (VIIRS night lights
+                   via LAADS OPeNDAP), appeears.py (MODIS 1 km via AppEEARS; not used by the catalog),
                    live.py (`live`: route a variable to a provider by its `access` field)
   processing/      timeseries.py, preprocess.py, trends.py, summary.py (pure functions, unit tested)
   jobs/            store.py (JobStore protocol + in-memory store), resolve.py (validation, bbox rules, date clamping), runner.py
@@ -116,7 +132,8 @@ tests/             pytest: trends, processing, catalog, API (via the test-only `
 ```
 
 Analysis pipeline (`jobs/runner.py`): `resolve` (variable, provider via `route()`, clamped dates) → `provider.fetch`
-(monthly area mean; a `ProviderError` ends the job with its message) → aggregate (monthly/annual) → `preprocess` (gap fill, deseasonalize) → `trends.analyze`
+(monthly area mean; download progress goes to the job via `fetch_progress`; notes the provider puts in
+`series.attrs["notes"]` become the first `warnings`; a `ProviderError` ends the job with its message) → aggregate (monthly/annual) → `preprocess` (gap fill, deseasonalize) → `trends.analyze`
 → `build_summary`. Job status goes `queued → fetching → processing → analyzing → done | error`.
 
 Notes on the numbers:
@@ -147,8 +164,8 @@ answers tile requests with 404, so the frontend should keep the previous frame o
 | `merra2_dust` | `MERRA2_Dust_Surface_Mass_Concentration_Monthly` | monthly | 1980-01 → 2026-08 | exact variable (DUSMASS) |
 | `merra2_so2` | `MERRA2_SO2_Column_Mass_Density_Monthly` | monthly | 1980-01 → 2026-08 | column, not surface, SO₂ (same pattern; legend in column units) |
 | `merra2_aod` | `MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly` | monthly | 1980-01 → 2026-08 | exact variable (TOTEXTTAU) |
-| `modis_lst_day` | `MODIS_Terra_L3_Land_Surface_Temp_Monthly_Day` | monthly | 2000-03 → 2026-10 | monthly MOD11C3 imagery (data: MOD11A2 8-day) |
-| `modis_lst_night` | `MODIS_Terra_L3_Land_Surface_Temp_Monthly_Night` | monthly | 2000-03 → 2026-10 | monthly MOD11C3 imagery (data: MOD11A2 8-day) |
+| `modis_lst_day` | `MODIS_Terra_L3_Land_Surface_Temp_Monthly_Day` | monthly | 2000-03 → 2026-10 | monthly MOD11C3 imagery, same product as the data |
+| `modis_lst_night` | `MODIS_Terra_L3_Land_Surface_Temp_Monthly_Night` | monthly | 2000-03 → 2026-10 | monthly MOD11C3 imagery, same product as the data |
 | `modis_ndvi` | `MODIS_Terra_L3_NDVI_Monthly` | monthly | 2000-03 → 2026-10 | `GoogleMapsCompatible_Level7`, max zoom 7 |
 | `merra2_bc`, `merra2_oc`, `merra2_so4`, `merra2_sulfate_aod` | – (`map_layer: null`) | | | no GIBS layer for these MERRA-2 species |
 
@@ -174,40 +191,65 @@ cached copy the committed seed in `app/data/seed/noaa_gml/` is used (`TD_NOAA_SE
 job fails with "Couldn't reach NOAA to download the data. Please try again later."
 
 Routing (`providers/live.py`): `live` implements `route(variable) -> Route(provider)`; `jobs/resolve.py`
-uses it so the result reports the concrete provider (`earthdata`, `appeears`, `noaa_gml`).
+uses it so the result reports the concrete provider (`earthdata`, `blackmarble`, `noaa_gml`).
 `ACCESS_TO_PROVIDER` maps `access` values to providers.
 
-## Real NASA data: GES DISC (`earthdata`) and AppEEARS (`appeears`)
+## Real NASA data over OPeNDAP (`earthdata`, `blackmarble`)
 
 `earthdata` (`providers/earthdata.py`) is the team's OPeNDAP data-access code
 (github.com/evheniikozlov/nasa2026, `data_access.py`) behind our provider interface. Granule list from CMR
-(public), one DAP4 subset request per granule for just the bbox cells (daily GLDAS sampled on the 1st,
-OMI NO₂ on 4 days per month), cos(lat) area mean, monthly mean, catalog units; results cached per grid box
-in `TD_CACHE_DIR/earthdata/`. Needs an Earthdata login (see the table above; in Earthdata Login also
-approve the "NASA GESDISC DATA ARCHIVE" application). Without a login, values already in the cache are
-still served.
+(public, cached per year), one DAP4 subset request per granule for just the bbox cells, cos(lat) area mean,
+monthly mean, catalog units; results cached per grid box in `TD_CACHE_DIR/earthdata/`. Products and grids
+are in `GRIDS`:
 
-`appeears` (`providers/appeears.py`, based on the team's `get_data_appeears`) submits one AppEEARS area task
-per (product, layer, bbox) for the variable's whole availability and downloads only the task's
-`<PRODUCT>-Statistics.csv` (per-date area mean, a few KB) instead of the GeoTIFFs; cached in
-`TD_CACHE_DIR/appeears/`. MODIS LST uses MOD11A2.061 (8-day, 1 km) because MOD11C3 is not in AppEEARS; NDVI
-is MOD13A3.061. Tasks take minutes: a request waits up to `TD_APPEEARS_WAIT` (90 s), then answers "NASA is
-preparing this area, try again in a few minutes"; the next request for the same area polls the same task.
-Needs username + password (a token alone works only for GES DISC).
+| Product | Grid | Sampling | New area, whole record |
+|---|---|---|---|
+| GLDAS_CLSM025_DA1_D (daily) | 0.25° | 1st of each month (groundwater changes slowly) | ~25–40 s |
+| OMNO2d (daily) | 0.25° | 1st, 8th, 15th, 22nd (clouds blank many days) | 2–4 min |
+| GPM_3IMERGM, M2TMNXAER (monthly) | 0.1°, 0.5°×0.625° | every month | ~25–30 s |
+| MOD11C3, MOD13C2 (monthly, LP DAAC cloud OPeNDAP) | 0.05°, rows north → south | every month | ~30–70 s |
+
+Details worth knowing before touching it:
+- MODIS grids run north → south (`lat_step` < 0); `cell_range` mirrors them. Dimensions are named
+  `YDim_<grid>` / `XDim_<grid>`.
+- MOD13C2 NDVI files say `scale_factor = 10000` but mean *divide* (HDF4 MODIS convention): `Grid.packing`
+  overrides it with 1e-4. LST's 0.02 is a real multiplier and comes from the file.
+- Cell index math is rounded before floor/ceil, so a box edge exactly on a cell edge does not pull in the
+  neighbouring cell.
+- Downloads report progress (`report_progress`), which the job shows as "Downloading from NASA: N of M files".
+
+`blackmarble` (`providers/blackmarble.py`) reads VIIRS VNP46A3 from LAADS OPeNDAP per 10° tile (2400×2400
+pixels of 15″) and combines the tiles. A month is capped at `MAX_SAMPLES` = 40 000 pixels: bigger areas take
+every Nth row and column (`[start:stride:stop]`), the stride goes into the cache key, and the result carries a
+note ("sampled at one pixel in 36, about one point every 3 km; trend reliable, brightness approximate"). A city
+keeps every pixel (~2 min for Delhi); a 5°×5° area (4 tiles, stride 6) takes ~6 min, because the time is set by
+the number of requests (tiles × months), not their size. CMR lists VNP46A3 as version `2`, not `002`.
+
+Named areas (`app/regions.py`, `GET /api/regions/shape`): the analysis sends the region's squares as
+`cells`; providers average only the grid cells (or night-light pixels) whose centres fall inside them, and the
+mask goes into the cache key.
+
+**Earthdata account setup** (once per account, in the browser): approve the "NASA GESDISC DATA ARCHIVE"
+application; for night lights also fill in *User Type*, *Organization* and *Study Area* in the Earthdata
+profile and approve "LAADS Web" (LAADS refuses with `access_denied` otherwise). LP DAAC (MODIS) needed nothing
+extra.
+
+`appeears` (`providers/appeears.py`) is kept but no catalog variable uses it: AppEEARS area tasks give 1 km
+MODIS (MOD11A2, MOD13A3) as a small statistics CSV, but during the hackathon its queue took hours per task. It
+keeps a task through network errors and reuses a queued task with the same name instead of submitting again.
 
 | Provider | File | Serves (`access`) | Route |
 |---|---|---|---|
-| `earthdata` | `providers/earthdata.py` | GLDAS, OMNO2d, MERRA-2 M2TMNXAER, GPM IMERG (`Giovanni`) | GES DISC OPeNDAP subsets + our own area mean |
-| `appeears` | `providers/appeears.py` | MODIS MOD11A2 LST day/night, MOD13A3 NDVI (`AppEEARS`) | AppEEARS area task → statistics CSV |
-| `blackmarble` | `providers/blackmarble.py` | VIIRS Black Marble VNP46A3 night lights (`LAADS`) | LAADS OPeNDAP subsets per 10° tile, tiles combined; cache in `TD_CACHE_DIR/blackmarble/` |
+| `earthdata` | `providers/earthdata.py` | GLDAS, OMNO2d, MERRA-2, GPM IMERG (`Giovanni`, `GES DISC OPeNDAP`), MODIS MOD11C3 / MOD13C2 (`Earthdata OPeNDAP`) | OPeNDAP subsets + our own area mean |
+| `blackmarble` | `providers/blackmarble.py` | VIIRS Black Marble VNP46A3 night lights (`LAADS`) | LAADS OPeNDAP subsets per 10° tile (strided for big areas), tiles combined |
 | `noaa_gml` | `providers/noaa_gml.py` | CO₂/CH₄ records (`NOAA GML`) | NOAA monthly text files |
+| `appeears` | `providers/appeears.py` | nothing in the catalog (`AppEEARS`) | AppEEARS area task → statistics CSV |
 | `live` | `providers/live.py` | everything, by each variable's `access` | delegates to the providers above |
 
 **Prefetch** (`.venv/bin/python -m app.prefetch`, see its docstring): fills the caches for every example
-case's variable and "compare with" variable over the example's area, for the whole availability, so those
-cases answer instantly and work offline afterwards. `--noaa` (no login needed), `--earthdata`, `--appeears`
-(submits all example areas at once, then polls; `--wait` minutes, default 60; an interrupted run resumes the
-same tasks), `--list` (print the plan).
+case's variable and "compare with" variable over the example's area, for the whole availability. `--noaa`
+(no login needed), `--earthdata` (GES DISC, LP DAAC and LAADS), `--list` (print the plan), `--save-seed`
+(copy the cache into `app/data/seed/cache/` to commit; the app installs it at startup).
 
 To add a source:
 

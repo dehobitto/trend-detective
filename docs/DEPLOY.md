@@ -11,10 +11,11 @@ and the frontend (`scripts/smoke.sh`). Deploys happen only after CI is green.
 
 - A GitHub account/org for the repo (empty repo, no README).
 - Render account (free) logged in with GitHub — or a Fly.io account + `flyctl` if you choose Fly.
-- A NASA Earthdata login (https://urs.earthdata.nasa.gov) for the NASA data: `TD_EARTHDATA_USERNAME` and
-  `TD_EARTHDATA_PASSWORD` as secrets in the host's dashboard (never in git). Username + password serve both
-  GES DISC and AppEEARS; a token (`TD_EARTHDATA_TOKEN`) alone serves only GES DISC. In Earthdata Login,
-  approve the "NASA GESDISC DATA ARCHIVE" application. NOAA and the geocoder are public.
+- A NASA Earthdata login (https://urs.earthdata.nasa.gov) for the NASA data: `TD_EARTHDATA_USERNAME`,
+  `TD_EARTHDATA_PASSWORD` and `TD_EARTHDATA_TOKEN` as secrets in the host's dashboard (never in git); that
+  combination is what was verified. Once per account in Earthdata Login: approve "NASA GESDISC DATA ARCHIVE";
+  for night lights also fill in *User Type*, *Organization*, *Study Area* in the profile and approve "LAADS
+  Web". NOAA, OSM (place search, region boundaries) and GIBS are public.
 
 ## 1. GitHub (both hosts)
 
@@ -35,11 +36,12 @@ Settings → Branches → protect `main`, require the `CI` checks for PRs.
    on that commit pass**; a red CI never deploys. (Service → Settings → Build & Deploy → Auto-Deploy should
    show "After CI Checks Pass".)
 4. Env vars: Service → Environment. Defaults are in `render.yaml` (`TD_DATA_PROVIDER=live`). Set the secrets
-   `TD_EARTHDATA_USERNAME` / `TD_EARTHDATA_PASSWORD` there (the blueprint declares them with `sync: false`).
+   `TD_EARTHDATA_USERNAME` / `TD_EARTHDATA_PASSWORD` / `TD_EARTHDATA_TOKEN` there (the blueprint declares
+   them with `sync: false`).
 
 Free plan notes: the service sleeps after ~15 min idle (first request then takes ~1 min) — open the URL a
 few minutes before the demo. 512 MB RAM: idle was ~165 MB when measured locally; the old memory-heavy map
-grids are gone, but OPeNDAP/AppEEARS downloads have not been measured on the host yet. If you see
+grids are gone, but OPeNDAP downloads have not been measured on the host yet. If you see
 restarts/OOM in the logs, upgrade to an instance with ≥1 GB (Standard) or use Fly with 1 GB.
 
 ## 2b. Fly.io (alternative)
@@ -54,7 +56,7 @@ fly tokens create deploy -x 999999h                      # -> GitHub secret FLY_
 
 GitHub → Settings → Secrets and variables → Actions: secret `FLY_API_TOKEN`, variable `FLY_DEPLOY=true`.
 From then on `deploy-fly.yml` deploys the exact commit CI tested, only when CI on `main` succeeded.
-Env/secrets: `fly secrets set TD_EARTHDATA_USERNAME=... TD_EARTHDATA_PASSWORD=...` (`fly.toml` already sets
+Env/secrets: `fly secrets set TD_EARTHDATA_USERNAME=... TD_EARTHDATA_PASSWORD=... TD_EARTHDATA_TOKEN=...` (`fly.toml` already sets
 `TD_DATA_PROVIDER=live`). (If you pick Render, leave `FLY_DEPLOY` unset; the workflow skips.)
 
 ## Rollback
@@ -79,12 +81,11 @@ cd backend && TD_STATIC_DIR=../frontend/dist .venv/bin/uvicorn app.main:app --po
 - Run exactly **one worker/process** (the Dockerfile does): jobs and uploads are per-process memory/disk.
 - Cache and uploads live in `/app/data` inside the container (`TD_CACHE_DIR`, `TD_UPLOAD_DIR`) and are
   **ephemeral**: a redeploy or a Render sleep/wake clears uploaded datasets, finished jobs and the data cache.
-- **Cold cache after every deploy**: the first request for each area downloads from NASA (GES DISC: tens of
-  seconds; AppEEARS: minutes, the first answer is "NASA is preparing this area, try again in a few minutes").
-  Either accept the warm-up (click through every example case before the demo, twice for the MODIS ones), or
-  give the container a persistent disk (Render Disk / Fly volume mounted at `/app/data`) and run the
-  prefetch there once: `cd /app/backend && python -m app.prefetch` (Render Shell or `fly ssh console`; needs the
-  Earthdata secrets; AppEEARS waits up to `--wait` minutes, re-running resumes the same tasks).
+- **Example cases are warm on every deploy**: their series are committed in `backend/app/data/seed/cache/`
+  and copied into the cache at startup, so they answer in well under a second with no NASA download. Any
+  other area downloads on first use (progress is shown): ~25–70 s for monthly products, 2–4 min for OMI NO₂,
+  minutes for night lights over large areas. Those downloads are lost on redeploy unless the container gets a
+  persistent disk (Render Disk / Fly volume mounted at `/app/data`).
 - NOAA CO₂/CH₄: downloaded on first use; if NOAA is unreachable the bundled copies in
   `backend/app/data/seed/noaa_gml/` are used (real data, as fresh as the last commit of those files).
   Refresh them with `cd backend && .venv/bin/python -m app.prefetch --noaa && cp data/cache/noaa_gml/*.txt app/data/seed/noaa_gml/`.

@@ -5,8 +5,8 @@ Users pick a region + an Earth-science variable (MODIS, OMI, AIRS, GPM, MERRA-2,
 series, and get the rate of change + whether the trend is statistically significant (OLS t-test with CI,
 Mann-Kendall + Sen's slope). Audience: high-school / college students — clear, not childish.
 
-All data is real: GES DISC products via OPeNDAP, MODIS via AppEEARS, CO₂/CH₄ from NOAA GML, plus user
-uploads. There is no demo or fallback data; when a source fails, the analysis says so in plain language.
+All data is real: GES DISC products (GLDAS, GPM, OMI, MERRA-2) and MODIS monthly grids via OPeNDAP, VIIRS
+night lights via LAADS OPeNDAP, CO₂/CH₄ from NOAA GML, plus user uploads. There is no demo or fallback data; when a source fails, the analysis says so in plain language.
 Each source is one provider behind one interface. Modularity + UI/UX are the priority.
 
 ## Repo layout
@@ -25,7 +25,10 @@ docs/       SPEC.md (this), API.md (contract — both sides MUST follow it)
      then crossfades into the 2D map centered there.
    - Small floating "case" prompt bottom-center: "Pick a place to investigate" + example cases.
 2. **2D map.** MapLibre GL, basemap = NASA GIBS Blue Marble raster tiles (no API key) + GIBS reference
-   labels/coastlines overlay. User draws a **rectangle** (toggle "Draw area" tool, or Shift+drag) → bbox.
+   labels/coastlines overlay. User draws a **rectangle** (toggle "Draw area" tool, or Shift+drag) → bbox;
+   a rectangle under 0.25° is enlarged to 0.25° (about one data cell) with a short note on the map. Or the user
+   picks a **named area** in place search (country, state, city): its OSM boundary is approximated by grid
+   squares (`/api/regions/shape`) and the analysis averages only inside them.
    Zooming out below min zoom, or "Back to globe" button → returns to globe.
 3. **Investigation panel** (right side drawer, appears once a bbox exists): bbox readout (editable lat/lon),
    variable picker grouped by sphere (Atmosphere / Land / Ocean / Water cycle) with plain-language
@@ -35,8 +38,9 @@ docs/       SPEC.md (this), API.md (contract — both sides MUST follow it)
    Shows OLS slope ± CI, t-test p, Mann-Kendall tau/p, Sen's slope, n, period. Short "What does this mean?"
    explainers. Download CSV of the series.
 5. **Example cases** (the one-click presets the brief asks for): set bbox + variable + dates in one click
-   (e.g. Punjab groundwater vs. rainfall, Delhi NO₂, China SO₂, Phoenix nights, Mauna Loa CO₂, Rondônia
-   forest NDVI, Sahel greening). Defined in backend catalog, served via API.
+   (Punjab groundwater vs. rainfall, Delhi NO₂, China sulfate haze, Phoenix nights, Mauna Loa CO₂, global
+   methane, Rondônia forest NDVI, Sahel greening, Delhi night lights). Defined in backend catalog, served via
+   API; every takeaway was checked against the real data for the case's default dates.
 6. **Bring your own data**: upload a CSV (`date,value`) → appears as a dataset you can analyze/plot with the
    same pipeline.
 7. **Field guide chat (stub)**: floating button bottom-right opens a chat drawer. Backend `/api/chat`
@@ -50,13 +54,16 @@ backend/
   app/
     main.py            app factory, CORS, router mounting
     config.py          Settings (env prefix TD_), e.g. TD_DATA_PROVIDER=live, TD_EARTHDATA_USERNAME/PASSWORD
-    prefetch.py        `python -m app.prefetch`: fill the data caches for every example case
+    prefetch.py        `python -m app.prefetch`: fill the data caches for every example case (`--save-seed`)
+    seed.py            copies the committed real-data seed (`app/data/seed/cache/`) into the cache at startup
+    regions.py         named areas: OSM boundary -> grid squares + simplified outline
     api/               routers: health, catalog, analyses, datasets, chat, geocode
     schemas/           pydantic models (mirror docs/API.md exactly)
     catalog/           variables.yaml, examples.yaml, loader
-    providers/         base.py (DataProvider protocol + registry), live.py (routes by catalog `access`),
-                       earthdata.py (GES DISC OPeNDAP), appeears.py (MODIS via AppEEARS), noaa_gml.py (CO₂/CH₄),
-                       upload.py (user CSVs)
+    providers/         base.py (DataProvider protocol + registry, fetch_progress, region masks),
+                       live.py (routes by catalog `access`), earthdata.py (GES DISC + LP DAAC MODIS OPeNDAP),
+                       blackmarble.py (VIIRS night lights, LAADS), noaa_gml.py (CO₂/CH₄), upload.py (user CSVs),
+                       appeears.py (MODIS 1 km via AppEEARS; kept, not used by the catalog: its queue is too slow)
     processing/        timeseries.py (area mean, resample), preprocess.py (gap fill, deseasonalize/anomalies),
                        trends.py (OLS+t-test+CI, Mann-Kendall, Sen's slope) — pure numpy/scipy, unit tested
     jobs/              in-memory job store + runner (BackgroundTasks); interface allows swapping to a queue later
@@ -68,9 +75,11 @@ Pipeline for an analysis job: `provider.fetch(variable, bbox, start, end) -> pd.
 → `preprocess` → `trends.analyze` → result. Each stage is a plain function; job runner just chains them and
 updates status/progress (`queued → fetching → processing → analyzing → done | error`).
 
-Providers fetch only what the bbox needs (OPeNDAP subsets, AppEEARS area statistics) and cache it on disk
-(`TD_CACHE_DIR`), so a repeated area is instant; `app.prefetch` warms the cache for the example cases. A
-`ProviderError` ends the job with its student-readable message (no fallback). See `backend/README.md`.
+Providers fetch only what the bbox needs (OPeNDAP subsets of the bbox's grid cells) and cache the monthly area
+means on disk (`TD_CACHE_DIR`), so a repeated area is instant. While downloading they report `(done, total)`
+through `providers.base.fetch_progress`; the job shows it as progress. The example cases' series are committed
+as a seed and installed into the cache at startup. A `ProviderError` ends the job with its student-readable
+message (no fallback). See `backend/README.md`.
 
 ## Frontend architecture
 
