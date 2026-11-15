@@ -6,7 +6,7 @@ services:
     runtime: docker
     plan: free                 # 512 MB RAM; see docs/DEPLOY.md "Memory" before demo day
     region: frankfurt
-    branch: main
+    branch: master
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
