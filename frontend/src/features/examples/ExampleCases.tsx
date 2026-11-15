@@ -71,17 +71,31 @@ export function ExampleCases() {
           Pick a place to investigate
         </h2>
         <p className="cases__lede" aria-live="polite">
-          {focused === 'guide' ? 'Two quick questions, then we take you there.' : ex ? ex.question : 'Click anywhere on Earth, or open a case file.'}
+          {focused === 'guide' ? 'Two quick questions, then we take you there.' : ex ? ex.question : 'Click anywhere on Earth or scroll in to open the map. Or start from a case below.'}
         </p>
         <div className="cases__list" onMouseLeave={() => setFocused(null)}>
           {examples.map((x) => (
-            <CaseButton key={x.id} id={x.id} label={x.title} disabled={busy} onFocusChange={setFocused} onClick={() => applyExample(x)} />
+            <CaseButton key={x.id} id={x.id} label={x.title} meta={coords(x.center)} disabled={busy} onFocusChange={setFocused} onClick={() => applyExample(x)} />
           ))}
-          {themes.length > 0 && (
-            <CaseButton ref={guideBtn} id="guide" label="Help me choose" variant="guide" disabled={busy} onFocusChange={setFocused} onClick={openGuide} />
-          )}
         </div>
-        <p className="cases__how">Drag to turn the globe. Scroll in to dive down to the map.</p>
+        {themes.length > 0 && (
+          <div className="cases__foot">
+            <span className="cases__foot-note">Not sure where to start?</span>
+            <button
+              ref={guideBtn}
+              type="button"
+              className="cases__guide"
+              disabled={busy}
+              onPointerEnter={(e) => e.pointerType === 'mouse' && setFocused('guide')}
+              onPointerLeave={() => setFocused(null)}
+              onFocus={() => setFocused('guide')}
+              onBlur={() => setFocused(null)}
+              onClick={openGuide}
+            >
+              Help me choose
+            </button>
+          </div>
+        )}
       </section>
     );
   }
@@ -106,7 +120,7 @@ export function ExampleCases() {
         <h2 id="cases-title" className="cases__title">
           {title}
         </h2>
-        <span className="cases__step">{isWhat ? '1' : '2'} of 2</span>
+        <span className="cases__step">Step {isWhat ? '1' : '2'} of 2</span>
       </div>
       <p className="cases__lede" aria-live="polite">
         {current?.hint ?? defaultLede}
@@ -116,7 +130,6 @@ export function ExampleCases() {
           <CaseButton key={o.id} id={o.id} label={o.label} variant={o.variant} disabled={busy} onFocusChange={setFocused} onClick={o.onClick} />
         ))}
       </div>
-      <p className="cases__how">Press Esc to go back a step.</p>
     </section>
   );
 }
@@ -168,9 +181,17 @@ function whereOptions(theme: ResolvedTheme, applyExample: (ex: ExampleCase) => v
   return opts;
 }
 
+/** Compact atlas-style coordinates for a case's centre, e.g. "31°N 76°E". */
+function coords(c: { lat: number; lon: number }): string {
+  const lat = `${Math.round(Math.abs(c.lat))}°${c.lat >= 0 ? 'N' : 'S'}`;
+  const lon = `${Math.round(Math.abs(c.lon))}°${c.lon >= 0 ? 'E' : 'W'}`;
+  return `${lat} ${lon}`;
+}
+
 type CaseButtonProps = {
   id: string;
   label: string;
+  meta?: string;
   variant?: 'plain' | 'guide';
   disabled: boolean;
   onFocusChange: (id: string | null) => void;
@@ -178,7 +199,7 @@ type CaseButtonProps = {
 };
 
 const CaseButton = forwardRef<HTMLButtonElement, CaseButtonProps>(function CaseButton(
-  { id, label, variant = 'plain', disabled, onFocusChange, onClick },
+  { id, label, meta, variant = 'plain', disabled, onFocusChange, onClick },
   ref,
 ) {
   return (
@@ -187,13 +208,14 @@ const CaseButton = forwardRef<HTMLButtonElement, CaseButtonProps>(function CaseB
       type="button"
       className={`case${variant === 'guide' ? ' case--guide' : ''}`}
       disabled={disabled}
-      // Mouse only: a tap leaves a sticky hover on whatever pill appears under the finger next.
+      // Mouse only: a tap leaves a sticky hover on whatever row appears under the finger next.
       onPointerEnter={(e) => e.pointerType === 'mouse' && onFocusChange(id)}
       onFocus={() => onFocusChange(id)}
       onBlur={() => onFocusChange(null)}
       onClick={onClick}
     >
-      {label}
+      <span className="case__label">{label}</span>
+      {meta && <span className="case__meta">{meta}</span>}
     </button>
   );
 });

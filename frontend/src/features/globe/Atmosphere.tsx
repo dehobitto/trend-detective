@@ -1,83 +1,69 @@
 import { useMemo } from 'react';
-import { AdditiveBlending, BackSide, Color, FrontSide, ShaderMaterial } from 'three';
+import { BackSide, Color, ShaderMaterial } from 'three';
 import { colors } from '../../config/colors';
 import { globeConfig } from '../../config/globe';
+import { globeUniforms } from './sun';
 
 const vertex = /* glsl */ `
-  varying vec3 vNormal;
-  varying vec3 vViewDir;
+  varying vec3 vN;
+  varying vec3 vPos;
   void main() {
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vNormal = normalize(normalMatrix * normal);
-    vViewDir = normalize(-mv.xyz);
-    gl_Position = projectionMatrix * mv;
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vPos = wp.xyz;
+    vN = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `;
 
-/** Outer halo: brightest at Earth's limb, fading smoothly to nothing at the shell's edge. */
-const haloFragment = /* glsl */ `
+/**
+ * The thin blue limb seen beyond the Earth's edge. Drawn as the back faces of a slightly larger shell:
+ * densest right at the surface, gone by the shell's edge, brighter where the air is sunlit.
+ * Normal (not additive) blending, so it reads as blue on the light page rather than vanishing into it.
+ */
+const fragment = /* glsl */ `
   uniform vec3 uColor;
+  uniform vec3 uSun;
   uniform float uLimb;
   uniform float uStrength;
-  varying vec3 vNormal;
-  varying vec3 vViewDir;
+  varying vec3 vN;
+  varying vec3 vPos;
   void main() {
-    float f = clamp(-dot(vNormal, vViewDir), 0.0, 1.0);
-    float g = smoothstep(0.0, uLimb, f);
-    float glow = pow(g, 2.4) * uStrength;
-    gl_FragColor = vec4(uColor * glow, glow);
-  }
-`;
-
-/** Inner rim: a thin fresnel haze on the Earth's own surface near the edge. */
-const rimFragment = /* glsl */ `
-  uniform vec3 uColor;
-  varying vec3 vNormal;
-  varying vec3 vViewDir;
-  void main() {
-    float fres = 1.0 - clamp(dot(vNormal, vViewDir), 0.0, 1.0);
-    float rim = pow(fres, 3.2) * 0.95;
-    gl_FragColor = vec4(uColor * rim, rim);
+    vec3 n = normalize(vN);
+    vec3 V = normalize(cameraPosition - vPos);
+    // 0 at the shell's silhouette, 1 where the line of sight grazes the Earth's surface.
+    float f = clamp(-dot(n, V) / uLimb, 0.0, 1.0);
+    float density = pow(f, 3.5);
+    float lit = smoothstep(-0.35, 0.45, dot(n, uSun));
+    float a = density * uStrength * (0.35 + 0.65 * lit);
+    gl_FragColor = vec4(uColor, a);
+    #include <colorspace_fragment>
   }
 `;
 
 export function Atmosphere() {
   const scale = globeConfig.atmosphereScale;
-  const [halo, rim] = useMemo(() => {
-    const color = new Color(colors.atmosphere);
-    const halo = new ShaderMaterial({
-      vertexShader: vertex,
-      fragmentShader: haloFragment,
-      uniforms: {
-        uColor: { value: color },
-        uLimb: { value: Math.sqrt(1 - 1 / (scale * scale)) },
-        uStrength: { value: globeConfig.atmosphereStrength },
-      },
-      side: BackSide,
-      blending: AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-    });
-    const rim = new ShaderMaterial({
-      vertexShader: vertex,
-      fragmentShader: rimFragment,
-      uniforms: { uColor: { value: color } },
-      side: FrontSide,
-      blending: AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-    });
-    return [halo, rim];
-  }, [scale]);
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        vertexShader: vertex,
+        fragmentShader: fragment,
+        uniforms: {
+          uColor: { value: new Color(colors.atmosphere) },
+          uSun: globeUniforms.uSun,
+          uLimb: { value: Math.sqrt(1 - 1 / (scale * scale)) },
+          uStrength: { value: globeConfig.atmosphereStrength },
+        },
+        side: BackSide,
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    [scale],
+  );
 
   return (
-    <>
-      <mesh material={rim} raycast={() => null}>
-        <sphereGeometry args={[1.003, 96, 48]} />
-      </mesh>
-      <mesh material={halo} scale={scale} raycast={() => null}>
-        <sphereGeometry args={[1, 96, 48]} />
-      </mesh>
-    </>
+    <mesh material={material} scale={scale} raycast={() => null} renderOrder={2}>
+      <sphereGeometry args={[1, 128, 64]} />
+    </mesh>
   );
 }

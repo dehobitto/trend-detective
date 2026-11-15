@@ -18,8 +18,14 @@ export function ResultsView({ job }: { job: Job }) {
   const fromExample = example && result && example.variable_id === result.variable.id ? example : null;
   const top = useRef<HTMLDivElement>(null);
   // Bring the verdict into view when a new result lands.
+  // Scroll only the panel's own scroller: scrollIntoView would also scroll the overflow-hidden app shell
+  // on phones, sliding the whole page up under the bottom sheet.
   useEffect(() => {
-    top.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    const el = top.current;
+    const scroller = el?.closest('.panel__scroll');
+    if (!el || !scroller) return;
+    const y = scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 12;
+    scroller.scrollTo({ top: y, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [job.id]);
   if (!result) return null;
   // The "Demo data" badge already says this; don't repeat it as a warning.
@@ -60,7 +66,7 @@ export function ResultsView({ job }: { job: Job }) {
         </Button>
         <span className="hint">
           {result.variable.source}
-          {result.synthetic ? ' · synthetic demo values' : ''}
+          {result.synthetic ? '. Synthetic demo values, not measurements.' : ''}
         </span>
       </div>
       {csvError && <p className="field-error">{csvError}</p>}

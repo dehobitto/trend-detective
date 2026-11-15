@@ -1,6 +1,5 @@
 import { Canvas } from '@react-three/fiber';
 import { Suspense, useEffect, useState } from 'react';
-import { colors } from '../../config/colors';
 import { globeConfig } from '../../config/globe';
 import { fadeMs } from '../../config/motion';
 import { formatLat, formatLon } from '../../lib/geo';
@@ -9,7 +8,6 @@ import { Atmosphere } from './Atmosphere';
 import { CameraRig } from './CameraRig';
 import { Earth } from './Earth';
 import { StationMarker } from './StationMarker';
-import { Stars } from './Stars';
 import './globe.css';
 
 type Hover = { lat: number; lon: number; x: number; y: number } | null;
@@ -38,14 +36,13 @@ export function GlobeView() {
       <Canvas
         frameloop={paused ? 'never' : 'always'}
         dpr={[1, 2]}
-        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         camera={{ fov: globeConfig.fov, near: 0.05, far: 200, position: [0, 0, globeConfig.defaultDistance] }}
-        onCreated={({ gl }) => gl.setClearColor(colors.space)}
+        onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
         aria-label="3D globe. Drag to turn, scroll to zoom, click a place to open the map there."
         role="img"
       >
         <Suspense fallback={null}>
-          <Stars />
           <Earth
             interactive={interactive}
             onHover={setHover}

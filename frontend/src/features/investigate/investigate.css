@@ -7,17 +7,15 @@
   max-width: calc(100vw - 2 * var(--edge));
   display: flex;
   flex-direction: column;
-  background: var(--panel-a);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-l);
   box-shadow: var(--shadow);
   z-index: 10;
-  animation: panel-in 380ms var(--ease-out);
+  animation: panel-in 320ms var(--ease-out);
 }
 @keyframes panel-in {
-  from { opacity: 0; transform: translateX(24px); }
+  from { opacity: 0; transform: translateX(16px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .panel { animation: none; }
@@ -26,56 +24,79 @@
 .panel__scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 6px 20px 20px;
+  padding: 4px 20px 20px 16px;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
 
-/* ---------- steps ---------- */
+/* ---------- steps ----------
+   The flow is a real sequence, so each step hangs its number in a left gutter, and a rail runs down
+   from the number through the step: solid ink once the step is done, a hairline while it is open. */
 .step {
-  padding: 16px 0 18px;
-  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  column-gap: 12px;
+  padding-top: 16px;
 }
-.step:last-child { border-bottom: 0; }
-.step__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
+.step__head { display: contents; }
 .step__num {
-  display: inline-grid;
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-s);
   border: 1px solid var(--line-strong);
   color: var(--ink-dim);
-  font-size: 12px;
-  font-weight: 600;
-  flex: none;
+  background: var(--panel);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .step[data-active='true'] .step__num { border-color: var(--ink); color: var(--ink); }
-.step[data-done='true'] .step__num { background: var(--ink); border-color: var(--ink); color: var(--space); }
+.step[data-done='true'] .step__num { background: var(--ink); border-color: var(--ink); color: var(--panel); }
 .step__title {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
-.step__aside { margin-left: auto; }
+.step__aside { grid-column: 2; grid-row: 1; justify-self: end; align-self: center; }
+.step__body {
+  grid-column: 2;
+  grid-row: 2;
+  padding: 10px 0 20px;
+  min-width: 0;
+}
+.step::before {
+  content: '';
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: center;
+  width: 1px;
+  margin: 4px 0 0;
+  background: var(--line);
+}
+.step[data-done='true']::before { width: 2px; background: var(--ink); }
+/* The last step holds the results, which carry their own rule. */
+.step:last-child::before { display: none; }
 
 /* ---------- shared text ---------- */
 .notes {
   margin: 0;
   font-family: var(--font-notes);
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 14.5px;
+  line-height: 1.5;
   color: var(--ink);
+  max-width: 62ch;
 }
 .notes--dim { color: var(--ink-dim); }
-.notes--small { font-size: 14px; color: var(--ink-dim); }
-.notes strong { font-family: var(--font-ui); font-weight: 600; font-size: 13.5px; }
+.notes--small { font-size: 13.5px; color: var(--ink-dim); }
+.notes strong { font-weight: 700; }
 .hint { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
 .field-error { margin: 8px 0 0; font-size: 13px; color: var(--danger); }
 
@@ -94,10 +115,11 @@
 .area__field--east { grid-area: e; }
 .area__box {
   grid-area: box;
-  height: 30px;
-  margin: 0 10px 2px;
-  border: 1.5px dashed var(--ink-dim);
-  border-radius: 3px;
+  height: 26px;
+  margin: 0 22px 4px;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  border-radius: 0;
   align-self: end;
 }
 .area__actions { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
@@ -111,57 +133,62 @@ textarea {
   font: inherit;
   font-size: 14px;
   color: var(--ink);
-  background: rgba(7, 11, 26, 0.6);
-  border: 1px solid var(--line);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-s);
-  padding: 6px 8px;
+  padding: 5px 8px;
+  font-variant-numeric: tabular-nums;
   width: 100%;
   min-width: 0;
 }
-input:hover, select:hover, textarea:hover { border-color: var(--line-strong); }
+input:hover, select:hover, textarea:hover { border-color: var(--ink-dim); }
 select { appearance: none; padding-right: 26px; background-image: linear-gradient(45deg, transparent 50%, var(--ink-dim) 50%), linear-gradient(135deg, var(--ink-dim) 50%, transparent 50%); background-position: calc(100% - 13px) 55%, calc(100% - 8px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
 select:disabled { opacity: 0.5; }
 
-/* ---------- variable picker ---------- */
-.var-picker { display: grid; gap: 14px; }
-.var-group { display: grid; gap: 6px; }
-.var-group__title { margin: 0 0 2px; font-size: 13px; font-weight: 600; color: var(--ink-dim); }
+/* ---------- variable picker ----------
+   A list, not a deck of cards: entries separated by rules, the chosen one marked by an ink bar. */
+.var-picker { display: grid; gap: 16px; }
+.var-group { display: grid; }
+.var-group__title { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--ink); }
 .var-opt {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   text-align: left;
   font: inherit;
   color: var(--ink);
-  padding: 10px 12px;
+  padding: 9px 10px 10px 12px;
+  margin: 0 -10px 0 -12px;
   background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-m);
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
   cursor: pointer;
-  transition: border-color 120ms, background-color 120ms;
+  transition: background-color 120ms, box-shadow 120ms;
 }
-.var-opt:hover { border-color: var(--line-strong); background: rgba(232, 236, 245, 0.03); }
-.var-opt[aria-checked='true'] { border-color: var(--ink); background: rgba(232, 236, 245, 0.06); }
-.var-opt__name { font-size: 14px; font-weight: 600; }
-.var-opt__units { font-weight: 400; color: var(--ink-dim); font-size: 12.5px; margin-left: 4px; }
-.var-opt__def { font-family: var(--font-notes); font-size: 14px; line-height: 1.4; color: var(--ink-dim); }
-.var-opt__chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.var-opt:hover { background: var(--wash); }
+.var-opt[aria-checked='true'] { background: var(--wash); box-shadow: inset 3px 0 0 0 var(--ink); }
+.var-opt__name { font-size: 14.5px; font-weight: 700; }
+.var-opt__units { font-weight: 400; color: var(--ink-dim); font-size: 13px; margin-left: 4px; }
+.var-opt__def { font-family: var(--font-notes); font-size: 13.5px; line-height: 1.45; color: var(--ink-dim); }
+.var-opt__chips { display: block; margin-top: 2px; line-height: 1.4; }
 .var-selected { display: grid; gap: 8px; }
-.var-selected__head { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
+.var-selected__head { display: flex; align-items: center; justify-content: space-between; font-size: 16px; }
 
 /* ---------- run ---------- */
 .run { display: grid; gap: 14px; }
 .date-range { display: flex; align-items: flex-end; gap: 10px; }
-.date-range label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-dim); width: 96px; }
+.date-range label { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-dim); width: 96px; }
 .date-range .hint { padding-bottom: 8px; }
 .options { display: grid; gap: 12px; }
 .options__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .options__row--stack { flex-direction: column; align-items: flex-start; gap: 6px; }
 .options__label { font-size: 14px; }
-.run__btn { width: 100%; min-height: 42px; font-size: 15px; }
+.run__btn { width: 100%; min-height: 42px; font-size: 15px; font-weight: 700; }
 
 .progress { display: grid; gap: 6px; }
 .progress__head { display: flex; justify-content: space-between; font-size: 13px; }
-.progress__bar { height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.progress__pct { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.progress__bar { height: 3px; background: var(--line); overflow: hidden; }
 .progress__bar span { display: block; height: 100%; background: var(--ink); transform-origin: left; transition: transform 300ms var(--ease-out); }
 
 /* ---------- phones: bottom sheet ---------- */
@@ -176,6 +203,7 @@ select:disabled { opacity: 0.5; }
     height: 52vh;
     border-radius: var(--radius-l) var(--radius-l) 0 0;
     border-bottom: 0;
+    box-shadow: 0 -6px 20px -10px rgba(24, 33, 43, 0.3);
     animation-name: sheet-in;
     transition: height 250ms var(--ease-out);
   }
@@ -192,6 +220,8 @@ select:disabled { opacity: 0.5; }
     border: 0;
     cursor: pointer;
   }
-  .panel__grip-bar { width: 40px; height: 4px; border-radius: 4px; background: var(--line-strong); }
-  .panel__scroll { padding: 0 16px 24px; }
+  .panel__grip-bar { width: 36px; height: 3px; border-radius: 2px; background: var(--line-strong); }
+  .panel__scroll { padding: 0 14px 24px 10px; }
+  .step { grid-template-columns: 22px 1fr; column-gap: 10px; }
+  .step__num { width: 22px; height: 22px; }
 }

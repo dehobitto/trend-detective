@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AnalysisResult } from '../../api/types';
 import { Segmented } from '../../components/Segmented';
 import { colors } from '../../config/colors';
@@ -77,7 +77,7 @@ export function TrendChart({ result, height = 230 }: { result: AnalysisResult; h
       <div className="chart__plot">
         <ResponsiveContainer width="100%" height={height}>
           <ComposedChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke={colors.line} strokeDasharray="2 4" vertical={false} />
+            <CartesianGrid stroke={colors.line} vertical={false} />
             <XAxis
               dataKey="t"
               type="number"
@@ -85,28 +85,29 @@ export function TrendChart({ result, height = 230 }: { result: AnalysisResult; h
               domain={['dataMin', 'dataMax']}
               tickFormatter={year}
               stroke={colors.inkDim}
-              tick={{ fill: colors.inkDim, fontSize: 11 }}
+              tick={{ fill: colors.inkDim, fontSize: 12 }}
               tickLine={false}
-              axisLine={{ stroke: colors.line }}
+              axisLine={{ stroke: colors.inkDim }}
               minTickGap={28}
             />
             <YAxis
               width={44}
               stroke={colors.inkDim}
-              tick={{ fill: colors.inkDim, fontSize: 11 }}
+              tick={{ fill: colors.inkDim, fontSize: 12 }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v: number) => fmt(v, 2)}
               domain={['auto', 'auto']}
             />
-            <Tooltip content={<ChartTooltip units={variable.units} />} cursor={{ stroke: colors.inkDim, strokeDasharray: '3 3' }} />
-            {showTrend && <Area dataKey="band" stroke="none" fill={trendColor} fillOpacity={0.16} isAnimationActive={false} activeDot={false} />}
-            <Line dataKey="y" stroke={colors.ink} strokeOpacity={0.55} strokeWidth={1.2} dot={false} isAnimationActive={false} connectNulls={false} />
+            {showTrend && deseason && <ReferenceLine y={0} stroke={colors.inkDim} strokeWidth={1} />}
+            <Tooltip content={<ChartTooltip units={variable.units} />} cursor={{ stroke: colors.ink, strokeWidth: 1 }} />
+            {showTrend && <Area dataKey="band" stroke="none" fill={trendColor} fillOpacity={0.14} isAnimationActive={false} activeDot={false} />}
+            <Line dataKey="y" stroke={colors.ink} strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} connectNulls={false} />
             {showTrend && (
               <Line
                 dataKey="trend"
                 stroke={trendColor}
-                strokeWidth={2.6}
+                strokeWidth={2.4}
                 strokeDasharray={stats.significant ? undefined : '7 6'}
                 dot={false}
                 activeDot={false}

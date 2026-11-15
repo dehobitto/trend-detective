@@ -1,12 +1,13 @@
 import { OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { DirectionalLight, PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { clampLat, latLonToVector3, vector3ToLatLon } from '../../lib/geo';
 import { useStore } from '../../state/store';
+import { globeUniforms } from './sun';
 
 type Flight = {
   fromDir: Vector3;
@@ -19,8 +20,9 @@ type Flight = {
 };
 
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-const Y = new Vector3(0, 1, 0);
-const tmp = new Vector3();
+const camDir = new Vector3();
+const camRight = new Vector3();
+const camUp = new Vector3();
 const qIdentity = new Quaternion();
 const qStep = new Quaternion();
 
@@ -42,12 +44,14 @@ export function CameraRig() {
 
   // Lift the globe a little so the case-file prompt docked at the bottom never covers its centre.
   useEffect(() => {
-    const lift = size.width < 760 ? 0.1 : globeConfig.verticalLift;
-    camera.setViewOffset(size.width, size.height, 0, size.height * lift, size.width, size.height);
+    // Wide screens dock the case index on the left, so the globe moves right and sits centred vertically.
+    const docked = size.width >= globeConfig.sideDock.minWidth;
+    const lift = size.width < 760 ? 0.1 : docked ? 0 : globeConfig.verticalLift;
+    const shift = docked ? globeConfig.sideDock.shiftPx : 0;
+    camera.setViewOffset(size.width, size.height, -shift, size.height * lift, size.width, size.height);
     camera.updateProjectionMatrix();
   }, [camera, size.width, size.height]);
   const controls = useRef<OrbitControlsImpl>(null);
-  const sun = useRef<DirectionalLight>(null);
   const flight = useRef<Flight | null>(null);
   const resumeTimer = useRef<number>();
   const reduced = useReducedMotion();
@@ -139,7 +143,7 @@ export function CameraRig() {
       const s = useStore.getState();
       if (flight.current || s.transition !== 'idle' || s.view !== 'globe') return;
       if (camera.position.length() < globeConfig.mapThreshold) {
-        s.flyTo(vector3ToLatLon(camera.position));
+        s.flyTo(vector3ToLatLon(camera.position), false, { via: 'wheel' });
       }
     };
     c.addEventListener('start', onStart);
@@ -168,17 +172,20 @@ export function CameraRig() {
       }
     }
     // The sun sits up and to the left of the viewer, so the visible face is lit with a soft terminator on the right.
-    if (sun.current) {
-      tmp.copy(camera.position).normalize().applyAxisAngle(Y, -0.75);
-      tmp.y += 0.35;
-      sun.current.position.copy(tmp.multiplyScalar(10));
-    }
+    camDir.copy(camera.position).normalize();
+    camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+    camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+    const { sunAzimuth: az, sunElevation: el } = globeConfig;
+    globeUniforms.uSun.value
+      .copy(camDir)
+      .multiplyScalar(Math.cos(az) * Math.cos(el))
+      .addScaledVector(camRight, -Math.sin(az) * Math.cos(el))
+      .addScaledVector(camUp, Math.sin(el))
+      .normalize();
   });
 
   return (
     <>
-      <ambientLight intensity={0.16} color="#9fb4ff" />
-      <directionalLight ref={sun} intensity={2.6} color="#fff6ea" />
       <OrbitControls
         ref={controls}
         makeDefault

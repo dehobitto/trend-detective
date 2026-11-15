@@ -7,10 +7,10 @@
   margin: 0 0 var(--edge) var(--edge);
 }
 .map .maplibregl-ctrl-group {
-  background: var(--panel-a);
-  border: 1px solid var(--line);
-  box-shadow: none;
-  backdrop-filter: var(--blur);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow);
 }
 .map .maplibregl-ctrl-group button + button {
   border-top-color: var(--line);
@@ -53,8 +53,9 @@
   background: var(--panel-a);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-m);
+  box-shadow: var(--shadow);
   font-family: var(--font-ui);
 }
 .basemap-switch__opt {
@@ -76,16 +77,17 @@
 .basemap-switch__opt[aria-checked='true'] {
   color: var(--ink);
   font-weight: 600;
-  border-color: var(--line-strong);
-  background: var(--panel-raised);
+  border-color: transparent;
+  background: var(--wash);
+  box-shadow: inset 3px 0 0 0 var(--ink);
 }
 .basemap-switch__opt:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .basemap-switch__thumb {
   width: 22px;
   height: 22px;
   flex: none;
-  border-radius: 5px;
-  border: 1px solid var(--line);
+  border-radius: 2px;
+  border: 1px solid var(--line-strong);
   background-size: cover;
 }
 /* Swatches (not theme colours: they depict each basemap). */
@@ -111,7 +113,8 @@
   margin: 0;
   padding: 8px 14px;
   max-width: min(520px, calc(100vw - 2 * var(--edge)));
-  border-radius: 999px;
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow);
   background: var(--panel-a);
   backdrop-filter: var(--blur);
   border: 1px solid var(--line);
@@ -140,15 +143,16 @@
   height: 14px;
   border-radius: 50%;
   background: var(--ink);
-  border: 3px solid var(--space);
+  border: 3px solid var(--panel);
   box-shadow: 0 0 0 1px var(--ink);
 }
 .station-marker__label {
   padding: 2px 8px;
   border-radius: var(--radius-s);
-  background: var(--panel-a);
-  border: 1px solid var(--line);
+  background: var(--panel);
+  border: 1px solid var(--ink);
   color: var(--ink);
   font-size: 12.5px;
+  font-weight: 600;
   white-space: nowrap;
 }

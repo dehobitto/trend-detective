@@ -3,8 +3,8 @@ export function fmt(x: number | null | undefined, sig = 3): string {
   if (x === null || x === undefined || !Number.isFinite(x)) return '–';
   if (x === 0) return '0';
   const a = Math.abs(x);
-  if (a >= 1000) return x.toFixed(0);
-  if (a >= 100) return x.toFixed(1);
+  if (a >= 1000) return x.toFixed(0).replace('-', '−');
+  if (a >= 100) return x.toFixed(1).replace('-', '−');
   const digits = Math.max(0, sig - 1 - Math.floor(Math.log10(a)));
   return Number(x.toFixed(Math.min(digits, 6))).toString().replace('-', '−');
 }

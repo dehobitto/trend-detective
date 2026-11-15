@@ -1,79 +1,154 @@
+/* The case index: a plate docked under the globe, laid out like an atlas gazetteer —
+   question on the left, where it is on the right, a rule between entries. */
 .cases {
   position: absolute;
   left: 50%;
   bottom: var(--edge);
   transform: translateX(-50%);
-  width: min(680px, calc(100vw - 2 * var(--edge)));
+  width: min(760px, calc(100vw - 2 * var(--edge)));
   padding: 14px 18px 12px;
-  background: var(--panel-a);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-l);
   box-shadow: var(--shadow);
-  text-align: center;
   z-index: 5;
 }
-.cases__title { margin: 0; font-size: 15px; font-weight: 600; }
+.cases__title { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
 .cases__lede {
-  margin: 4px 0 12px;
-  min-height: 1.4em;
-  font-family: var(--font-notes);
-  font-size: 16px;
-  font-style: italic;
-  color: var(--ink);
+  margin: 2px 0 10px;
+  min-height: 1.45em;
+  font-size: 14.5px;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.cases__list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+
+.cases__list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 28px;
+  border-bottom: 1px solid var(--line);
+}
 .case {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 7px 8px 7px 10px;
+  margin: 0 -8px 0 -10px;
   font: inherit;
-  font-size: 13.5px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: rgba(7, 11, 26, 0.45);
+  font-size: 14.5px;
+  text-align: left;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0 var(--ink);
+  transition: background-color 120ms, box-shadow 120ms;
+}
+.case:hover:not(:disabled),
+.case:focus-visible {
+  background: var(--wash);
+  box-shadow: inset 3px 0 0 0 var(--ink);
+}
+.case:focus-visible { outline-offset: -2px; }
+.case:disabled { opacity: 0.5; cursor: progress; }
+.case__label { font-weight: 500; }
+.case__meta {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Open-ended answers in the guide ("I'll pick a place on the map"): quieter than the cases. */
+.case--guide { color: var(--ink-dim); }
+.case--guide .case__label { font-weight: 400; }
+
+.cases__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 10px;
+}
+.cases__foot-note { font-size: 13px; color: var(--ink-faint); }
+.cases__guide {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-m);
+  background: var(--panel);
   color: var(--ink);
   cursor: pointer;
-  transition: border-color 120ms, background-color 120ms;
+  transition: background-color 120ms, color 120ms;
 }
-.case:hover:not(:disabled) { border-color: var(--ink-dim); background: var(--panel-raised); }
-.case:disabled { opacity: 0.5; cursor: progress; }
-.cases__how { margin: 10px 0 0; font-size: 12px; color: var(--ink-dim); }
+.cases__guide:hover:not(:disabled) { background: var(--ink); color: var(--panel); }
+.cases__guide:disabled { opacity: 0.5; cursor: progress; }
 
-/* "Help me choose" and the open-ended answers in the guide: same pill, no fill, so the case files lead. */
-.case--guide { background: transparent; border-style: dashed; color: var(--ink-dim); }
-.case--guide:hover:not(:disabled) { color: var(--ink); }
-
-/* Guided start: header row with Back on the left and the step count on the right. */
+/* Guided start: Back on the left, the step count on the right. */
 .cases__head {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'back step' 'title title';
+  align-items: baseline;
+  column-gap: 12px;
 }
-.cases__head .cases__title { grid-column: 2; }
+.cases__head .cases__back { grid-area: back; justify-self: start; }
+.cases__head .cases__title { grid-area: title; margin-top: 2px; }
+.cases__head .cases__step { grid-area: step; }
 .cases__back {
-  justify-self: start;
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   padding: 2px 8px;
-  margin-left: -6px;
+  margin-left: -8px;
   border: 0;
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--ink-dim);
   cursor: pointer;
 }
-.cases__back:hover:not(:disabled) { color: var(--ink); background: rgba(232, 236, 245, 0.06); }
-.cases__step { justify-self: end; white-space: nowrap; font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.cases__back:hover:not(:disabled) { color: var(--ink); background: var(--wash); }
+.cases__step { white-space: nowrap; font-size: 12.5px; color: var(--ink-faint); }
+.cases--guide .cases__list { padding-bottom: 2px; }
 
 @media (max-width: 760px) {
-  .cases { padding: 12px 0 10px; bottom: 12px; }
-  .cases__title, .cases__lede { padding: 0 12px; }
-  .cases__list { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; padding: 0 12px 4px; scrollbar-width: none; }
-  .case { flex: none; }
-  .cases__lede { font-size: 15px; }
-  .cases__how { display: none; }
-  .cases__head { padding: 0 12px; }
-  .cases__back { margin-left: 0; }
-  .cases--guide .cases__list { flex-wrap: wrap; justify-content: center; overflow: visible; }
+  .cases { bottom: 10px; padding: 12px 14px 10px; }
+  .cases__lede { white-space: normal; font-size: 14px; min-height: 2.9em; margin-bottom: 6px; }
+  .cases__list {
+    grid-template-columns: 1fr;
+    max-height: 26vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .case { margin: 0; padding: 8px 4px; min-height: 40px; }
+  .case:hover:not(:disabled),
+  .case:focus-visible { box-shadow: inset 3px 0 0 0 var(--ink); padding-left: 10px; }
+  .cases--guide .cases__list { max-height: 40vh; }
+  .cases__foot { justify-content: space-between; }
+}
+
+/* Wide screens: the index docks as a column on the left, bottom-aligned, and the globe moves right
+   (globeConfig.sideDock), so the whole Earth stays in view. */
+@media (min-width: 1080px) {
+  .cases {
+    left: var(--edge);
+    transform: none;
+    width: 400px;
+    max-height: calc(100vh - 150px);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px 12px;
+  }
+  .cases__title { font-size: 19px; }
+  .cases__lede { white-space: normal; min-height: 2.9em; margin: 6px 0 12px; }
+  .cases__list { grid-template-columns: 1fr; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+  .case { margin: 0; padding-left: 8px; padding-right: 2px; }
 }

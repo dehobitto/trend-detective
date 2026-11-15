@@ -1,7 +1,7 @@
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
-import { AdditiveBlending, DoubleSide, Mesh, MeshBasicMaterial, Quaternion, Vector3 } from 'three';
+import { DoubleSide, Mesh, MeshBasicMaterial, Quaternion, Vector3 } from 'three';
 import { colors } from '../../config/colors';
 import { useReducedMotion } from '../../config/motion';
 import { latLonToVector3 } from '../../lib/geo';
@@ -59,11 +59,11 @@ function Marker({ lat, lon, label }: { lat: number; lon: number; label: string }
     <group position={pos} quaternion={quat}>
       <mesh renderOrder={10}>
         <circleGeometry args={[0.009, 24]} />
-        <meshBasicMaterial color={colors.ink} depthWrite={false} side={DoubleSide} />
+        <meshBasicMaterial color={colors.panel} depthWrite={false} side={DoubleSide} toneMapped={false} />
       </mesh>
       <mesh ref={ring} renderOrder={10}>
         <ringGeometry args={[0.011, 0.014, 40]} />
-        <meshBasicMaterial color={colors.ink} transparent depthWrite={false} blending={AdditiveBlending} side={DoubleSide} />
+        <meshBasicMaterial color={colors.panel} transparent depthWrite={false} side={DoubleSide} toneMapped={false} />
       </mesh>
       <Html zIndexRange={[4, 0]} style={{ pointerEvents: 'none' }}>
         <div ref={labelEl} className="station-label">

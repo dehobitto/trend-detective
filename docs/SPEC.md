@@ -89,20 +89,11 @@ frontend/src/
   App.tsx
 ```
 
-## Design direction
+## Design direction (v2, light)
 
-- **Identity from the subject: trends go up or down.** The accent system is a diverging pair used
-  everywhere meaningfully: *rising* = warm amber `#F0A43A`, *falling* = glacial cyan `#5CC8E0`.
-  No other accents. Neutral UI chrome in cool slate on deep orbital blue.
-- Palette: `--space #070B1A` (page bg behind globe, blue not neutral black), `--panel #0E1630` (at 88%
-  opacity + backdrop blur), `--ink #E8ECF5`, `--ink-dim #93A0BD`, `--line #24304F`, `--rise #F0A43A`,
-  `--fall #5CC8E0`, `--signif #E8ECF5` (significance shown by solid vs dashed, not a 3rd color).
-- Type: **Schibsted Grotesk** (UI, headings, tabular numbers) + **Newsreader** (serif, for the
-  plain-language definitions / explanations — the "field notes" voice). Sentence case everywhere; no
-  all-caps eyebrow labels; no monospace data labels.
-- The globe is the one bold thing. All chrome is quiet, small, docked to edges, and never covers the
-  globe center. One orchestrated motion moment: globe → map fly-in. Respect `prefers-reduced-motion`
-  (stop auto-rotation, cut transitions).
-- Copy: plain, active, from the student's perspective ("Draw an area", "Run analysis", "Is this trend
-  real?"). Errors say what happened and what to do.
-- Responsive: on phones the panel becomes a bottom sheet.
+See frontend/README.md for tokens. Summary: cool survey-grey page `#E6EAEE`, panels `#F8FAFB`, ink `#18212B`,
+rules `#D3D9DF`; data identity = rising ochre `#9A5200` / falling deep blue `#07668A` (AA on panels). Single
+family Archivo (wide widths for wordmark + headline numbers, tabular figures). Realistic Earth (8k Blue Marble,
+clouds, glint, night lights, thin limb) on a transparent canvas is the one bold element; everything else quiet,
+opaque panels, radius by role (3/4/6px), one shadow only for panels over imagery, rules that carry meaning.
+No pills, glass blur, italic subtitles, all-caps labels, middle-dot meta, gradient washes.

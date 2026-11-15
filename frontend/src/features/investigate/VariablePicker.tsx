@@ -75,7 +75,7 @@ export function VariablePicker() {
             </div>
             <p className="hint" title={selected.product}>
               Source: {selected.source}
-              {selected.access ? ` · data via ${selected.access}` : ''}
+              {selected.access ? `. Data via ${selected.access}.` : ''}
             </p>
           </>
         ) : (

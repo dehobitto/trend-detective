@@ -3,49 +3,55 @@
 /* Verdict: no card wash — a hairline rule in the trend colour carries the meaning. */
 .verdict {
   --tone: var(--ink-dim);
-  padding: 2px 0 2px 14px;
+  padding: 2px 0 4px 14px;
   border-left: 3px solid var(--tone);
 }
 .verdict[data-tone='rise'] { --tone: var(--rise); }
 .verdict[data-tone='fall'] { --tone: var(--fall); }
 .verdict__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
-.verdict__dir { font-size: 15px; font-weight: 600; color: var(--tone); }
+.verdict__head { flex-direction: column; align-items: flex-start; gap: 0; }
+.verdict__dir { font-size: 15px; font-weight: 700; color: var(--tone); }
 .verdict__rate {
-  font-size: 30px;
-  font-weight: 700;
+  font-size: 40px;
+  font-weight: 800;
+  font-stretch: var(--wide);
   letter-spacing: -0.02em;
   color: var(--tone);
-  line-height: 1.1;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
 }
-.verdict__unit { font-size: 14px; font-weight: 500; letter-spacing: 0; color: var(--ink-dim); margin-left: 2px; }
-.verdict__summary { margin: 8px 0 10px; font-family: var(--font-notes); font-size: 17px; line-height: 1.4; }
+.verdict__unit { font-size: 15px; font-weight: 500; font-stretch: 100%; letter-spacing: 0; color: var(--ink-dim); margin-left: 6px; }
+.verdict__summary { margin: 10px 0 10px; font-family: var(--font-notes); font-size: 15.5px; line-height: 1.5; max-width: 60ch; }
 .verdict__badges { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .warnings {
   margin: 0;
-  padding: 8px 12px 8px 28px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-m);
-  font-size: 13px;
-  color: var(--ink-dim);
+  padding: 8px 12px 8px 30px;
+  background: var(--panel-raised);
+  border-left: 3px solid var(--ink-dim);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink);
 }
 .warnings li + li { margin-top: 4px; }
 
 .chart { margin: 0; }
 .chart__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-.chart__caption { font-size: 12.5px; color: var(--ink-dim); }
+.chart__head .segmented { flex: none; }
+.chart__caption { font-size: 13px; font-weight: 600; color: var(--ink); }
 .chart__plot { margin-left: -6px; }
 .chart__legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--ink-dim); }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
-.legend-swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; }
-.legend-swatch--data { height: 2px; background: var(--ink); opacity: 0.6; }
+.legend-swatch { display: inline-block; width: 14px; height: 8px; }
+.legend-swatch--data { height: 1.5px; background: var(--ink); opacity: 0.55; }
 .chart-tip {
   padding: 6px 10px;
   background: var(--panel);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--ink);
   border-radius: var(--radius-s);
   font-size: 12.5px;
   color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 .chart-tip__date { color: var(--ink-dim); margin-bottom: 2px; }
 .chart-tip__dim { color: var(--ink-dim); }
@@ -55,15 +61,17 @@
   border-bottom: 1px solid var(--line);
   padding: 10px 0;
 }
-.explainer summary { cursor: pointer; font-size: 14px; font-weight: 500; }
-.explainer p { margin: 8px 0 0; font-family: var(--font-notes); font-size: 15px; line-height: 1.45; color: var(--ink); }
+.explainer summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.explainer p { margin: 8px 0 0; font-family: var(--font-notes); font-size: 14.5px; line-height: 1.5; color: var(--ink); }
 
 .stats { margin: 0; display: grid; }
-.stats__row { display: grid; grid-template-columns: 112px 1fr; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(36, 48, 79, 0.6); }
+.stats { border-top: 2px solid var(--ink); }
+.stats__row { display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .stats__row:last-child { border-bottom: 0; }
 .stats dt { font-size: 13px; color: var(--ink-dim); padding-top: 1px; }
+.stats__v { font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stats dd { margin: 0; display: grid; gap: 2px; }
-.stats__gloss { font-family: var(--font-notes); font-size: 13.5px; color: var(--ink-dim); line-height: 1.35; }
+.stats__gloss { font-family: var(--font-notes); font-size: 13px; color: var(--ink-dim); line-height: 1.4; }
 
 .results__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .results { scroll-margin-top: 12px; }
@@ -71,15 +79,14 @@
 .verdict__takeaway {
   margin: -2px 0 10px;
   font-family: var(--font-notes);
-  font-style: italic;
-  font-size: 15px;
-  line-height: 1.4;
+  font-size: 14.5px;
+  line-height: 1.5;
   color: var(--ink-dim);
 }
-.verdict[data-compact='true'] .verdict__rate { font-size: 22px; }
+.verdict[data-compact='true'] .verdict__rate { font-size: 26px; }
 .verdict[data-compact='true'] .verdict__summary { font-size: 15px; }
 
-.compare { display: grid; gap: 10px; padding: 12px 0 2px; border-top: 1px solid var(--line); }
+.compare { display: grid; gap: 10px; padding: 14px 0 2px; border-top: 2px solid var(--ink); }
 .compare__cta { display: grid; gap: 8px; justify-items: start; }
 .compare__result { display: grid; gap: 12px; }
-.compare__title { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink-dim); }
+.compare__title { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }

@@ -36,10 +36,10 @@ when `result.synthetic` is true.
 
 | File | What |
 |---|---|
-| `theme.css` | Design tokens (colours, fonts, radii, panel width, fade duration). Two accents only: `--rise`, `--fall`. |
+| `theme.css` | Design tokens for the light "survey plate" theme (colours, Archivo + width axis, radii by role, panel width, fade duration). Two accents only: `--rise` (ochre), `--fall` (fjord blue). |
 | `colors.ts` | JS mirror of the colour tokens (charts, WebGL). |
 | `app.ts` | API base, force-mocks flag, health timeout, job polling interval/timeout, default dates and alpha. |
-| `globe.ts` | Texture paths, camera FOV/distances, wheel zoom threshold that opens the map, fly-in duration, auto-rotate speed and resume delay, bump/shininess, atmosphere size/strength, vertical lift. |
+| `globe.ts` | Texture paths, camera FOV/distances, wheel zoom threshold that opens the map, fly-in duration, auto-rotate speed and resume delay, relief, exposure, sun angle, cloud drift, limb size/strength, vertical lift, side-dock shift. |
 | `map.ts` | GIBS tile URLs (basemap, coastlines, labels), arrival zoom, zoom-out level that returns to the globe, fit padding, minimum box size. |
 | `motion.ts` | Crossfade duration and `prefers-reduced-motion` helpers (reduced motion stops rotation and cuts transitions). |
 
@@ -53,7 +53,7 @@ src/
   lib/         geo.ts (lat/lon <-> sphere maths, bbox helpers), format.ts
   components/  Button, Badge/Chip, Toggle, Segmented, Wordmark, icons
   features/
-    globe/       GlobeView, Earth, Atmosphere (fresnel shaders), Stars, CameraRig (orbit, fly-to, zoom hand-off)
+    globe/       GlobeView, Earth (day/night/cloud shaders), Atmosphere (limb), sun.ts (shared uniforms), CameraRig (orbit, fly-to, zoom hand-off, view-fixed sun)
     map/         MapView, layers, useBoxSelect (draw/move rectangle), useStationMarker, overlayProtocol, MapToolbar
     investigate/ InvestigationPanel, Step, AreaStep, VariablePicker, DateRange, AnalysisOptions, JobProgress, useRunAnalysis
     results/     ResultsView, VerdictCard, TrendChart, StatsTable, CompareView, downloadCsv
