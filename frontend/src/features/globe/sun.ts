@@ -34,6 +34,12 @@ export function subsolarPoint(ms: number): { lat: number; lon: number } {
   return { lat: dec, lon };
 }
 
+/** Greenwich mean sidereal time in degrees (how far the stars have turned over the Earth). */
+export function gmstDeg(ms: number): number {
+  const d = ms / 86_400_000 - 10957.5;
+  return (((280.46061837 + 360.98564736629 * d) % 360) + 360) % 360;
+}
+
 export function liveSunVector(ms: number, out: Vector3): Vector3 {
   const { lat, lon } = subsolarPoint(ms);
   return latLonToVector3(lat, lon, 1, out).normalize();

@@ -1,7 +1,8 @@
 .globe {
   position: absolute;
   inset: 0;
-  background: var(--space);
+  /* Deep space (the star map paints over it once loaded). */
+  background: #05070d;
 }
 .globe canvas {
   display: block;
@@ -130,4 +131,19 @@
 @media (max-width: 760px) {
   .sun-ctl { top: 104px; }
   .sun-ctl__btn--spin .sun-ctl__label { display: none; }
+}
+
+/* On the dark sky: light longitude scale. */
+.lon-scale__svg line { stroke: rgba(255, 255, 255, 0.4); }
+.lon-scale__svg .lon-scale__base { stroke: rgba(255, 255, 255, 0.55); }
+.lon-scale__svg text { fill: rgba(255, 255, 255, 0.75); }
+.lon-scale__mark { fill: #ffffff; }
+.lon-scale__readout { color: #ffffff; }
+/* The wordmark sits on the dark sky too: give it its plate there as well. */
+.app[data-view='globe'] .wordmark {
+  padding: 6px 12px 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow);
 }

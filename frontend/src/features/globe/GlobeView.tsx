@@ -7,6 +7,7 @@ import { useStore } from '../../state/store';
 import { Atmosphere } from './Atmosphere';
 import { CameraRig } from './CameraRig';
 import { Earth } from './Earth';
+import { Starfield } from './Starfield';
 import { GlobeOverlay } from './GlobeOverlay';
 import { Graticule } from './Graticule';
 import { LongitudeScale } from './LongitudeScale';
@@ -78,6 +79,10 @@ export function GlobeView() {
           <Graticule />
           <Atmosphere />
           <StationMarker />
+        </Suspense>
+        {/* The sky loads on its own, after the Earth: the globe never waits for the stars. */}
+        <Suspense fallback={null}>
+          <Starfield />
         </Suspense>
         <CameraRig />
         <LongitudeScale target={scaleRef} />
