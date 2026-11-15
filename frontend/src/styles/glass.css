@@ -14,7 +14,6 @@
 .app .place-search__list,
 .app .map-toolbar .btn,
 .app .layer-dock,
-.app .basemap-switch,
 .app .map .maplibregl-ctrl-group,
 .app .cases,
 .app .gsettings__gear,
@@ -31,7 +30,10 @@
 }
 
 /* Search: a pill like the chat input, tucked into the top-left corner */
-.app .place-search { top: 12px; left: 12px; width: min(340px, calc(100vw - 24px)); }
+.app .place-search { top: 12px; left: 50%; translate: -50% 0; width: min(380px, calc(100vw - 24px)); }
+/* With the analysis panel open: centre over the part of the map that is still visible. */
+.app:has(.panel) .place-search { left: calc((100vw - var(--panel-w) - 2 * var(--edge)) / 2); width: min(380px, calc(100vw - var(--panel-w) - 4 * var(--edge))); }
+@media (max-width: 760px) { .app .place-search, .app:has(.panel) .place-search { left: 12px; translate: none; width: min(380px, calc(100vw - 24px)); } }
 .app .place-search__box { height: 48px; border-radius: 24px; }
 /* Home screen: lighter glass so the stars and the globe show through */
 .app .place-search[data-view='globe'] .place-search__box {
@@ -52,7 +54,6 @@
 .app .map-toolbar .btn--primary,
 .app .map-toolbar .btn[aria-pressed='true'] { background: #1b1f2e; border-color: #1b1f2e; color: #ffffff; }
 .app .layer-dock { border-radius: var(--glass-r); }
-.app .basemap-switch,
 .app .map .maplibregl-ctrl-group { border-radius: var(--glass-r-s); overflow: hidden; }
 .app .map .maplibregl-ctrl-group button { background: transparent; }
 .app .cases { border-radius: 20px; }
@@ -60,6 +61,7 @@
 .app .gsettings__menu { border-radius: var(--glass-r); }
 .app .job-toast { border-radius: var(--glass-r); }
 .app .map-hint { border-radius: 999px; }
+@media (min-width: 761px) { .app .map-hint { top: 70px; } }
 .app .ba__chip { border-radius: var(--glass-r-s); }
 .app .server-down { border-radius: var(--glass-r); }
 
@@ -75,3 +77,64 @@
 @media (max-width: 760px) {
   .app .panel { border-radius: 20px 20px 0 0; }
 }
+
+/* Wide screens on the map: the tools ride the top edge, the search sits centred but never under them. */
+@media (min-width: 1101px) {
+  .app .map-toolbar { top: 12px; }
+  .app .overlay--flat .cases { top: 62px; max-height: calc(100vh - 62px - 124px); } /* clear of the map style button */
+  .app:has(.map-toolbar) .place-search {
+    --sw: 380px;
+    --tools: 396px; /* right edge of the toolbar + a gap */
+    translate: none;
+    left: max(calc(50vw - var(--sw) / 2), var(--tools));
+    width: min(var(--sw), calc(100vw - var(--tools) - var(--edge)));
+  }
+  .app:has(.map-toolbar):has(.panel) .place-search {
+    left: max(calc((100vw - var(--panel-w) - 2 * var(--edge)) / 2 - var(--sw) / 2), var(--tools));
+    width: min(var(--sw), calc(100vw - var(--panel-w) - 3 * var(--edge) - var(--tools)));
+  }
+}
+
+/* ---------- Results and the steps inside the panel: liquid glass to match the chat ---------- */
+.app .panel {
+  --lg-card: rgba(255, 255, 255, 0.55);
+  --lg-card-edge: rgba(255, 255, 255, 0.85);
+  --lg-card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 26px -18px rgba(10, 12, 40, 0.45);
+}
+.app .panel .assess,
+.app .panel .warnings,
+.app .panel .explainer,
+.app .panel .preview,
+.app .panel .verdict__takeaway {
+  background: var(--lg-card);
+  border: 1px solid var(--lg-card-edge);
+  border-radius: 18px;
+  box-shadow: var(--lg-card-shadow);
+}
+.app .panel .warnings { padding: 10px 14px 10px 30px; border-left: 1px solid var(--lg-card-edge); }
+.app .panel .verdict {
+  padding: 14px 16px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.4));
+  border: 1px solid var(--lg-card-edge);
+  border-left: 1px solid var(--lg-card-edge);
+  border-radius: 20px;
+  box-shadow: inset 4px 0 0 var(--tone), var(--lg-card-shadow);
+}
+.app .panel .chart {
+  padding: 12px 12px 10px;
+  background: var(--lg-card);
+  border: 1px solid var(--lg-card-edge);
+  border-radius: 18px;
+  box-shadow: var(--lg-card-shadow);
+}
+.app .panel .stats { border-top: 0; padding: 4px 14px; background: var(--lg-card); border: 1px solid var(--lg-card-edge); border-radius: 18px; box-shadow: var(--lg-card-shadow); }
+.app .panel .compare { border-top: 1px solid var(--lg-card-edge); }
+.app .panel .badge { border-radius: 999px; padding: 2px 10px; background: rgba(255, 255, 255, 0.6); }
+.app .panel .segmented { border-radius: 999px; border-color: var(--lg-card-edge); background: rgba(255, 255, 255, 0.45); padding: 2px; gap: 2px; }
+.app .panel .segmented__opt { border-radius: 999px; background: transparent; }
+.app .panel .segmented__opt[aria-checked='true'] { background: #1b1f2e; color: #ffffff; }
+.app .panel .segmented__opt + .segmented__opt { border-left: 0; }
+.app .panel .btn { border-radius: 14px; }
+.app .panel input:not([type='checkbox']):not([type='range']),
+.app .panel select { border-radius: 12px; background-color: rgba(255, 255, 255, 0.6); border-color: var(--lg-card-edge); }
+.app .panel .chart-tip { border-radius: 12px; border-color: var(--lg-card-edge); background: rgba(255, 255, 255, 0.95); box-shadow: var(--lg-card-shadow); }

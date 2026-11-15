@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSelectedVariable, useStore } from '../../state/store';
 
 const STAGE = {
@@ -24,6 +24,20 @@ export function MapJobToast({ besidePanel }: { besidePanel: boolean }) {
   const [now, setNow] = useState(() => Date.now());
   const [startedAt, setStartedAt] = useState<{ id: string; t: number } | null>(null);
   const [lingering, setLingering] = useState<string | null>(null);
+  // Publish the toast's height so the chat button can sit above it instead of on top of it.
+  const box = useRef<HTMLDivElement>(null);
+  const shown = !!job && (job.status !== 'done' && job.status !== 'error' ? true : lingering === job.id);
+  useEffect(() => {
+    const el = box.current;
+    const root = document.documentElement;
+    if (!el) return;
+    const ro = new ResizeObserver(() => root.style.setProperty('--job-toast-h', `${el.offsetHeight}px`));
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--job-toast-h');
+    };
+  }, [shown]);
 
   const running = !!job && job.status !== 'done' && job.status !== 'error';
   useEffect(() => {
@@ -51,7 +65,7 @@ export function MapJobToast({ besidePanel }: { besidePanel: boolean }) {
   const slow = running && elapsed > 20 && !/first time/i.test(job.message ?? '');
 
   return (
-    <div className="job-toast" data-beside-panel={besidePanel} data-dock={hasDock} data-status={job.status} role="status" aria-live="polite">
+    <div ref={box} className="job-toast" data-beside-panel={besidePanel} data-dock={hasDock} data-status={job.status} role="status" aria-live="polite">
       <div className="job-toast__row">
         <span className="job-toast__spin" aria-hidden data-done={job.status === 'done'} />
         <span className="job-toast__stage">{label}</span>

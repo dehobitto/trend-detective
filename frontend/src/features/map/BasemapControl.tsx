@@ -1,4 +1,5 @@
 import type { IControl } from 'maplibre-gl';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { basemapOrder, basemaps } from '../../config/map';
 import { useLayers } from '../layers/layerStore';
@@ -28,25 +29,58 @@ const thumbUrl = (id: keyof typeof basemaps) => {
     .replace('{s}', 'a');
 };
 
-/** Satellite / Map / Blue Marble switcher. */
+/** Satellite / Map / Blue Marble: one thumbnail button showing the current style; it opens a menu of the others. */
 export function BasemapSwitcher({ host }: { host: HTMLElement }) {
   const basemap = useLayers((s) => s.basemap);
   const set = useLayers((s) => s.set);
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', close);
+    };
+  }, [open]);
+
   return createPortal(
-    <div className="basemap-switch" role="radiogroup" aria-label="Base map">
-      {basemapOrder.map((id) => (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={basemap === id}
-          className={`basemap-switch__opt basemap-switch__opt--${id}`}
-          onClick={() => set({ basemap: id })}
-        >
-          <span className="basemap-switch__thumb" style={{ backgroundImage: `url("${thumbUrl(id)}")` }} aria-hidden />
-          {basemaps[id].label}
-        </button>
-      ))}
+    <div className="basemap-switch" ref={root}>
+      <button
+        type="button"
+        className="basemap-switch__current"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Map style: ${basemaps[basemap].label}`}
+        title={`Map style: ${basemaps[basemap].label}`}
+        onClick={() => setOpen(!open)}
+        style={{ backgroundImage: `url("${thumbUrl(basemap)}")` }}
+      />
+      {open && (
+        <div className="basemap-switch__menu" role="menu" aria-label="Map style">
+          {basemapOrder.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={basemap === id}
+              className="basemap-switch__opt"
+              onClick={() => {
+                set({ basemap: id });
+                setOpen(false);
+              }}
+            >
+              <span className="basemap-switch__thumb" style={{ backgroundImage: `url("${thumbUrl(id)}")` }} aria-hidden />
+              {basemaps[id].label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>,
     host,
   );

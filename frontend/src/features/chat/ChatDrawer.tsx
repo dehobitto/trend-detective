@@ -8,7 +8,15 @@ const GREETING: ChatMessage = {
   content: 'Hi, I’m your field guide. Ask me what a variable means, why a trend might not be significant, or what to investigate next.',
 };
 
-export function ChatDrawer({ onClose, initialQuestion = null }: { onClose: () => void; initialQuestion?: string | null }) {
+export function ChatDrawer({
+  onClose,
+  onMinimize,
+  initialQuestion = null,
+}: {
+  onClose: () => void;
+  onMinimize: () => void;
+  initialQuestion?: string | null;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -55,7 +63,19 @@ export function ChatDrawer({ onClose, initialQuestion = null }: { onClose: () =>
   };
 
   return (
-    <section className="chat" role="dialog" aria-label="Field guide chat" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
+    <section className="chat" role="dialog" aria-label="Field guide chat" onKeyDown={(e) => e.key === 'Escape' && onMinimize()}>
+      <div className="chat__bar">
+        <button type="button" className="chat__barbtn" onClick={onMinimize} aria-label="Minimize the chat" title="Minimize (keeps the conversation)">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M3.5 8h9" />
+          </svg>
+        </button>
+        <button type="button" className="chat__barbtn" onClick={onClose} aria-label="Close the chat" title="Close (clears the conversation)">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
+        </button>
+      </div>
       <div className="chat__list" ref={list} aria-live="polite">
         {messages.map((m, i) => (
           m.role === 'assistant' ? (

@@ -4,6 +4,8 @@ import { ChatDrawer } from './ChatDrawer';
 import { CURIOUS_QUESTIONS } from './questions';
 import './chat.css';
 
+const DOCK_KEY = 'td.chatDock';
+
 /** Tilt toward the pointer, and sink at the point that is pressed (a soft physical card). */
 const pressable = {
   onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
@@ -43,12 +45,55 @@ export function ChatLauncher({ besidePanel, onMap = false }: { besidePanel: bool
   const set = useStore((s) => s.set);
   const [picker, setPicker] = useState(false);
   const [question, setQuestion] = useState<string | null>(null);
+  // Dragged sideways the orb parks in a bottom corner (remembered); a click brings it back to the centre.
+  const [docked, setDocked] = useState<'left' | 'right' | null>(() => {
+    try {
+      const v = window.localStorage.getItem(DOCK_KEY);
+      return v === 'left' || v === 'right' ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const dock = (side: 'left' | 'right' | null) => {
+    setDocked(side);
+    try {
+      if (side) window.localStorage.setItem(DOCK_KEY, side);
+      else window.localStorage.removeItem(DOCK_KEY);
+    } catch {
+      /* private mode: just not remembered */
+    }
+  };
+  const drag = useRef<{ x: number; dx: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const onOrbDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (open || picker) return;
+    drag.current = { x: e.clientX, dx: 0, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onOrbMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    d.dx = e.clientX - d.x;
+    if (Math.abs(d.dx) > 6) d.moved = true;
+    if (d.moved) root.current?.style.setProperty('--drag-x', `${d.dx}px`);
+  };
+  const onOrbUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    root.current?.style.removeProperty('--drag-x');
+    if (!d?.moved) return;
+    dragged.current = true; // swallow the click that follows the drag
+    if (Math.abs(d.dx) > 70) dock(d.dx < 0 ? 'left' : 'right');
+  };
+  // A conversation that is folded away (kept, not thrown out): the orb brings it back.
+  const [kept, setKept] = useState(false);
   // "Ask the field guide about this result" and similar links elsewhere open the chat through the store.
   const chatAsk = useStore((s) => s.chatAsk);
   useEffect(() => {
     if (!chatAsk) return;
     setQuestion(chatAsk);
     setPicker(false);
+    setKept(false);
     set({ chatAsk: null, chatOpen: true });
   }, [chatAsk, set]);
   const root = useRef<HTMLDivElement>(null);
@@ -69,22 +114,30 @@ export function ChatLauncher({ besidePanel, onMap = false }: { besidePanel: bool
 
   const ask = (q: string | null) => {
     setOwn('');
+    setKept(false);
     setQuestion(q);
     setPicker(false);
     set({ chatOpen: true });
   };
 
   return (
-    <div className="chat-dock" data-beside-panel={besidePanel} data-on-map={onMap} ref={root}>
-      {open && (
-        <ChatDrawer
-          key={question ?? 'free'}
-          initialQuestion={question}
-          onClose={() => {
-            set({ chatOpen: false });
-            setQuestion(null);
-          }}
-        />
+    <div className="chat-dock" data-beside-panel={besidePanel} data-on-map={onMap} data-docked={docked && !open && !picker ? docked : undefined} ref={root}>
+      {(open || kept) && (
+        <div className="chat-dock__chat" hidden={!open}>
+          <ChatDrawer
+            key={question ?? 'free'}
+            initialQuestion={question}
+            onMinimize={() => {
+              setKept(true);
+              set({ chatOpen: false });
+            }}
+            onClose={() => {
+              setKept(false);
+              set({ chatOpen: false });
+              setQuestion(null);
+            }}
+          />
+        </div>
       )}
       {picker && !open && (
         <div className="curious" role="menu" aria-label="Curious questions">
@@ -110,18 +163,38 @@ export function ChatLauncher({ besidePanel, onMap = false }: { besidePanel: bool
         </div>
       )}
       <div className="curious-launch">
-        {!open && !picker && <span className="curious-launch__label">Curious about Earth?</span>}
+        {!open && !picker && !docked && <span className="curious-launch__label">{kept ? 'Back to the chat' : 'Curious about Earth?'}</span>}
         <button
           type="button"
           className="orb"
-          data-open={open || picker}
+          data-open={picker && !open}
+          data-chat={open}
+          data-kept={kept && !open}
           aria-expanded={open || picker}
-          aria-label={open ? 'Close the field guide' : picker ? 'Close questions' : 'Curious questions about Earth'}
-          onClick={() => (open ? set({ chatOpen: false }) : setPicker(!picker))}
+          aria-label={open ? 'Minimize the field guide' : picker ? 'Close questions' : kept ? 'Open the field guide chat' : 'Curious questions about Earth'}
+          onPointerDown={onOrbDown}
+          onPointerMove={onOrbMove}
+          onPointerUp={onOrbUp}
+          onPointerCancel={onOrbUp}
+          onClick={() => {
+            if (dragged.current) {
+              dragged.current = false;
+              return;
+            }
+            if (docked) dock(null);
+            if (open) {
+              setKept(true);
+              set({ chatOpen: false });
+            } else if (kept) set({ chatOpen: true });
+            else setPicker(!picker);
+          }}
         >
           <svg className="orb__chat" width="24" height="24" viewBox="0 0 24 24" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 11.5c0 4.1-3.6 7.5-8 7.5-1.2 0-2.3-.2-3.3-.6L4 19.5l1.2-3.6C4.4 14.7 4 13.2 4 11.5 4 7.4 7.6 4 12 4s8 3.4 8 7.5z" />
             <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01" strokeWidth="2.4" />
+          </svg>
+          <svg className="orb__min" width="20" height="20" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6.5l4 4 4-4" />
           </svg>
           <svg className="orb__x" width="20" height="20" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
             <path d="M4 4l8 8M12 4l-8 8" />

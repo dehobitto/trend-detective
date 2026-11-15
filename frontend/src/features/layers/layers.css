@@ -270,3 +270,11 @@
   .ld-btn--compare span { display: none; }
   .ld-btn--compare { padding: 0 7px; }
 }
+
+/* Wide screens: leave a strip under the dock for the map credits (bottom-left, under the map style button). */
+@media (min-width: 1101px) {
+  .layer-dock { bottom: calc(var(--edge) + 14px); }
+  .job-toast[data-dock='true'] { bottom: calc(var(--edge) + 126px); }
+  .chat-dock[data-on-map='true'] { bottom: 146px; }
+  .app:has(.job-toast[data-dock='true']) .chat-dock[data-on-map='true'] { bottom: calc(var(--edge) + 138px + var(--job-toast-h, 96px)); }
+}

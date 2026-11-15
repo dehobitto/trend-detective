@@ -98,9 +98,7 @@ export function MapHint() {
   if (!drawing && noArea) return null;
   return (
     <p className="map-hint" role="status">
-      {drawing ? 'Drag on the map to draw your area. Press Esc to cancel.' : matchMedia('(pointer: coarse)').matches
-          ? 'Draw an area to investigate: tap Draw area, then drag on the map.'
-          : 'Draw an area to investigate. Use the Draw area tool, or hold Shift and drag.'}
+      {drawing ? 'Drag on the map to draw your area. Press Esc to cancel.' : 'Select an area to investigate'}
     </p>
   );
 }
