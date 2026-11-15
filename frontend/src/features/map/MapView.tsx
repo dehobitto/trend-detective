@@ -46,11 +46,14 @@ const lngLatBounds = (b: BBox): [[number, number], [number, number]] => [
 ];
 
 /**
- * Seamless mode: MapLibre's globe projection (a sphere when zoomed out, the flat map when zoomed in, with no
- * hand-off at all) plus a thin atmosphere. Classic mode keeps plain Web Mercator behind the three.js globe.
+ * Seamless mode: a true sphere at every zoom (MapLibre "vertical-perspective"). Its "globe" type would morph
+ * into Web Mercator around zoom 11–12, which shifts shapes mid-zoom; a sphere seen from close up already looks
+ * flat, so we never switch. Plus a thin atmosphere. Classic mode keeps Web Mercator behind the three.js globe.
  */
+export const SEAMLESS_PROJECTION = 'vertical-perspective';
+
 export function applyProjection(m: MlMap, globe: boolean) {
-  m.setProjection({ type: globe ? 'globe' : 'mercator' });
+  m.setProjection({ type: globe ? SEAMLESS_PROJECTION : 'mercator' });
   if (globe) {
     m.setSky({
       'sky-color': '#9fc3e6',
