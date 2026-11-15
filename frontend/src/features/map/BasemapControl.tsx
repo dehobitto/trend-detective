@@ -17,6 +17,17 @@ export class PortalControl implements IControl {
   }
 }
 
+/** One real tile of each basemap as its thumbnail (z4: the Adriatic and the Alps, land and sea in one square). */
+const THUMB_TILE = { z: 4, x: 8, y: 5 };
+const thumbUrl = (id: keyof typeof basemaps) => {
+  const b = basemaps[id].base[0];
+  return b.url
+    .replace('{z}', String(Math.min(THUMB_TILE.z, b.maxzoom ?? THUMB_TILE.z)))
+    .replace('{x}', String(THUMB_TILE.x))
+    .replace('{y}', String(THUMB_TILE.y))
+    .replace('{s}', 'a');
+};
+
 /** Satellite / Map / Blue Marble switcher. */
 export function BasemapSwitcher({ host }: { host: HTMLElement }) {
   const basemap = useLayers((s) => s.basemap);
@@ -32,7 +43,7 @@ export function BasemapSwitcher({ host }: { host: HTMLElement }) {
           className={`basemap-switch__opt basemap-switch__opt--${id}`}
           onClick={() => set({ basemap: id })}
         >
-          <span className="basemap-switch__thumb" aria-hidden />
+          <span className="basemap-switch__thumb" style={{ backgroundImage: `url("${thumbUrl(id)}")` }} aria-hidden />
           {basemaps[id].label}
         </button>
       ))}

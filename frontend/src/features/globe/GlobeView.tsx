@@ -8,6 +8,8 @@ import { Atmosphere } from './Atmosphere';
 import { CameraRig } from './CameraRig';
 import { Earth } from './Earth';
 import { GlobeOverlay } from './GlobeOverlay';
+import { Graticule } from './Graticule';
+import { LongitudeScale } from './LongitudeScale';
 import { StationMarker } from './StationMarker';
 import './globe.css';
 
@@ -20,6 +22,7 @@ export function GlobeView() {
   const [paused, setPaused] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef<HTMLDivElement>(null);
 
   // Hover readout is written straight to the DOM: a React state update here would re-render the whole
   // 3D scene on every mouse move and make the spinning globe stutter.
@@ -72,12 +75,15 @@ export function GlobeView() {
             }}
           />
           <GlobeOverlay />
+          <Graticule />
           <Atmosphere />
           <StationMarker />
         </Suspense>
         <CameraRig />
+        <LongitudeScale target={scaleRef} />
       </Canvas>
       <div ref={tipRef} className="globe__hover" hidden aria-hidden />
+      <div ref={scaleRef} className="lon-scale" hidden aria-hidden data-on={interactive} />
     </div>
   );
 }

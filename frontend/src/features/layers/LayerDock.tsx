@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { mapConfig } from '../../config/map';
 import { useSelectedVariable, useStore } from '../../state/store';
-import { cssGradient, formatFrame, nearestFrame } from './frames';
+import { cssSteps, formatFrame, nearestFrame } from './frames';
 import { Segmented } from '../../components/Segmented';
 import { useLayers, type MapMode } from './layerStore';
 import './layers.css';
@@ -118,7 +118,7 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
           <span className="layer-dock__src">
             {imagery
               ? 'NASA GIBS imagery'
-              : `${mode === 'trend' ? 'Trend, seasons removed' : mode === 'anomaly' ? 'Versus the usual for that month' : 'Gridded values'}${gridLegend?.synthetic ? ' · demo data' : ''}`}
+              : `${mode === 'trend' ? 'Trend, seasons removed' : mode === 'anomaly' ? 'Versus the usual for that month' : 'Gridded values'}${gridLegend?.synthetic ? ', demo data' : ''}`}
           </span>
         </div>
         <div className="layer-dock__mode">
@@ -241,7 +241,7 @@ function Legend() {
           <span className="layer-dock__fall">{lo}</span>
           <span className="layer-dock__rise">{hi}</span>
         </span>
-        <span className="layer-dock__ramp" style={{ background: cssGradient(grid.colormap, grid.min, grid.max) }} />
+        <span className="layer-dock__ramp" style={{ background: cssSteps(grid.colormap, grid.min, grid.max, cfg.colourClasses) }} />
         <span className="layer-dock__scale">
           <span>{fmtNum(grid.min)}</span>
           <span className="layer-dock__units" title={grid.units}>{grid.units}</span>
@@ -252,7 +252,7 @@ function Legend() {
   }
   return (
     <div className="layer-dock__legend" role="img" aria-label={`Colour scale from ${fmtNum(grid.min)} to ${fmtNum(grid.max)} ${grid.units}`}>
-      <span className="layer-dock__ramp" style={{ background: cssGradient(grid.colormap, grid.min, grid.max) }} />
+      <span className="layer-dock__ramp" style={{ background: cssSteps(grid.colormap, grid.min, grid.max, cfg.colourClasses) }} />
       <span className="layer-dock__scale">
         <span>{fmtNum(grid.min)}</span>
         <span className="layer-dock__units">{grid.units}</span>

@@ -88,13 +88,8 @@
   flex: none;
   border-radius: 2px;
   border: 1px solid var(--line-strong);
-  background-size: cover;
+  background: var(--wash) center / cover no-repeat;
 }
-/* Swatches (not theme colours: they depict each basemap). */
-.basemap-switch__opt--satellite .basemap-switch__thumb { background: linear-gradient(135deg, #2f4a2a 0%, #6b6a3f 45%, #1d3550 46%, #13284a 100%); }
-.basemap-switch__opt--light .basemap-switch__thumb { background: linear-gradient(135deg, #f4f3ee 0%, #f4f3ee 55%, #c9dbe6 56%, #c9dbe6 100%); }
-.basemap-switch__opt--bluemarble .basemap-switch__thumb { background: radial-gradient(circle at 35% 35%, #4f7d4a 0%, #2e5a8c 45%, #0c1f45 100%); }
-
 .map-toolbar {
   position: absolute;
   top: 118px;

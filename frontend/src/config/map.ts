@@ -115,6 +115,8 @@ export const mapConfig = {
     dailyFrameStep: 'monthly' as 'monthly' | 'daily',
     /** …using this day of each month (mid-month avoids month-boundary gaps). */
     dailyFrameDay: 15,
+    /** Grid maps are drawn in this many flat colour classes (even, so 0 is a class edge on diverging maps). */
+    colourClasses: 10,
     /** GIBS frames preloaded on each side of the current one (invisible layers so tiles are fetched). */
     gibsPrefetch: 2,
     /** Grid frames prefetched ahead (and 2 behind). */

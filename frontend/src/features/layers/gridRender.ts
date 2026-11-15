@@ -1,4 +1,5 @@
 import type { GridFrame, TrendGrid } from '../../api/types';
+import { mapConfig } from '../../config/map';
 import { buildLut } from './frames';
 
 /** Opacity (0..255) of cells whose trend is not significant, and their hatch lines. */
@@ -6,12 +7,16 @@ const WEAK_ALPHA = 84;
 const HATCH_ALPHA = 130;
 const HATCH_PERIOD_PX = 7;
 
+/** Class boundaries are drawn as thin isolines: the pixel colour is multiplied by this. */
+const ISOLINE_SHADE = 0.8;
+
 const isTrend = (f: GridFrame): f is TrendGrid => Array.isArray((f as TrendGrid).significant);
 
 /**
  * Paint a GridFrame / TrendGrid onto `canvas` (W x H px). `latOfRow(j)` maps a canvas row (centre, 0..H)
  * to its latitude, so the same code draws Web-Mercator images for the map and equirectangular textures
- * for the globe. Values are bilinear-interpolated; no-data cells stay transparent. Trend cells that are
+ * for the globe. Values are bilinear-interpolated, then binned into flat colour classes with a thin
+ * isoline where the class changes (a filled-contour map, not a smooth wash); no-data cells stay transparent. Trend cells that are
  * not significant are drawn faint with thin diagonal hatching, so "real" change stands out.
  */
 export function paintGrid(
@@ -29,7 +34,9 @@ export function paintGrid(
   const ctx = canvas.getContext('2d')!;
   const img = ctx.createImageData(W, H);
   const px = img.data;
-  const lut = buildLut(f.colormap, f.min, f.max);
+  const classes = mapConfig.variableLayer.colourClasses;
+  const lut = buildLut(f.colormap, f.min, f.max, classes);
+  const cls = new Int16Array(W * H).fill(-1);
   const { width: gw, height: gh, values } = f;
   const sig = isTrend(f) ? f.significant : null;
   const latSpan = f.bbox.north - f.bbox.south;
@@ -69,7 +76,9 @@ export function paintGrid(
         px[o + 3] = 0;
         continue;
       }
-      const k = Math.max(0, Math.min(255, Math.round((sum / wsum - f.min) * scale))) * 3;
+      const k8 = Math.max(0, Math.min(255, Math.round((sum / wsum - f.min) * scale)));
+      cls[j * W + i] = Math.min(classes - 1, Math.floor((k8 / 256) * classes));
+      const k = k8 * 3;
       px[o] = lut[k];
       px[o + 1] = lut[k + 1];
       px[o + 2] = lut[k + 2];
@@ -86,6 +95,21 @@ export function paintGrid(
         a = Math.round(weak + (255 - weak) * k2);
       }
       px[o + 3] = a;
+    }
+  }
+  // Isolines: darken a pixel whose class differs from its right or lower neighbour.
+  for (let j = 0; j < H - 1; j++) {
+    for (let i = 0; i < W - 1; i++) {
+      const c = cls[j * W + i];
+      if (c < 0) continue;
+      const r = cls[j * W + i + 1];
+      const d = cls[(j + 1) * W + i];
+      if ((r >= 0 && r !== c) || (d >= 0 && d !== c)) {
+        const o = (j * W + i) * 4;
+        px[o] *= ISOLINE_SHADE;
+        px[o + 1] *= ISOLINE_SHADE;
+        px[o + 2] *= ISOLINE_SHADE;
+      }
     }
   }
   ctx.putImageData(img, 0, 0);

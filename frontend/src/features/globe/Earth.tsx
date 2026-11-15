@@ -91,7 +91,7 @@ const earthFragment = /* glsl */ `
     // Ocean glint: a tight sun reflection plus a broad sheen.
     vec3 H = normalize(uSun + V);
     float nh = max(dot(n, H), 0.0);
-    float glint = (pow(nh, 220.0) * 0.9 + pow(nh, 24.0) * 0.045) * water * (1.0 - cl) * smoothstep(0.0, 0.2, geo);
+    float glint = (pow(nh, 260.0) * 0.6 + pow(nh, 40.0) * 0.012) * water * (1.0 - cl) * smoothstep(0.0, 0.2, geo);
     col += vec3(1.0, 0.94, 0.82) * glint;
 
     // City lights on the night side.
@@ -102,8 +102,8 @@ const earthFragment = /* glsl */ `
     float mu = max(dot(n, V), 0.0);
     float limb = pow(1.0 - mu, 3.0);
     float lit = smoothstep(-0.3, 0.5, geo);
-    col = mix(col, uAtmo * (0.55 + 0.45 * lit), limb * 0.75 * lit);
-    col += uAtmo * 0.035 * lit;
+    col = mix(col, uAtmo * (0.55 + 0.45 * lit), limb * 0.5 * lit);
+    col += uAtmo * 0.02 * lit;
 
     col = 1.0 - exp(-col * uExposure);
     gl_FragColor = vec4(col, 1.0);

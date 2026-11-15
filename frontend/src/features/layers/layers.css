@@ -37,21 +37,24 @@
 .layer-dock__title {
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  flex: 0 1 auto;
+  min-width: 132px;
+  max-width: 220px;
+  flex: 1 1 150px;
   line-height: 1.15;
 }
+/* Variable names are long ("Groundwater storage"): wrap to two lines rather than cut to "Grou…". */
 .layer-dock__name {
   font-size: 13px;
   font-weight: 600;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .layer-dock__src {
   font-size: 11px;
   color: var(--ink-dim);
-  white-space: nowrap;
 }
 
 .layer-dock__legend {
@@ -227,7 +230,7 @@
 /* Map mode switch + trend period. */
 .layer-dock__mode { flex: none; }
 .layer-dock__mode .segmented__opt { padding-left: 9px; padding-right: 9px; }
-.layer-dock__title { flex: 0 1 auto; }
+.layer-dock__title { flex: 1 1 150px; }
 .layer-dock__periodtext {
   flex: 1 1 auto;
   min-width: 0;

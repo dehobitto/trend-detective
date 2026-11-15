@@ -43,7 +43,9 @@ export const globeConfig = {
   cloudAltitude: 1.006,
   cloudPeriodS: 1800,
   /** Outer limb shell radius: thin, like the real ~100 km of visible air. */
-  atmosphereScale: 1.035,
+  atmosphereScale: 1.018,
+  /** Hairline lat/lon grid over the globe (and over data overlays). */
+  graticule: { stepDeg: 30, alpha: 0.2, altitude: 1.008 },
   /** Trackpad / touch gestures (see features/globe/wheelIntent.ts). */
   gestures: {
     /** Wheel events further apart than this start a new gesture (re-classified). */
@@ -79,5 +81,5 @@ export const globeConfig = {
     prefetch: 2,
   },
   /** Opacity of the limb at its densest. */
-  atmosphereStrength: 0.85,
+  atmosphereStrength: 0.7,
 } as const;

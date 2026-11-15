@@ -118,27 +118,43 @@ function hexToRgb(h: string): [number, number, number] {
   return [parseInt(f.slice(0, 2), 16), parseInt(f.slice(2, 4), 16), parseInt(f.slice(4, 6), 16)];
 }
 
-/** 256-entry RGB lookup table spanning [min, max]. */
-export function buildLut(cmap: Colormap, min: number, max: number): Uint8ClampedArray {
+/** Colour at value `v` on a colormap (linear between stops). */
+function colourAt(stops: (readonly [number, [number, number, number]])[], v: number): [number, number, number] {
+  let k = 0;
+  while (k < stops.length - 2 && v > stops[k + 1][0]) k++;
+  const [v0, c0] = stops[k];
+  const [v1, c1] = stops[Math.min(k + 1, stops.length - 1)];
+  const t = v1 === v0 ? 0 : Math.max(0, Math.min(1, (v - v0) / (v1 - v0)));
+  return [0, 1, 2].map((j) => c0[j] + (c1[j] - c0[j]) * t) as [number, number, number];
+}
+
+const sortedStops = (cmap: Colormap) => [...cmap.stops].sort((a, b) => a[0] - b[0]).map(([v, c]) => [v, hexToRgb(c)] as const);
+
+/**
+ * 256-entry RGB lookup table spanning [min, max], stepped into `classes` flat colour classes
+ * (each the colour at its class centre), the way filled-contour climate maps are drawn.
+ */
+export function buildLut(cmap: Colormap, min: number, max: number, classes: number): Uint8ClampedArray {
   const lut = new Uint8ClampedArray(256 * 3);
-  const stops = [...cmap.stops].sort((a, b) => a[0] - b[0]).map(([v, c]) => [v, hexToRgb(c)] as const);
+  const stops = sortedStops(cmap);
   for (let i = 0; i < 256; i++) {
-    const v = min + ((max - min) * i) / 255;
-    let k = 0;
-    while (k < stops.length - 2 && v > stops[k + 1][0]) k++;
-    const [v0, c0] = stops[k];
-    const [v1, c1] = stops[Math.min(k + 1, stops.length - 1)];
-    const t = v1 === v0 ? 0 : Math.max(0, Math.min(1, (v - v0) / (v1 - v0)));
-    for (let j = 0; j < 3; j++) lut[i * 3 + j] = c0[j] + (c1[j] - c0[j]) * t;
+    const c = Math.min(classes - 1, Math.floor((i / 256) * classes));
+    const v = min + ((max - min) * (c + 0.5)) / classes;
+    const rgb = colourAt(stops, v);
+    for (let j = 0; j < 3; j++) lut[i * 3 + j] = rgb[j];
   }
   return lut;
 }
 
-/** CSS gradient for a colormap legend. */
-export function cssGradient(cmap: Colormap, min: number, max: number): string {
-  const span = max - min || 1;
-  const parts = [...cmap.stops]
-    .sort((a, b) => a[0] - b[0])
-    .map(([v, c]) => `${c} ${Math.max(0, Math.min(100, ((v - min) / span) * 100)).toFixed(1)}%`);
+/** CSS background for a stepped legend: one flat block per class, hairline gaps between them. */
+export function cssSteps(cmap: Colormap, min: number, max: number, classes: number): string {
+  const stops = sortedStops(cmap);
+  const parts: string[] = [];
+  for (let c = 0; c < classes; c++) {
+    const [r, g, b] = colourAt(stops, min + ((max - min) * (c + 0.5)) / classes).map(Math.round);
+    const a = (c / classes) * 100;
+    const z = ((c + 1) / classes) * 100;
+    parts.push(`rgb(${r} ${g} ${b}) ${a.toFixed(2)}%`, `rgb(${r} ${g} ${b}) ${z.toFixed(2)}%`);
+  }
   return `linear-gradient(90deg, ${parts.join(', ')})`;
 }
