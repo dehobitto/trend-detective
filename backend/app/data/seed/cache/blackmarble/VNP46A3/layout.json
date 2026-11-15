@@ -1,0 +1,13 @@
+{
+"NearNadir_Composite_Snow_Free": {
+"path": "/HDFEOS/GRIDS/VIIRS_Grid_DNB_2d/Data_Fields/NearNadir_Composite_Snow_Free",
+"dims": [
+"lat",
+"lon"
+],
+"attrs": {
+"_FillValue": -999.9000244,
+"scale_factor": 1.0
+}
+}
+}

@@ -119,4 +119,4 @@
   deseasonalize: true
   center: {lat: 28.6, lon: 77.2}
   related_variable_id: omi_no2
-  takeaway: Brighter nights mean more buildings, roads and traffic; compare with NO₂ over the same area to see whether pollution grows with the city.
+  takeaway: Delhi's nights got about 40% brighter since 2012, a significant rise as the city spreads, yet NO₂ over the same area did not rise significantly. A growing city does not automatically mean dirtier air; cleaner fuels and engines can offset the growth.
