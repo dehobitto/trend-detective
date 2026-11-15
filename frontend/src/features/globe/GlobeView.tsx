@@ -9,6 +9,7 @@ import { CameraRig } from './CameraRig';
 import { Earth } from './Earth';
 import { Starfield } from './Starfield';
 import { GlobeOverlay } from './GlobeOverlay';
+import { GlobeIntro } from './GlobeIntro';
 import { Graticule } from './Graticule';
 import { StationMarker } from './StationMarker';
 import { globeUniforms } from './sun';
@@ -79,18 +80,20 @@ export function GlobeView() {
         role="img"
       >
         <Suspense fallback={null}>
-          <Earth
-            interactive={interactive}
-            onHover={setHover}
-            onPick={(lat, lon) => {
-              setHover(null);
-              flyTo({ lat, lon });
-            }}
-          />
-          <GlobeOverlay />
-          <Graticule />
-          <Atmosphere />
-          <StationMarker />
+          <GlobeIntro>
+            <Earth
+              interactive={interactive}
+              onHover={setHover}
+              onPick={(lat, lon) => {
+                setHover(null);
+                flyTo({ lat, lon });
+              }}
+            />
+            <GlobeOverlay />
+            <Graticule />
+            <Atmosphere />
+            <StationMarker />
+          </GlobeIntro>
         </Suspense>
         {/* The sky loads on its own, after the Earth: the globe never waits for the stars. */}
         <Suspense fallback={null}>

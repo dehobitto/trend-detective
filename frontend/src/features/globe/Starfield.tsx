@@ -14,10 +14,14 @@ import {
 } from 'three';
 import { globeConfig } from '../../config/globe';
 import { latLonToVector3 } from '../../lib/geo';
+import { prefersReducedMotion } from '../../config/motion';
 import { gmstDeg } from './sun';
 
 const RAD = Math.PI / 180;
 const SKY_R = 80;
+/** The sky fades in (glow first, then the stars once their list arrives) instead of popping on. */
+const FADE_IN_S = 1.8;
+const ease = (t: number) => t * t * (3 - 2 * t);
 
 /** Crisp round stars, sized and tinted by brightness (screen-space size, so they stay sharp at any zoom). */
 const starVertex = /* glsl */ `
@@ -81,7 +85,7 @@ export function Starfield() {
   }, [glowMap]);
 
   const glowMaterial = useMemo(
-    () => new MeshBasicMaterial({ map: glowMap, color: new Color().setScalar(globeConfig.milkyWayBrightness), side: DoubleSide, depthWrite: false, toneMapped: false }),
+    () => new MeshBasicMaterial({ map: glowMap, color: new Color().setScalar(0), side: DoubleSide, depthWrite: false, toneMapped: false }),
     [glowMap],
   );
 
@@ -106,7 +110,7 @@ export function Starfield() {
     const mat = new ShaderMaterial({
       vertexShader: starVertex,
       fragmentShader: starFragment,
-      uniforms: { uScale: { value: dpr }, uBrightness: { value: globeConfig.starBrightness } },
+      uniforms: { uScale: { value: dpr }, uBrightness: { value: 0 } },
       transparent: true,
       depthWrite: false,
       blending: AdditiveBlending,
@@ -115,7 +119,21 @@ export function Starfield() {
     return { geom, mat };
   }, [data, dpr]);
 
-  useFrame(() => {
+  // Fade-in clocks (seconds since each part appeared); reduced motion: show at once.
+  const instant = prefersReducedMotion();
+  const glowT = useRef<number | null>(null);
+  const starsT = useRef<number | null>(null);
+
+  useFrame(({ clock }) => {
+    const now = clock.getElapsedTime();
+    if (glowT.current === null) glowT.current = now;
+    const kGlow = instant ? 1 : ease(Math.min(1, (now - glowT.current) / FADE_IN_S));
+    glowMaterial.color.setScalar(globeConfig.milkyWayBrightness * kGlow);
+    if (stars) {
+      if (starsT.current === null) starsT.current = now;
+      const kStars = instant ? 1 : ease(Math.min(1, (now - starsT.current) / FADE_IN_S));
+      stars.mat.uniforms.uBrightness.value = globeConfig.starBrightness * kStars;
+    }
     const g = sky.current;
     if (!g) return;
     g.position.copy(camera.position);
