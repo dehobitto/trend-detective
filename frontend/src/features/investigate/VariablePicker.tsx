@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { UPLOAD_PREFIX, type Sphere, type Variable } from '../../api/types';
-import { Chip } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { useStore } from '../../state/store';
 import { UploadDataset } from '../datasets/UploadDataset';
@@ -14,21 +13,46 @@ const SPHERES: { id: Sphere; label: string }[] = [
 
 const years = (v: Variable) => `${v.available_start.slice(0, 4)}–${v.available_end.slice(0, 4)}`;
 
-function VariableOption({ v, selected, onSelect }: { v: Variable; selected: boolean; onSelect: () => void }) {
+/** The details nobody needs to pick a variable, one tap away. */
+function VariableDetails({ v }: { v: Variable }) {
   return (
-    <button type="button" role="radio" aria-checked={selected} className="var-opt" onClick={onSelect}>
-      <span className="var-opt__name">
-        {v.name} <span className="var-opt__units">{v.units === 'unitless' ? '' : v.units}</span>
-      </span>
-      <span className="var-opt__def">{v.short_definition}</span>
-      <span className="var-opt__chips">
-        <Chip>{v.mission_or_model}</Chip>
-        {v.dataset && <Chip>{v.dataset}</Chip>}
-        <Chip>{years(v)}</Chip>
-        {v.coverage === 'series' && <Chip>{v.location ? `Station: ${v.location.label}` : 'Global record'}</Chip>}
-        {(v.coverage === 'land' || v.coverage === 'ocean') && <Chip>{v.coverage} only</Chip>}
-      </span>
+    <div className="var-info">
+      <p>{v.short_definition}</p>
+      <p className="var-info__dim">{v.why_it_matters}</p>
+      <p className="var-info__meta">
+        {[v.mission_or_model, v.dataset, years(v), v.coverage === 'series' ? (v.location ? v.location.label : 'Global record') : null, v.coverage === 'land' || v.coverage === 'ocean' ? `${v.coverage} only` : null]
+          .filter(Boolean)
+          .join(' · ')}
+      </p>
+      <p className="var-info__meta" title={v.product}>
+        {v.source}
+        {v.access ? `, via ${v.access}` : ''}
+      </p>
+    </div>
+  );
+}
+
+function InfoToggle({ open, onToggle, label }: { open: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button type="button" className="info-btn" aria-expanded={open} aria-label={`About ${label}`} title={`About ${label}`} onClick={onToggle}>
+      ?
     </button>
+  );
+}
+
+function VariableOption({ v, selected, onSelect }: { v: Variable; selected: boolean; onSelect: () => void }) {
+  const [info, setInfo] = useState(false);
+  return (
+    <div className="var-row">
+      <div className="var-row__line">
+        <button type="button" role="radio" aria-checked={selected} className="var-opt" onClick={onSelect}>
+          <span className="var-opt__name">{v.name}</span>
+          <span className="var-opt__units">{v.units === 'unitless' ? years(v) : `${v.units} · ${years(v)}`}</span>
+        </button>
+        <InfoToggle open={info} onToggle={() => setInfo(!info)} label={v.name} />
+      </div>
+      {info && <VariableDetails v={v} />}
+    </div>
   );
 }
 
@@ -40,6 +64,7 @@ export function VariablePicker() {
   const selectVariable = useStore((s) => s.selectVariable);
   const catalogError = useStore((s) => s.catalogError);
   const [open, setOpen] = useState(!variableId);
+  const [selInfo, setSelInfo] = useState(false);
 
   useEffect(() => {
     if (!variableId) setOpen(true);
@@ -59,30 +84,21 @@ export function VariablePicker() {
       <div className="var-selected">
         <div className="var-selected__head">
           <strong>{selected?.name ?? selectedUpload?.name}</strong>
+          {selected && <InfoToggle open={selInfo} onToggle={() => setSelInfo(!selInfo)} label={selected.name} />}
           <Button size="s" variant="ghost" onClick={() => setOpen(true)}>
             Change
           </Button>
         </div>
         {selected ? (
           <>
-            <p className="notes">{selected.short_definition}</p>
-            <p className="notes notes--dim">{selected.why_it_matters}</p>
-            <div className="var-opt__chips">
-              <Chip>{selected.mission_or_model}</Chip>
-              {selected.dataset && <Chip>{selected.dataset}</Chip>}
-              {selected.units !== 'unitless' && <Chip>{selected.units}</Chip>}
-              <Chip>{years(selected)}</Chip>
-            </div>
-            <p className="hint" title={selected.product}>
-              Source: {selected.source}
-              {selected.access ? `. Data via ${selected.access}.` : ''}
-            </p>
+            <p className="var-opt__units">{selected.units === 'unitless' ? years(selected) : `${selected.units} · ${years(selected)}`}</p>
+            {selInfo && <VariableDetails v={selected} />}
           </>
         ) : (
           selectedUpload && (
             <p className="notes">
-              Your upload: {selectedUpload.n} values from {selectedUpload.start} to {selectedUpload.end}
-              {selectedUpload.units ? ` in ${selectedUpload.units}` : ''}. The map area is ignored for your own data.
+              {selectedUpload.n} values, {selectedUpload.start.slice(0, 4)}–{selectedUpload.end.slice(0, 4)}
+              {selectedUpload.units ? `, ${selectedUpload.units}` : ''}
             </p>
           )
         )}
@@ -116,14 +132,10 @@ export function VariablePicker() {
             className="var-opt"
             onClick={() => choose(`${UPLOAD_PREFIX}${d.id}`)}
           >
-            <span className="var-opt__name">
-              {d.name} <span className="var-opt__units">{d.units}</span>
-            </span>
-            <span className="var-opt__chips">
-              <Chip>{d.n} values</Chip>
-              <Chip>
-                {d.start.slice(0, 4)}–{d.end.slice(0, 4)}
-              </Chip>
+            <span className="var-opt__name">{d.name}</span>
+            <span className="var-opt__units">
+              {d.units ? `${d.units} · ` : ''}
+              {d.start.slice(0, 4)}–{d.end.slice(0, 4)}
             </span>
           </button>
         ))}
