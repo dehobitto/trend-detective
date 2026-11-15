@@ -111,6 +111,9 @@
 .place-search__item[aria-selected='true'] .place-search__area,
 .place-search__area:focus-visible { opacity: 1; }
 .place-search__area:hover { color: var(--ink); border-color: var(--ink-dim); }
+.place-search__kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #b26b00; }
+.place-search__item--case { background: rgba(255, 181, 71, 0.12); }
+.place-search__item--case + .place-search__item:not(.place-search__item--case) { margin-top: 4px; }
 .place-search__msg { padding: 8px 10px; font-size: 13px; color: var(--ink-dim); }
 .place-search__msg--err { color: var(--danger); }
 

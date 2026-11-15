@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { pressable } from '../../components/pressable';
 import { api } from '../../api/client';
-import type { BBox, Place } from '../../api/types';
+import type { BBox, ExampleCase, Place } from '../../api/types';
 import { mapConfig } from '../../config/map';
 import { useStore } from '../../state/store';
 import { useLayers } from '../layers/layerStore';
@@ -58,7 +58,26 @@ export function goToPlace(p: Place, useArea: boolean) {
   else useLayers.getState().flyMap({ center, bounds, zoom: cfg.pointZoom });
 }
 
-/** Place search (city, region, landmark) via GET /api/geocode. */
+/** Example cases whose title or question mentions every word of the query ("spain", "andalusia", "delhi air"). */
+function matchExamples(examples: ExampleCase[], q: string): ExampleCase[] {
+  const words = q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
+  if (!words.length) return [];
+  return examples
+    .filter((ex) => {
+      const hay = `${ex.title} ${ex.question}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    })
+    .slice(0, 3);
+}
+
+/** Open an example: its area, variable and dates; from the globe it flies in, on the map it flies there. */
+function openExample(ex: ExampleCase) {
+  const s = useStore.getState();
+  s.applyExample(ex);
+  if (s.view === 'map' && !s.flat) useLayers.getState().flyMap({ center: ex.center, bounds: ex.bbox ?? undefined, zoom: cfg.pointZoom });
+}
+
+/** Place search (city, region, landmark) via GET /api/geocode, with matching example cases on top. */
 export function PlaceSearch() {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Place[]>([]);
@@ -67,6 +86,9 @@ export function PlaceSearch() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'empty'>('idle');
   const [error, setError] = useState('');
   const view = useStore((s) => s.view);
+  const examples = useStore((s) => s.examples);
+  const exMatches = q.trim().length >= 2 ? matchExamples(examples, q) : [];
+  const total = exMatches.length + results.length;
   const busy = useStore((s) => s.transition !== 'idle');
   const listId = useId();
   const input = useRef<HTMLInputElement>(null);
@@ -110,6 +132,13 @@ export function PlaceSearch() {
     return () => window.removeEventListener('pointerdown', onDown);
   }, []);
 
+  const chooseExample = (ex: ExampleCase) => {
+    openExample(ex);
+    setQ('');
+    setOpen(false);
+    input.current?.blur();
+  };
+
   const choose = (p: Place, useArea = false) => {
     goToPlace(p, useArea);
     setQ(p.name);
@@ -121,12 +150,17 @@ export function PlaceSearch() {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setOpen(true);
-      setActive((a) => (results.length ? (a + 1) % results.length : 0));
+      setActive((a) => (total ? (a + 1) % total : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActive((a) => (results.length ? (a - 1 + results.length) % results.length : 0));
+      setActive((a) => (total ? (a - 1 + total) % total : 0));
     } else if (e.key === 'Enter') {
-      const p = results[active];
+      if (active < exMatches.length) {
+        e.preventDefault();
+        chooseExample(exMatches[active]);
+        return;
+      }
+      const p = results[active - exMatches.length];
       if (p) {
         e.preventDefault();
         choose(p, e.shiftKey);
@@ -141,7 +175,7 @@ export function PlaceSearch() {
     }
   };
 
-  const showList = open && q.trim().length >= 2 && (results.length > 0 || status !== 'idle');
+  const showList = open && q.trim().length >= 2 && (total > 0 || status !== 'idle');
 
   return (
     <div className="place-search" data-view={view} ref={root}>
@@ -157,7 +191,7 @@ export function PlaceSearch() {
           aria-expanded={showList}
           aria-controls={listId}
           aria-autocomplete="list"
-          aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
+          aria-activedescendant={showList && active < total ? `${listId}-${active}` : undefined}
           aria-label="Search for a place"
           placeholder="Search places"
           value={q}
@@ -181,17 +215,33 @@ export function PlaceSearch() {
       </div>
       {showList && (
         <ul className="place-search__list" id={listId} role="listbox" aria-label="Places">
-          {status === 'loading' && results.length === 0 && <li className="place-search__msg">Searching…</li>}
-          {status === 'empty' && <li className="place-search__msg">No places found.</li>}
+          {exMatches.map((ex, i) => (
+            <li
+              key={ex.id}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              className="place-search__item place-search__item--case"
+              onMouseEnter={() => setActive(i)}
+            >
+              <button type="button" className="place-search__go" onClick={() => chooseExample(ex)}>
+                <span className="place-search__kicker">Example case</span>
+                <span className="place-search__name">{ex.title}</span>
+                <span className="place-search__where">{ex.question}</span>
+              </button>
+            </li>
+          ))}
+          {status === 'loading' && total === 0 && <li className="place-search__msg">Searching…</li>}
+          {status === 'empty' && !exMatches.length && <li className="place-search__msg">No places found.</li>}
           {status === 'error' && <li className="place-search__msg place-search__msg--err">{error}</li>}
           {results.map((p, i) => (
             <li
               key={`${p.display_name}-${i}`}
-              id={`${listId}-${i}`}
+              id={`${listId}-${i + exMatches.length}`}
               role="option"
-              aria-selected={i === active}
+              aria-selected={i + exMatches.length === active}
               className="place-search__item"
-              onMouseEnter={() => setActive(i)}
+              onMouseEnter={() => setActive(i + exMatches.length)}
             >
               <button type="button" className="place-search__go" onClick={() => choose(p)}>
                 <span className="place-search__name">{p.name}</span>

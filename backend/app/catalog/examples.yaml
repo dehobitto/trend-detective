@@ -37,7 +37,7 @@
 
 - id: spain-green
   title: Why is Andalusia getting greener?
-  question: Has the farmland of the Guadalquivir basin become greener since 2001 while its groundwater was falling?
+  question: Has the farmland of the Guadalquivir basin in southern Spain become greener since 2001 while its groundwater was falling?
   bbox: {west: -6.8, south: 36.9, east: -4.6, north: 38.3}
   variable_id: modis_ndvi
   start: 2001-01-01
