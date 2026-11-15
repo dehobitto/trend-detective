@@ -77,6 +77,8 @@ export function MapView() {
       dragRotate: false,
       pitchWithRotate: false,
       renderWorldCopies: true,
+      // The globe drapes this canvas over itself during the hand-off (it reads the pixels after each frame).
+      canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     m.touchZoomRotate.disableRotation();
     m.keyboard.disableRotation();
@@ -104,6 +106,7 @@ export function MapView() {
       if (s.view === 'map' && m.getZoom() < mapConfig.returnToGlobeZoom) {
         // The globe starts from the same place on screen at the same scale as the map right now.
         const p = mapPointLikeGlobe(m);
+        handoff.ready = m.areTilesLoaded();
         s.backToGlobe({ lat: p.lat, lon: wrapLon(p.lon) }, distanceForZoom(p.lat, m.getZoom(), m.getContainer().clientHeight));
       }
     });
@@ -179,8 +182,10 @@ export function MapView() {
     return useStore.subscribe((s, prev) => {
       if (s.transition === 'flyingIn' && prev.transition !== 'flyingIn') {
         handoff.ready = false;
+        handoff.full = false;
         placeLikeGlobe(map, s.focus.lat, s.focus.lon, handoffZoom(s.focus.lat, map));
-        map.once('idle', () => (handoff.ready = true));
+        map.once('render', () => (handoff.ready = true)); // drape from the first frame (parent tiles fill gaps)
+        map.once('idle', () => (handoff.full = true));
       }
     });
   }, [map, view]);

@@ -1,4 +1,4 @@
-import { Vector3 } from 'three';
+import { CanvasTexture, SRGBColorSpace, Vector2, Vector3 } from 'three';
 import { create } from 'zustand';
 import { latLonToVector3 } from '../../lib/geo';
 
@@ -16,7 +16,24 @@ export const globeUniforms = {
   uCloudAlpha: { value: 1 },
   /** Faint light on the night side (live mode), so the dark hemisphere is not a black hole. */
   uMoon: { value: 0 },
+  /**
+   * Globe <-> map hand-off (0..1): the (hidden) map's own picture is draped on the globe where it lands and
+   * clouds, grid, atmosphere and shading fade, so the crossfade swaps two images that already match.
+   */
+  uHandoff: { value: 0 },
+  /** The map canvas as a texture, and where it looks: Web Mercator centre (0..1) and world size / canvas size. */
+  uMapTex: { value: blankTexture() },
+  uMapCenter: { value: new Vector2(0.5, 0.5) },
+  uMapScale: { value: new Vector2(1, 1) },
 };
+
+function blankTexture() {
+  const c = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  if (c) c.width = c.height = 2;
+  const t = new CanvasTexture(c as HTMLCanvasElement);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
 
 const RAD = Math.PI / 180;
 

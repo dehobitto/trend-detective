@@ -27,6 +27,8 @@ export const globeConfig = {
   mapThreshold: 1.75,
   /** Where the fly-in ends (just before the crossfade). */
   arrivalDistance: 1.35,
+  /** The map's picture starts to drape over the globe below this camera distance (hand-off, see handoff.ts). */
+  handoffStartDistance: 1.95,
   /** OrbitControls autoRotateSpeed (2.0 = one turn per 30 s at 60 fps). */
   autoRotateSpeed: 0.35,
   /** Resume auto-rotation this long after the user stops interacting. */

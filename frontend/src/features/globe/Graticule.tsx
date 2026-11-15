@@ -21,6 +21,7 @@ const vertex = /* glsl */ `
 const fragment = /* glsl */ `
   uniform float uStep;
   uniform float uAlpha;
+  uniform float uHandoff;
   uniform vec3 uSun;
   varying vec2 vUv;
   varying vec3 vN;
@@ -38,7 +39,7 @@ const fragment = /* glsl */ `
     float g = max(meridian, parallel);
     float main = max(1.0 - smoothstep(0.0, w.y * 1.2, abs(lat)), 1.0 - smoothstep(0.0, w.x * 1.2, abs(lon)));
     float lit = 0.45 + 0.55 * smoothstep(-0.2, 0.3, dot(normalize(vN), uSun));
-    float a = max(g * uAlpha, main * uAlpha * 1.8) * lit;
+    float a = max(g * uAlpha, main * uAlpha * 1.8) * lit * (1.0 - uHandoff);
     gl_FragColor = vec4(vec3(1.0), a);
   }
 `;
@@ -49,7 +50,7 @@ export function Graticule() {
       new ShaderMaterial({
         vertexShader: vertex,
         fragmentShader: fragment,
-        uniforms: { uStep: { value: globeConfig.graticule.stepDeg }, uAlpha: { value: globeConfig.graticule.alpha }, uSun: globeUniforms.uSun },
+        uniforms: { uStep: { value: globeConfig.graticule.stepDeg }, uAlpha: { value: globeConfig.graticule.alpha }, uSun: globeUniforms.uSun, uHandoff: globeUniforms.uHandoff },
         transparent: true,
         depthWrite: false,
         toneMapped: false,

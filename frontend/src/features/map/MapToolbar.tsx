@@ -44,6 +44,7 @@ export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
             const leave = () => {
               if (left) return;
               left = true;
+              handoff.ready = m.areTilesLoaded();
               backToGlobe({ lat: c.lat, lon: wrapLon(c.lng) }, distanceForZoom(c.lat, m.getZoom(), el.clientHeight));
             };
             if (prefersReducedMotion()) return leave();

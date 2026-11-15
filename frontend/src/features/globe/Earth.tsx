@@ -49,6 +49,10 @@ const earthFragment = /* glsl */ `
   uniform float uCloudShift;
   uniform float uCloudAlpha;
   uniform float uMoon;
+  uniform float uHandoff;
+  uniform sampler2D uMapTex;
+  uniform vec2 uMapCenter;
+  uniform vec2 uMapScale;
   uniform float uBumpScale;
   uniform float uExposure;
   uniform vec2 uTexel;
@@ -75,9 +79,9 @@ const earthFragment = /* glsl */ `
     // The BMNG ocean is almost black; from orbit the open sea reads as deep blue.
     day = mix(day, day * vec3(0.8, 0.95, 1.2) + vec3(0.003, 0.011, 0.032), water);
 
-    float cl = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0)).r * uCloudAlpha;
+    float cl = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0)).r * uCloudAlpha * (1.0 - uHandoff);
     // Shadow sampled a touch away from the sun so it sits beside its cloud near the terminator.
-    float clShadow = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0) - 0.0015 * vec2(dot(uSun, east), dot(uSun, north))).r * uCloudAlpha;
+    float clShadow = texture2D(uClouds, vUv + vec2(uCloudShift, 0.0) - 0.0015 * vec2(dot(uSun, east), dot(uSun, north))).r * uCloudAlpha * (1.0 - uHandoff);
 
     float ndl = dot(bn, uSun);
     float geo = dot(n, uSun);
@@ -111,6 +115,20 @@ const earthFragment = /* glsl */ `
     col += uAtmo * 0.02 * lit;
 
     col = 1.0 - exp(-col * uExposure);
+
+    // Hand-off: where the map is about to appear, show the map's own picture (Web Mercator, from its canvas).
+    if (uHandoff > 0.0) {
+      float lat = radians(vUv.y * 180.0 - 90.0);
+      float mx = vUv.x;
+      float my = 0.5 - log(tan(0.78539816 + clamp(lat, -1.48, 1.48) / 2.0)) / 6.28318531;
+      vec2 d = vec2(fract(mx - uMapCenter.x + 0.5) - 0.5, my - uMapCenter.y);
+      vec2 uv = vec2(0.5 + d.x * uMapScale.x, 0.5 - d.y * uMapScale.y);
+      vec2 edge = smoothstep(vec2(0.0), vec2(0.06), uv) * smoothstep(vec2(1.0), vec2(0.94), uv);
+      vec3 mapCol = texture2D(uMapTex, uv).rgb;
+      // Where a tile hasn't arrived yet the map shows its bare background (#0a1424): keep the globe there.
+      float loaded = smoothstep(0.012, 0.03, distance(mapCol, vec3(0.0030, 0.0070, 0.0176)));
+      col = mix(col, mapCol, uHandoff * edge.x * edge.y * loaded);
+    }
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
@@ -122,6 +140,7 @@ const cloudFragment = /* glsl */ `
   uniform vec3 uAtmo;
   uniform float uCloudShift;
   uniform float uCloudAlpha;
+  uniform float uHandoff;
   uniform float uExposure;
   varying vec2 vUv;
   varying vec3 vN;
@@ -137,7 +156,7 @@ const cloudFragment = /* glsl */ `
     col = mix(col, uAtmo, limb * 0.5 * smoothstep(-0.3, 0.5, geo));
     col = 1.0 - exp(-col * uExposure);
     // Thin cloud is see-through; thick cloud is opaque.
-    float a = clamp(cl * 1.2, 0.0, 0.95) * uCloudAlpha;
+    float a = clamp(cl * 1.2, 0.0, 0.95) * uCloudAlpha * (1.0 - uHandoff);
     gl_FragColor = vec4(col, a);
     #include <colorspace_fragment>
   }
@@ -178,6 +197,10 @@ export function Earth({ onPick, onHover, interactive }: Props) {
         uCloudShift: globeUniforms.uCloudShift,
         uCloudAlpha: globeUniforms.uCloudAlpha,
         uMoon: globeUniforms.uMoon,
+        uHandoff: globeUniforms.uHandoff,
+        uMapTex: globeUniforms.uMapTex,
+        uMapCenter: globeUniforms.uMapCenter,
+        uMapScale: globeUniforms.uMapScale,
         uAtmo: atmo,
         uBumpScale: { value: globeConfig.bumpScale },
         uExposure: exposure,
@@ -192,6 +215,7 @@ export function Earth({ onPick, onHover, interactive }: Props) {
         uClouds: { value: clouds },
         uSun: globeUniforms.uSun,
         uCloudShift: globeUniforms.uCloudShift,
+        uHandoff: globeUniforms.uHandoff,
         uCloudAlpha: globeUniforms.uCloudAlpha,
         uAtmo: atmo,
         uExposure: exposure,

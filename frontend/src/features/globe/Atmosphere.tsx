@@ -25,6 +25,7 @@ const fragment = /* glsl */ `
   uniform vec3 uSun;
   uniform float uLimb;
   uniform float uStrength;
+  uniform float uHandoff;
   varying vec3 vN;
   varying vec3 vPos;
   void main() {
@@ -34,7 +35,7 @@ const fragment = /* glsl */ `
     float f = clamp(-dot(n, V) / uLimb, 0.0, 1.0);
     float density = pow(f, 3.5);
     float lit = smoothstep(-0.35, 0.45, dot(n, uSun));
-    float a = density * uStrength * (0.35 + 0.65 * lit);
+    float a = density * uStrength * (0.35 + 0.65 * lit) * (1.0 - 0.85 * uHandoff);
     gl_FragColor = vec4(uColor, a);
     #include <colorspace_fragment>
   }
@@ -52,6 +53,7 @@ export function Atmosphere() {
           uSun: globeUniforms.uSun,
           uLimb: { value: Math.sqrt(1 - 1 / (scale * scale)) },
           uStrength: { value: globeConfig.atmosphereStrength },
+          uHandoff: globeUniforms.uHandoff,
         },
         side: BackSide,
         transparent: true,

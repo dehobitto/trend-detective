@@ -68,6 +68,8 @@ export const handoff = {
   look: { lat: 0, lon: 0, distance: 3 },
   /** The (possibly hidden) map, once created. */
   map: null as MlMap | null,
-  /** True when the map has finished loading the tiles for the hand-off position. */
+  /** True once the map has drawn the hand-off position at least once (its picture can be draped on the globe). */
   ready: false,
+  /** True when the map has finished loading every tile there (the crossfade waits for this, briefly). */
+  full: false,
 };

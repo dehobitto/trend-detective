@@ -206,7 +206,8 @@ export function GlobeOverlay() {
       material.uniforms.uMix.value = t;
       if (t >= 1) fade.current = null;
     }
-    material.uniforms.uOpacity.value = visible.current * useLayers.getState().opacity;
+    // The map picture draped during the hand-off already carries the layer: fade this copy out meanwhile.
+    material.uniforms.uOpacity.value = visible.current * useLayers.getState().opacity * (1 - globeUniforms.uHandoff.value);
     globeUniforms.uCloudAlpha.value = 1 - visible.current * (1 - cfg.cloudAlphaWithOverlay);
   });
 

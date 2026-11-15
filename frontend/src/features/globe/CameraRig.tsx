@@ -7,6 +7,7 @@ import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { clampLat, latLonToVector3, vector3ToLatLon } from '../../lib/geo';
 import { useStore } from '../../state/store';
+import { CanvasTexture, SRGBColorSpace } from 'three';
 import { globeScreenOffset, handoff } from './handoff';
 import { globeUniforms, liveSunVector, useSun } from './sun';
 import { createWheelClassifier } from './wheelIntent';
@@ -110,7 +111,7 @@ export function CameraRig() {
       // so the fade never reveals an empty map. Give up waiting after a moment.
       startFlight(target, globeConfig.arrivalDistance, () => {
         const t0 = performance.now();
-        const go = () => (handoff.ready || performance.now() - t0 > 700 ? useStore.getState().arriveAtMap() : window.setTimeout(go, 50));
+        const go = () => (handoff.full || performance.now() - t0 > 700 ? useStore.getState().arriveAtMap() : window.setTimeout(go, 50));
         go();
       });
     } else if (transition === 'flyingOut') {
@@ -270,6 +271,35 @@ export function CameraRig() {
         lastOffset.current = key;
         camera.setViewOffset(size.width, size.height, -dx, -dy, size.width, size.height);
         camera.updateProjectionMatrix();
+      }
+    }
+
+    // Hand-off: while flying in or out, drape the map's picture over the landing spot as the camera nears it.
+    {
+      const s = useStore.getState();
+      const m = handoff.map;
+      let k = 0;
+      if (m && s.transition !== 'idle' && handoff.ready) {
+        const d = camera.position.length();
+        const t = Math.min(1, Math.max(0, (globeConfig.handoffStartDistance - d) / (globeConfig.handoffStartDistance - globeConfig.arrivalDistance)));
+        k = t * t * (3 - 2 * t);
+      }
+      globeUniforms.uHandoff.value = k;
+      if (k > 0 && m) {
+        const canvas = m.getCanvas();
+        const tex = globeUniforms.uMapTex;
+        if (tex.value.image !== canvas) {
+          const t = new CanvasTexture(canvas);
+          t.colorSpace = SRGBColorSpace;
+          tex.value = t;
+        }
+        tex.value.needsUpdate = true;
+        const c = m.getCenter();
+        const lat = (Math.max(-85, Math.min(85, c.lat)) * Math.PI) / 180;
+        globeUniforms.uMapCenter.value.set((c.lng + 180) / 360, 0.5 - Math.log(Math.tan(Math.PI / 4 + lat / 2)) / (2 * Math.PI));
+        const world = 512 * Math.pow(2, m.getZoom());
+        const el = m.getContainer();
+        globeUniforms.uMapScale.value.set(world / Math.max(1, el.clientWidth), world / Math.max(1, el.clientHeight));
       }
     }
 
