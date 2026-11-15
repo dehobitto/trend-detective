@@ -45,6 +45,58 @@ def fetch_progress(callback: ProgressCallback) -> Iterator[None]:
         _progress.reset(token)
 
 
+_mask: ContextVar["tuple[BBox, ...] | None"] = ContextVar("fetch_mask", default=None)
+
+
+@contextmanager
+def fetch_mask(cells: "list[BBox] | None") -> Iterator[None]:
+    """Average only inside these squares during ``fetch`` (a named region approximated by grid squares).
+
+    Providers read it with :func:`current_mask` in ``fetch`` itself (worker threads don't inherit context
+    variables, so pass it on explicitly). ``None`` or empty = the whole bbox, as before.
+    """
+    token = _mask.set(tuple(cells) if cells else None)
+    try:
+        yield
+    finally:
+        _mask.reset(token)
+
+
+def current_mask() -> "tuple[BBox, ...] | None":
+    return _mask.get()
+
+
+def mask_key(cells: "tuple[BBox, ...] | None") -> str:
+    """Short stable id of a set of squares, for cache file names ('' without a mask)."""
+    if not cells:
+        return ""
+    import hashlib
+
+    text = ";".join(sorted(f"{c.west:.4f},{c.south:.4f},{c.east:.4f},{c.north:.4f}" for c in cells))
+    return "_m" + hashlib.sha1(text.encode()).hexdigest()[:10]
+
+
+def mask_grid(cells: "tuple[BBox, ...]", lats, lons):
+    """Boolean ``(len(lats), len(lons))``: which grid-cell centres fall inside any square.
+
+    If the squares are finer than the product grid and catch no centre at all, the cell nearest each
+    square's centre is used instead, so a small region never ends up empty.
+    """
+    import numpy as np
+
+    lat = np.asarray(lats)[:, None]
+    lon = np.asarray(lons)[None, :]
+    inside = np.zeros((lat.shape[0], lon.shape[1]), dtype=bool)
+    for c in cells:
+        inside |= (lat >= c.south) & (lat < c.north) & (lon >= c.west) & (lon < c.east)
+    if not inside.any():
+        for c in cells:
+            i = int(np.argmin(np.abs(lat[:, 0] - (c.south + c.north) / 2)))
+            j = int(np.argmin(np.abs(lon[0, :] - (c.west + c.east) / 2)))
+            inside[i, j] = True
+    return inside
+
+
 def report_progress(done: int, total: int) -> None:
     """Providers call this as slow downloads advance. A no-op unless a job is listening."""
     callback = _progress.get()

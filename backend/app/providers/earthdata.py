@@ -48,7 +48,7 @@ import pandas as pd
 
 from app.catalog.models import CatalogVariable
 from app.config import Settings
-from app.providers.base import ProviderError, register_provider, report_progress
+from app.providers.base import ProviderError, current_mask, mask_grid, mask_key, register_provider, report_progress
 from app.schemas.common import BBox
 
 log = logging.getLogger(__name__)
@@ -146,6 +146,9 @@ class Box:
 
     def lats(self, grid: Grid) -> np.ndarray:
         return grid.lat_start + grid.lat_step * np.arange(self.lat0, self.lat1 + 1)
+
+    def lons(self, grid: Grid) -> np.ndarray:
+        return grid.lon_start + grid.lon_step * np.arange(self.lon0, self.lon1 + 1)
 
     @property
     def key(self) -> str:
@@ -278,10 +281,15 @@ def weighted_sum(values: np.ndarray, lats: np.ndarray) -> tuple[float, float]:
     return float(np.nansum(values * weights)), float(weights.sum())
 
 
-def read_subset(content: bytes, layout: VarLayout, grid: Grid, box: Box) -> float:
-    """Area mean of one DAP4 NetCDF-4 response (NaN when every cell is missing)."""
+def read_subset(content: bytes, layout: VarLayout, grid: Grid, box: Box, mask: np.ndarray | None = None) -> float:
+    """Area mean of one DAP4 NetCDF-4 response (NaN when every cell is missing).
+
+    ``mask`` (``(lat, lon)`` booleans, see ``providers.base.mask_grid``) keeps only the cells of a named region.
+    """
     n_lat, n_lon = box.lat1 - box.lat0 + 1, box.lon1 - box.lon0 + 1
     values = decode_subset(content, layout, n_lat, n_lon, positive_only=grid.positive_only, overrides=grid.packing)
+    if mask is not None:
+        values = np.where(mask, values, np.nan)
     total, weight = weighted_sum(values, box.lats(grid))
     return total / weight if weight > 0 else float("nan")
 
@@ -346,6 +354,9 @@ class EarthdataProvider:
             raise ProviderError(f"{variable.name} needs an area on the map.")
         box = Box.for_bbox(grid, bbox)
         cache_key = f"{short_name}.{version}:{field}"
+        squares = current_mask()
+        mask = mask_grid(squares, box.lats(grid), box.lons(grid)) if squares else None
+        cache_key += mask_key(squares)  # a named region keeps its own cache; plain boxes are unchanged
         if not self.has_login and not self._values_path(short_name, cache_key, box).exists():
             raise ProviderError(
                 f"Real NASA data for {variable.name} in this area is not downloaded yet and no Earthdata login "
@@ -361,7 +372,7 @@ class EarthdataProvider:
         missing = [d for d in dates if d.isoformat() not in cached]
         if missing:
             if self.has_login:
-                fetched = self._download_values(short_name, version, field, grid, box, {d: granules[d] for d in missing})
+                fetched = self._download_values(short_name, version, field, grid, box, {d: granules[d] for d in missing}, mask)
                 cached = self._merge_values(short_name, cache_key, box, fetched)
             elif len(missing) > (1 - MIN_COVERAGE) * len(dates):
                 raise ProviderError(
@@ -501,7 +512,8 @@ class EarthdataProvider:
         return layout
 
     def _download_values(
-        self, short_name: str, version: str, field: str, grid: Grid, box: Box, urls: dict[dt.date, str]
+        self, short_name: str, version: str, field: str, grid: Grid, box: Box, urls: dict[dt.date, str],
+        mask: np.ndarray | None = None,
     ) -> dict[str, float | None]:
         self._login()
         layout = self._layout(short_name, field, next(iter(urls.values())))
@@ -511,7 +523,7 @@ class EarthdataProvider:
         def one(item: tuple[dt.date, str]) -> tuple[str, float | None, str | None]:
             date, url = item
             try:
-                value = read_subset(self._get(f"{url}.dap.nc4?dap4.ce={ce}"), layout, grid, box)
+                value = read_subset(self._get(f"{url}.dap.nc4?dap4.ce={ce}"), layout, grid, box, mask)
             except ProviderError as exc:
                 return date.isoformat(), None, str(exc)
             return date.isoformat(), (None if math.isnan(value) else value), None

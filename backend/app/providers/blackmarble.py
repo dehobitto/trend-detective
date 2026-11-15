@@ -32,7 +32,7 @@ import pandas as pd
 
 from app.catalog.models import CatalogVariable
 from app.config import Settings
-from app.providers.base import ProviderError, register_provider
+from app.providers.base import ProviderError, current_mask, mask_grid, mask_key, register_provider
 from app.providers.earthdata import EarthdataProvider, VarLayout, _write_json, decode_subset, parse_product, weighted_sum
 from app.schemas.common import BBox
 
@@ -62,6 +62,10 @@ class TileWindow:
     def lats(self) -> np.ndarray:
         north = 90.0 - TILE_DEG * self.v
         return north - PIXEL_DEG * (np.arange(self.row0, self.row1 + 1) + 0.5)
+
+    def lons(self) -> np.ndarray:
+        west = -180.0 + TILE_DEG * self.h
+        return west + PIXEL_DEG * (np.arange(self.col0, self.col1 + 1) + 0.5)
 
     def constraint(self, layout: VarLayout) -> str:
         parts = {"time": "[0]", "lat": f"[{self.row0}:{self.row1}]", "lon": f"[{self.col0}:{self.col1}]"}
@@ -118,8 +122,22 @@ class BlackMarbleProvider(EarthdataProvider):
         short_name, version, field = parse_product(variable.product)
         if bbox is None:
             raise ProviderError(f"{variable.name} needs an area on the map.")
-        windows = tile_windows(bbox)
-        key = "_".join(f"{x:.3f}" for x in (bbox.west, bbox.south, bbox.east, bbox.north))
+        squares = current_mask()
+        if squares:
+            # Named region: per tile, only the window around its own squares; tiles with no square are skipped.
+            windows = []
+            for w in tile_windows(bbox):
+                tile_west, tile_north = -180.0 + TILE_DEG * w.h, 90.0 - TILE_DEG * w.v
+                tile = BBox(west=tile_west, south=tile_north - TILE_DEG, east=tile_west + TILE_DEG, north=tile_north)
+                mine = [c for c in squares if c.west < tile.east and c.east > tile.west and c.south < tile.north and c.north > tile.south]
+                if not mine:
+                    continue
+                sub = BBox(west=max(tile.west, min(c.west for c in mine)), south=max(tile.south, min(c.south for c in mine)),
+                           east=min(tile.east, max(c.east for c in mine)), north=min(tile.north, max(c.north for c in mine)))
+                windows += [x for x in tile_windows(sub) if x.tile == w.tile]
+        else:
+            windows = tile_windows(bbox)
+        key = "_".join(f"{x:.3f}" for x in (bbox.west, bbox.south, bbox.east, bbox.north)) + mask_key(squares)
         values_path = self._cache_dir / short_name / "values" / f"{version}_{field}_{key}.json"
         cached: dict[str, float | None] = json.loads(values_path.read_text(encoding="utf-8")) if values_path.exists() else {}
         if not self.has_login and not cached:
@@ -136,7 +154,7 @@ class BlackMarbleProvider(EarthdataProvider):
             raise ProviderError(f"NASA has no {variable.name} data for this area between {start} and {end}.")
         missing = [d for d in dates if d not in cached]
         if missing and self.has_login:
-            cached.update(self._download(short_name, field, windows, {d: granules[d] for d in missing}))
+            cached.update(self._download(short_name, field, windows, {d: granules[d] for d in missing}, squares))
             _write_json(values_path, dict(sorted(cached.items())))
         elif missing and len(missing) > len(dates) / 2:
             raise ProviderError(
@@ -179,7 +197,7 @@ class BlackMarbleProvider(EarthdataProvider):
     # -- downloads ---------------------------------------------------------------------------------------
 
     def _download(self, short_name: str, field: str, windows: list[TileWindow],
-                  granules: dict[str, dict[str, str]]) -> dict[str, float | None]:
+                  granules: dict[str, dict[str, str]], squares=None) -> dict[str, float | None]:
         self._login()
         first_date = next(iter(granules))
         layout = self._layout(short_name, field, granules[first_date][windows[0].tile])
@@ -193,6 +211,8 @@ class BlackMarbleProvider(EarthdataProvider):
                 n_lat, n_lon = window.row1 - window.row0 + 1, window.col1 - window.col0 + 1
                 values = decode_subset(content, layout, n_lat, n_lon)
                 values = np.where(values < 0, np.nan, values)
+                if squares:
+                    values = np.where(mask_grid(squares, window.lats(), window.lons()), values, np.nan)
                 return date, weighted_sum(values, window.lats()), None
             except ProviderError as exc:
                 return date, None, str(exc)
