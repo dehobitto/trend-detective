@@ -319,3 +319,30 @@
 @media (max-width: 760px) {
   .ba__chip { top: 150px; font-size: 13px; }
 }
+
+/* Seamless globe: coordinates under the pointer while zoomed out (like the old globe's readout). */
+.globe-coords {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  padding: 3px 7px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  box-shadow: var(--shadow);
+  font: 600 11.5px/1 var(--font-ui);
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+/* Far out, a click flies in: say so with the cursor. */
+.map.is-globe .maplibregl-canvas-container.maplibregl-interactive { cursor: pointer; }
+.map.is-globe .maplibregl-canvas-container.maplibregl-interactive:active { cursor: grabbing; }
+/* Far out: a soft blue glow of air behind the planet (MapLibre's own limb is thin on a light page). */
+.map.is-globe {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(47, 127, 216, 0.22) 0, rgba(47, 127, 216, 0.12) 30%, rgba(47, 127, 216, 0.04) 42%, transparent 58%),
+    var(--space);
+}

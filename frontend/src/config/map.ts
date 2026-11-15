@@ -94,7 +94,7 @@ export const mapConfig = {
   /** Seamless mode: how far out the globe can be zoomed. */
   globeMinZoom: 0.3,
   /** 2D-only mode is remembered on this device; ?view=2d or ?view=3d in the URL overrides it. */
-  flatStorageKey: 'td.view',
+  flatStorageKey: 'td.view.v2', // v2: the seamless globe became the default (old choices are not carried over)
   /** Hard limits for the map itself. */
   minZoom: 1,
   maxZoom: 18,

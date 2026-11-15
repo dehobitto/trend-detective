@@ -17,6 +17,8 @@ import { registerOverlayProtocol } from './overlayProtocol';
 import { useBoxSelect } from './useBoxSelect';
 import { useGibsOverlay } from './useGibsOverlay';
 import { useRegionLayers } from './useRegionLayers';
+import { useSeamlessGlobe } from './useSeamlessGlobe';
+import { formatLat, formatLon } from '../../lib/geo';
 import { useStationMarker } from './useStationMarker';
 import { useTrackpadPan } from './useTrackpadPan';
 import './map.css';
@@ -55,14 +57,15 @@ export const SEAMLESS_PROJECTION = 'vertical-perspective';
 export function applyProjection(m: MlMap, globe: boolean) {
   m.setProjection({ type: globe ? SEAMLESS_PROJECTION : 'mercator' });
   if (globe) {
+    // A blue limb of air around the planet (strong far out, gone once you are down near the ground).
     m.setSky({
-      'sky-color': '#9fc3e6',
-      'horizon-color': '#dbe8f4',
+      'sky-color': '#2f7fd8',
+      'horizon-color': '#9cc8f2',
       'fog-color': '#e6eaee',
-      'sky-horizon-blend': 0.6,
-      'horizon-fog-blend': 0.6,
-      'fog-ground-blend': 0.9,
-      'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0],
+      'sky-horizon-blend': 0.5,
+      'horizon-fog-blend': 0.8,
+      'fog-ground-blend': 1,
+      'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 4, 0.9, 7, 0],
     });
   }
 }
@@ -148,6 +151,7 @@ export function MapView() {
 
   useBoxSelect(map);
   useRegionLayers(map);
+  const hover = useSeamlessGlobe(map);
   useStationMarker(map);
   useGibsOverlay(map);
   useTrackpadPan(map);
@@ -249,6 +253,11 @@ export function MapView() {
     <>
       <div ref={container} className="map" aria-label="Map. Draw a rectangle to choose the area to investigate." />
       {switcherHost && <BasemapSwitcher host={switcherHost} />}
+      {hover && (
+        <div className="globe-coords" style={{ transform: `translate(${hover.x + 14}px, ${hover.y + 14}px)` }} aria-hidden>
+          {formatLat(hover.lat)} {formatLon(hover.lon)}
+        </div>
+      )}
       <BeforeAfter map={map} />
       <BoxScanner map={map} />
     </>
