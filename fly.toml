@@ -9,6 +9,9 @@ primary_region = "fra"
   PORT = "8000"
   TD_DATA_PROVIDER = "live"
   # Earthdata login as secrets: fly secrets set TD_EARTHDATA_USERNAME=... TD_EARTHDATA_PASSWORD=... TD_EARTHDATA_TOKEN=...
+  TD_CHAT_BACKEND = "fieldguide"
+  TD_CHAT_PROVIDER = "openai"
+  # Field guide LLM key as a secret: fly secrets set OPENAI_API_KEY=...
 
 [http_service]
   internal_port = 8000

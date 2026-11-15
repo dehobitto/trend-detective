@@ -91,7 +91,31 @@ class AnalysisResult(BaseModel):
     provider: str
     region_name: str | None = None
     """Set when the request averaged over a named region's squares."""
+    assessment: TrendAssessment | None = None
     warnings: list[str]
+
+
+class TestRow(BaseModel):
+    name: str
+    estimate: float | None
+    p_value: float | None
+    direction: Literal["up", "down", "none"] | None
+    significant: bool | None
+    voting: bool
+    """False for tests shown for reference only (not counted in the verdict)."""
+
+
+class TrendAssessment(BaseModel):
+    """The multi-test check of the trend (OLS variants, Mann-Kendall variants, bootstraps, surrogates)."""
+
+    verdict: Literal["significant_up", "significant_down", "not_significant", "ambiguous", "insufficient_data"]
+    confidence: Literal["low", "medium", "high"]
+    tests_significant: int
+    tests_voting: int
+    robust_same_sign: float | None
+    """Share of sensitivity variants (trims, subsets) with the same sign of the slope."""
+    robust_significant: float | None
+    tests: list[TestRow]
 
 
 class Job(BaseModel):

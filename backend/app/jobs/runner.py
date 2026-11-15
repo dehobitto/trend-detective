@@ -17,9 +17,11 @@ from app.jobs.store import JobStore
 from app.processing import preprocess as prep
 from app.processing import timeseries as ts
 from app.processing import trends
-from app.processing.summary import build_summary
 from app.providers import DataProvider, ProviderError, UploadProvider, fetch_partial, fetch_progress
 from app.providers.base import fetch_mask
+from app.processing.assessment import to_assessment
+from app.processing.summary import build_summary
+from app.processing.trend_significance import assess_trend
 from app.schemas.analysis import AnalysisRequest, AnalysisResult, SeriesPoint, TrendStats
 
 log = logging.getLogger(__name__)
@@ -130,6 +132,7 @@ class AnalysisRunner:
             series=_series_points(processed, analysis),
             stats=stats,
             summary=build_summary(stats, plan.variable.units, valid_index[0].year, valid_index[-1].year),
+            assessment=_assess(series, processed, is_monthly),
             provider=plan.provider.name,
             region_name=request.region_name if plan.cells else None,
             warnings=warnings,
@@ -157,6 +160,21 @@ def _source(plan: Plan) -> str:
 
 def _clean(x: float) -> float | None:
     return None if x is None or not np.isfinite(x) else float(x)
+
+
+def _assess(series: pd.Series, processed: prep.Preprocessed, is_monthly: bool):
+    """The multi-test assessment; never fails the analysis (it is an extra view of the same series).
+
+    It models the seasonal cycle itself when it has one, so monthly data get their seasonal component even
+    when the user chose to analyze the raw values."""
+    seasonal = processed.seasonal
+    if seasonal is None and is_monthly:
+        seasonal = prep.seasonal_component(processed.raw)
+    try:
+        return to_assessment(assess_trend(series, seasonal=seasonal))
+    except Exception:  # noqa: BLE001  (a numerical corner case in one of many tests)
+        log.exception("Trend assessment failed")
+        return None
 
 
 def _series_points(processed: prep.Preprocessed, analysis: trends.TrendAnalysis) -> list[SeriesPoint]:

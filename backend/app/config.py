@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     real source by its ``access`` field (NOAA GML, ``earthdata`` for GES DISC and MODIS, ``blackmarble`` for night lights);
     or a single provider name. There is no demo / synthetic data."""
     chat_backend: str = "stub"
+    """``stub`` (canned replies) or ``fieldguide`` (LLM, app/chat/fieldguide.py)."""
+    chat_provider: str = "openai"
+    """LLM behind the field guide: ``openai`` or ``gemini``."""
+    chat_model: str | None = None
+    """Model id override; default per provider in ``app.chat.fieldguide.DEFAULT_MODELS``."""
+    gemini_api_key: str | None = Field(default=None, validation_alias=AliasChoices("TD_GEMINI_API_KEY", "GEMINI_API_KEY"))
+    """Google AI Studio key (https://aistudio.google.com/apikey). Never commit it; ``backend/.env`` or the environment."""
+    openai_api_key: str | None = Field(default=None, validation_alias=AliasChoices("TD_OPENAI_API_KEY", "OPENAI_API_KEY"))
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

@@ -38,6 +38,44 @@ def test_deseasonalize_removes_cycle():
     assert np.allclose(anomalies, 0)
 
 
+def _trend_plus_cycle(years: int = 20, slope: float = 0.5) -> tuple[pd.Series, np.ndarray]:
+    idx = pd.date_range("2000-01-01", periods=years * 12, freq="MS")
+    cycle = 3 * np.sin(2 * np.pi * (idx.month - 1) / 12) + np.cos(4 * np.pi * (idx.month - 1) / 12)
+    t = np.arange(len(idx)) / 12
+    return pd.Series(10 + slope * t + cycle, index=idx), cycle.to_numpy()[:12]
+
+
+def test_seasonal_cycle_is_not_skewed_by_the_trend():
+    s, true_cycle = _trend_plus_cycle()
+    cycle = preprocess.seasonal_cycle(s)
+    assert list(cycle.index) == list(range(1, 13))
+    assert np.allclose(cycle.to_numpy(), true_cycle - true_cycle.mean(), atol=1e-9)
+    # Raw monthly means would read December ~0.23 too high and January ~0.23 too low here.
+    raw_means = s.groupby(s.index.month).mean()
+    assert abs((raw_means - raw_means.mean()).iloc[11] - cycle.iloc[11]) > 0.2
+
+
+def test_preprocess_components_add_up_and_keep_the_slope():
+    s, _ = _trend_plus_cycle(slope=-0.8)
+    s.iloc[[30, 31, 100]] = np.nan
+    out = preprocess.preprocess(s, want_deseasonalized=True, is_monthly=True)
+    assert out.seasonal is not None and out.deseasonalized is not None
+    assert np.allclose(out.raw, out.raw.mean() + out.seasonal + out.deseasonalized)
+    assert abs(out.deseasonalized.mean()) < 1e-9  # anomalies stay centered on 0
+    t = np.arange(len(s)) / 12
+    assert np.polyfit(t, out.deseasonalized.to_numpy(), 1)[0] == pytest.approx(-0.8, abs=0.01)
+
+
+def test_seasonal_cycle_short_or_cycle_free_records():
+    two_years, _ = _trend_plus_cycle(years=2)
+    cycle = preprocess.seasonal_cycle(two_years)  # too short to detrend: raw monthly means
+    assert cycle.notna().all() and cycle.sum() == pytest.approx(0, abs=1e-9)
+    annual = pd.Series([1.0, 2.0, 3.0], index=pd.date_range("2000-01-01", periods=3, freq="YS"))
+    assert (preprocess.seasonal_cycle(annual) == 0).all()
+    out = preprocess.preprocess(annual, want_deseasonalized=False, is_monthly=True)
+    assert out.seasonal is None and out.deseasonalized is None
+
+
 def _stats(**kw) -> TrendStats:
     base = dict(n=100, slope_per_year=0.042, slope_per_decade=0.42, slope_ci_low_per_decade=0.3,
                 slope_ci_high_per_decade=0.5, intercept=0, r_squared=0.5, t_stat=5, p_value=0.0001,

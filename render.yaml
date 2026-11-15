@@ -22,3 +22,10 @@ services:
         sync: false
       - key: TD_EARTHDATA_TOKEN
         sync: false
+      # Field guide chat (LLM). The key is a secret: set it in the dashboard.
+      - key: TD_CHAT_BACKEND
+        value: fieldguide
+      - key: TD_CHAT_PROVIDER
+        value: openai
+      - key: OPENAI_API_KEY
+        sync: false
