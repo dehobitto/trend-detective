@@ -140,6 +140,27 @@ export type TrendStats = {
   alpha: number;
 };
 
+export type TestRow = {
+  name: string;
+  estimate: number | null;
+  p_value: number | null;
+  direction: 'up' | 'down' | 'none' | null;
+  significant: boolean | null;
+  /** False: shown for reference, not counted in the verdict. */
+  voting: boolean;
+};
+
+/** The multi-test check of the trend (OLS variants, Mann-Kendall variants, bootstraps, surrogates). */
+export type TrendAssessment = {
+  verdict: 'significant_up' | 'significant_down' | 'not_significant' | 'ambiguous' | 'insufficient_data';
+  confidence: 'low' | 'medium' | 'high';
+  tests_significant: number;
+  tests_voting: number;
+  robust_same_sign: number | null;
+  robust_significant: number | null;
+  tests: TestRow[];
+};
+
 export type AnalysisResult = {
   variable: Variable;
   bbox: BBox | null;
@@ -151,6 +172,7 @@ export type AnalysisResult = {
   warnings: string[];
   /** Set when the analysis averaged over a named region's squares. */
   region_name?: string | null;
+  assessment?: TrendAssessment | null;
 };
 
 export type Dataset = {

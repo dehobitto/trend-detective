@@ -89,6 +89,8 @@ type State = {
   activeExample: ExampleCase | null;
 
   chatOpen: boolean;
+  /** A question to open the field guide with (asked straight away), from anywhere in the UI. */
+  chatAsk: string | null;
   /** A short note shown over the map for a few seconds (e.g. "your area was enlarged"). */
   mapNotice: string | null;
 
@@ -151,6 +153,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   activeExample: null,
 
   chatOpen: false,
+  chatAsk: null,
   mapNotice: null,
 
   peek: null,

@@ -13,6 +13,14 @@ export function ChatLauncher({ besidePanel }: { besidePanel: boolean }) {
   const set = useStore((s) => s.set);
   const [picker, setPicker] = useState(false);
   const [question, setQuestion] = useState<string | null>(null);
+  // "Ask the field guide about this result" and similar links elsewhere open the chat through the store.
+  const chatAsk = useStore((s) => s.chatAsk);
+  useEffect(() => {
+    if (!chatAsk) return;
+    setQuestion(chatAsk);
+    setPicker(false);
+    set({ chatAsk: null, chatOpen: true });
+  }, [chatAsk, set]);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

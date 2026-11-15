@@ -1,16 +1,55 @@
+import { useEffect, useState } from 'react';
 import type { AnalysisResult } from '../../api/types';
+import { useStore } from '../../state/store';
+import { chatAdapter } from '../chat/chatAdapter';
 
-/**
- * "What does this mean?" under the verdict. The interpretation will come from the AI field guide (the
- * teammate's chatbot, see `features/chat/chatAdapter.ts` and backend `TD_CHAT_BACKEND`): give it the
- * result (variable, area, period, stats, summary, warnings) and render its answer here. Until then this is
- * a placeholder: no fixed text, because a fixed takeaway can contradict the chart once dates or area change.
- */
+const ASK = 'Explain this result in two or three plain sentences for a high-school student: what changed, how sure we can be, and one thing to keep in mind.';
+
+/** What the field guide needs to explain a result: the summary plus the multi-test verdict and the caveats. */
+function describe(r: AnalysisResult): string {
+  const a = r.assessment;
+  return [
+    `${r.variable.name} (${r.variable.units})${r.region_name ? ` in ${r.region_name}` : ''}: ${r.summary}`,
+    a ? `Multi-test check: ${a.verdict.replace('_', ' ')}, ${a.confidence} confidence, ${a.tests_significant} of ${a.tests_voting} tests significant.` : '',
+    r.warnings.length ? `Caveats: ${r.warnings.join(' ')}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** The field guide's explanation under the verdict; a link to ask it when no LLM is connected. */
 export function AiInsight({ result }: { result: AnalysisResult }) {
-  void result; // the AI will read it
+  const [state, setState] = useState<{ text: string } | 'loading' | 'unavailable'>('loading');
+  const bbox = useStore((s) => s.bbox);
+  const askChat = (q: string) => useStore.getState().set({ chatAsk: q });
+
+  useEffect(() => {
+    let alive = true;
+    setState('loading');
+    chatAdapter
+      .send({ messages: [{ role: 'user', content: ASK }], context: { bbox, variable_id: result.variable.id, result_summary: describe(result) } })
+      .then((res) => alive && setState(res.stub ? 'unavailable' : { text: res.message.content }))
+      .catch(() => alive && setState('unavailable'));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  if (state === 'loading') return <p className="ai-insight ai-insight--loading">Asking the field guide…</p>;
+  if (state === 'unavailable') {
+    return (
+      <button type="button" className="ai-insight__ask" onClick={() => askChat('What does this result mean?')}>
+        Ask the field guide about this result
+      </button>
+    );
+  }
   return (
-    <p className="verdict__takeaway" data-placeholder="ai">
-      What does this mean? The AI field guide will explain this result here.
-    </p>
+    <div className="ai-insight">
+      <p>{state.text}</p>
+      <button type="button" className="ai-insight__ask" onClick={() => askChat('Tell me more about this result.')}>
+        Ask a follow-up
+      </button>
+    </div>
   );
 }

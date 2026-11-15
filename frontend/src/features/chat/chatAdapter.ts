@@ -1,14 +1,7 @@
 /**
- * ============================================================================
- *  FIELD GUIDE CHAT: THE ONE PLACE TO PLUG IN THE REAL ASSISTANT
- * ============================================================================
- * Every chat call in the UI goes through `chatAdapter.send()`. To connect a real
- * bot, write another object that implements `ChatAdapter` and export it as
- * `chatAdapter` below (or call `setChatAdapter()` at startup in main.tsx).
- * Nothing else in the UI needs to change.
- *
- * The default implementation calls POST /api/chat (docs/API.md), which the
- * backend currently answers with a canned stub reply.
+ * Every chat call goes through `chatAdapter.send()`: by default POST /api/chat, answered by the backend's
+ * field guide (an LLM when TD_CHAT_BACKEND=fieldguide and a key are set, canned replies otherwise).
+ * Swap the implementation with `setChatAdapter()` if needed.
  */
 import { api } from '../../api/client';
 import type { ChatRequest, ChatResponse } from '../../api/types';

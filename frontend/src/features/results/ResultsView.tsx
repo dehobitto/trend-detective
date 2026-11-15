@@ -3,6 +3,7 @@ import type { Job } from '../../api/types';
 import { Button } from '../../components/Button';
 import { IconDownload } from '../../components/icons';
 import { useStore } from '../../state/store';
+import { AssessmentView } from './AssessmentView';
 import { CompareView } from './CompareView';
 import { StatsTable } from './StatsTable';
 import { TrendChart } from './TrendChart';
@@ -42,6 +43,7 @@ export function ResultsView({ job }: { job: Job }) {
         </ul>
       )}
       <TrendChart result={result} />
+      {result.assessment && <AssessmentView a={result.assessment} />}
       {fromExample?.related_variable_id && <CompareView key={job.id} job={job} relatedId={fromExample.related_variable_id} />}
       <details className="explainer">
         <summary>What does “significant” mean?</summary>

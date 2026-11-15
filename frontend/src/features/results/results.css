@@ -102,3 +102,36 @@
 }
 .preview__label { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
 .preview__note { margin: -6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink); }
+
+/* Field guide explanation under the verdict */
+.ai-insight { margin: 10px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--ink); }
+.ai-insight p { margin: 0 0 6px; }
+.ai-insight--loading { color: var(--ink-dim); }
+.ai-insight__ask {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fall);
+  font: 600 13.5px/1.4 var(--font-ui);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Robustness check (multi-test assessment) */
+.assess { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-l); background: var(--panel-raised); }
+.assess__head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.assess__title { font-size: 14px; font-weight: 600; }
+.assess__verdict { font-size: 13px; font-weight: 600; color: var(--ink-dim); }
+.assess__verdict[data-verdict='significant_up'] { color: var(--rise); }
+.assess__verdict[data-verdict='significant_down'] { color: var(--fall); }
+.assess__line { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--ink-dim); }
+.assess__more { margin-top: 8px; }
+.assess__more > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-dim); }
+.assess__table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; table-layout: fixed; }
+.assess__table th { text-align: left; font-weight: 600; color: var(--ink-faint); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.assess__table td { padding: 4px 6px; border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assess__table th:first-child, .assess__table td:first-child { width: 55%; }
+.assess__table tr[data-voting='false'] td { color: var(--ink-faint); }
+.assess__mark { text-align: center; width: 24px; }
+.assess__note { margin: 6px 0 0; font-size: 12px; color: var(--ink-faint); }
