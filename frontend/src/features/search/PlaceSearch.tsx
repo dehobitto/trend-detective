@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { pressable } from '../../components/pressable';
 import { api } from '../../api/client';
 import type { BBox, Place } from '../../api/types';
 import { mapConfig } from '../../config/map';
@@ -144,7 +145,7 @@ export function PlaceSearch() {
 
   return (
     <div className="place-search" data-view={view} ref={root}>
-      <div className="place-search__box">
+      <div className="place-search__box" {...pressable}>
         <svg className="place-search__icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
           <circle cx="7" cy="7" r="4.5" />
           <path d="M10.5 10.5L14 14" />

@@ -138,3 +138,33 @@
 .app .panel input:not([type='checkbox']):not([type='range']),
 .app .panel select { border-radius: 12px; background-color: rgba(255, 255, 255, 0.6); border-color: var(--lg-card-edge); }
 .app .panel .chart-tip { border-radius: 12px; border-color: var(--lg-card-edge); background: rgba(255, 255, 255, 0.95); box-shadow: var(--lg-card-shadow); }
+
+/* Search pill: tilts toward the pointer and dents where pressed, like the chat's question pills. */
+.app .place-search__box {
+  --rx: 0deg;
+  --ry: 0deg;
+  --mx: 50%;
+  --my: 50%;
+  --dent: 0;
+  overflow: hidden;
+  transform: perspective(700px) rotateX(var(--rx)) rotateY(var(--ry)) scale(calc(1 - var(--dent) * 0.02));
+  transition: transform 120ms var(--ease-out), box-shadow 160ms, background-color 160ms;
+  will-change: transform;
+}
+.app .place-search__box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms;
+  background:
+    radial-gradient(circle at var(--mx) var(--my), rgba(40, 44, 90, calc(0.08 + var(--dent) * 0.12)) 0, transparent 40%),
+    radial-gradient(circle at calc(100% - var(--mx)) calc(100% - var(--my)), rgba(255, 255, 255, 0.6) 0, transparent 60%);
+}
+.app .place-search__box:hover::before { opacity: 1; }
+.app .place-search__box:hover { box-shadow: var(--glass-shadow), 0 0 0 4px rgba(255, 255, 255, 0.14); }
+.app .place-search__box[data-pressed='true'] { --dent: 1; }
+.app .place-search__box:focus-within { border-color: #ffffff; box-shadow: var(--glass-shadow), 0 0 0 3px rgba(255, 255, 255, 0.25); }
+@media (prefers-reduced-motion: reduce) { .app .place-search__box { transform: none; } }
