@@ -38,6 +38,10 @@
 
 ## How to run
 ```
+./start.sh                 # installs what's missing, starts backend :8000 + frontend :5173, Ctrl+C stops both
+./start.sh --prefetch      # download NASA data for the example cases first (needs backend/.env)
+./start.sh --test          # backend tests + frontend build
+# or by hand:
 cd backend && .venv/bin/uvicorn app.main:app --port 8000 --reload
 cd frontend && npm run dev        # http://localhost:5173 (proxies /api → :8000)
 cd backend && .venv/bin/pytest -q
