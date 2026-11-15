@@ -47,7 +47,7 @@ def test_variables_and_examples(client):
     assert client.get("/api/variables/nope").status_code == 404
 
     examples = client.get("/api/examples").json()
-    assert len(examples) == 10
+    assert len(examples) == 12
     for e in examples:
         assert e["variable_id"] in by_id and "center" in e and e["takeaway"] is None
         assert e["related_variable_id"] is None or e["related_variable_id"] in by_id
