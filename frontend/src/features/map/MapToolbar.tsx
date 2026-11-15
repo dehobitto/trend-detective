@@ -32,6 +32,9 @@ export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
       ) : (
         <Button
           variant="quiet"
+          className="btn--icon"
+          aria-label="Back to globe"
+          title="Back to globe"
           onClick={() => {
             // Glide the map out to the globe's scale first (same screen point), then crossfade: no jump.
             const m = handoff.map;
@@ -61,7 +64,7 @@ export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
             m.easeTo({ center: c, zoom: Math.min(m.getZoom(), zoom), offset: [dx, dy], duration: Math.min(900, 300 + 120 * levels), easing: (t) => t * (2 - t) });
           }}
         >
-          <IconBack /> Back to globe
+          <IconBack />
         </Button>
       )}
       <Button variant={drawing ? 'primary' : 'quiet'} aria-pressed={drawing} onClick={() => set({ drawing: !drawing })} title="Or hold Shift and drag">

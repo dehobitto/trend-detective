@@ -48,6 +48,7 @@
 
 /* Map tools (2D view) */
 .app .map-toolbar .btn { border-radius: var(--glass-r-s); min-height: 38px; }
+.app .map-toolbar .btn--icon { width: 38px; padding: 0; justify-content: center; }
 .app .map-toolbar .btn--primary,
 .app .map-toolbar .btn[aria-pressed='true'] { background: #1b1f2e; border-color: #1b1f2e; color: #ffffff; }
 .app .layer-dock { border-radius: var(--glass-r); }
