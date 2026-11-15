@@ -51,6 +51,13 @@ export default function App() {
   useEffect(() => {
     bootstrap();
   }, []);
+  // Mount the (hidden) map a few seconds after start: its code and the tiles under the globe's gaze load
+  // in the background, so the first globe -> map hand-off is instant.
+  useEffect(() => {
+    if (server !== 'online' || mapMounted) return;
+    const t = window.setTimeout(() => useStore.getState().set({ mapMounted: true }), 2500);
+    return () => window.clearTimeout(t);
+  }, [server, mapMounted]);
   // Variable layer frames are shared by the globe overlay and the map overlay.
   useFrameSync();
 

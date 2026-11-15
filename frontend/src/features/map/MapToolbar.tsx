@@ -3,6 +3,9 @@ import { Button } from '../../components/Button';
 import { mapConfig } from '../../config/map';
 import { needsNoArea, useStore } from '../../state/store';
 import { wrapLon } from '../../lib/geo';
+import { prefersReducedMotion } from '../../config/motion';
+import { globeConfig } from '../../config/globe';
+import { distanceForZoom, globeScreenOffset, handoff, matchedZoom } from '../globe/handoff';
 import { IconBack, IconList, IconRect, IconUpload } from '../../components/icons';
 
 /** Map tools, docked top-left under the wordmark. */
@@ -30,7 +33,31 @@ export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
         <Button
           variant="quiet"
           onClick={() => {
-            backToGlobe({ lat: focus.lat, lon: wrapLon(focus.lon) });
+            // Glide the map out to the globe's scale first (same screen point), then crossfade: no jump.
+            const m = handoff.map;
+            if (!m) return backToGlobe({ lat: focus.lat, lon: wrapLon(focus.lon) });
+            const c = m.getCenter();
+            const el = m.getContainer();
+            const zoom = matchedZoom(c.lat, globeConfig.arrivalDistance, el.clientHeight);
+            const { dx, dy } = globeScreenOffset(el.clientWidth, el.clientHeight);
+            let left = false;
+            const leave = () => {
+              if (left) return;
+              left = true;
+              backToGlobe({ lat: c.lat, lon: wrapLon(c.lng) }, distanceForZoom(c.lat, m.getZoom(), el.clientHeight));
+            };
+            if (prefersReducedMotion()) return leave();
+            // Crossfade only from a fully drawn frame: wait (briefly) for the zoomed-out tiles to arrive.
+            m.once('moveend', () => {
+              if (m.areTilesLoaded()) return leave();
+              const t = window.setTimeout(leave, 600);
+              m.once('idle', () => {
+                window.clearTimeout(t);
+                leave();
+              });
+            });
+            const levels = Math.max(0, m.getZoom() - zoom);
+            m.easeTo({ center: c, zoom: Math.min(m.getZoom(), zoom), offset: [dx, dy], duration: Math.min(900, 300 + 120 * levels), easing: (t) => t * (2 - t) });
           }}
         >
           <IconBack /> Back to globe

@@ -2,10 +2,12 @@ import maplibregl, { type Map as MlMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useRef, useState } from 'react';
 import type { BBox } from '../../api/types';
+import { globeConfig } from '../../config/globe';
 import { mapConfig } from '../../config/map';
 import { prefersReducedMotion } from '../../config/motion';
 import { wrapLon } from '../../lib/geo';
 import { useStore } from '../../state/store';
+import { distanceForZoom, handoff, mapPointLikeGlobe, matchedZoom, placeLikeGlobe } from '../globe/handoff';
 import { useLayers } from '../layers/layerStore';
 import { BasemapSwitcher, PortalControl } from './BasemapControl';
 import { BeforeAfter } from './BeforeAfter';
@@ -19,8 +21,10 @@ import { useStationMarker } from './useStationMarker';
 import { useTrackpadPan } from './useTrackpadPan';
 import './map.css';
 
-/** Zoom that roughly matches the globe camera at the end of its fly-in (so the crossfade doesn't jump). */
-const HANDOFF_ZOOM = 3.5;
+/** Map zoom with the globe's scale at the end of its fly-in, for a latitude (so the crossfade doesn't jump). */
+const handoffZoom = (lat: number, m: MlMap) => matchedZoom(lat, globeConfig.arrivalDistance, m.getContainer().clientHeight || window.innerHeight);
+/** Preload tiles where the globe looks once it has turned this far (degrees) from the last preload. */
+const PRELOAD_MOVE_DEG = 6;
 
 /** Padding that keeps a fitted bbox clear of the investigation panel (right drawer or bottom sheet) and the timeline. */
 function fitPadding() {
@@ -67,7 +71,7 @@ export function MapView() {
       container: container.current,
       style: buildStyle(useLayers.getState().basemap),
       center: [focus.lon, focus.lat],
-      zoom: HANDOFF_ZOOM,
+      zoom: 3.5,
       minZoom: mapConfig.minZoom,
       maxZoom: mapConfig.maxZoom,
       attributionControl: false,
@@ -99,8 +103,9 @@ export function MapView() {
       const s = useStore.getState();
       if (!('originalEvent' in e) || !e.originalEvent || s.flat) return;
       if (s.view === 'map' && m.getZoom() < mapConfig.returnToGlobeZoom) {
-        const c = m.getCenter();
-        s.backToGlobe({ lat: c.lat, lon: wrapLon(c.lng) });
+        // The globe starts from the same place on screen at the same scale as the map right now.
+        const p = mapPointLikeGlobe(m);
+        s.backToGlobe({ lat: p.lat, lon: wrapLon(p.lon) }, distanceForZoom(p.lat, m.getZoom(), m.getContainer().clientHeight));
       }
     });
     // Remember where the map is looking, so "Back to globe" lands over the same place.
@@ -109,7 +114,11 @@ export function MapView() {
       if (useStore.getState().view === 'map') useStore.getState().set({ focus: { lat: c.lat, lon: wrapLon(c.lng) } });
     });
     if (import.meta.env.DEV) (window as unknown as { __tdMap: MlMap }).__tdMap = m; // debugging / screenshots
-    return () => m.remove();
+    handoff.map = m;
+    return () => {
+      handoff.map = null;
+      m.remove();
+    };
   }, []);
 
   useBoxSelect(map);
@@ -149,10 +158,12 @@ export function MapView() {
     } else if (mapEnter.bounds) {
       goTo(m, focus, mapEnter.bounds, mapEnter.zoom);
     } else {
-      // Start where the globe left off, then glide closer: the "zoom in on click" moment.
+      // Start exactly where and as big as the globe left off (same scale, same screen point), then glide
+      // the rest of the way in: the crossfade itself has nothing to jump.
       const zoom = mapEnter.zoom ?? (mapEnter.via === 'wheel' ? mapConfig.wheelArrivalZoom : mapConfig.arrivalZoom);
-      m.jumpTo({ center: [focus.lon, focus.lat], zoom: Math.min(HANDOFF_ZOOM, zoom) });
-      m.easeTo({ center: [focus.lon, focus.lat], zoom, duration: dur(mapConfig.flyMs) });
+      if (!useStore.getState().flat) placeLikeGlobe(m, focus.lat, focus.lon, handoffZoom(focus.lat, m));
+      else m.jumpTo({ center: [focus.lon, focus.lat], zoom: Math.min(m.getZoom(), zoom) });
+      m.easeTo({ center: [focus.lon, focus.lat], zoom: Math.max(zoom, m.getZoom()), duration: dur(mapConfig.flyMs), easing: (t) => 1 - Math.pow(1 - t, 3) });
     }
   }, [map, mapEnter]);
 
@@ -162,14 +173,35 @@ export function MapView() {
     goTo(map, mapCommand.center, mapCommand.bounds, mapCommand.zoom);
   }, [map, mapCommand]);
 
-  // While the globe is flying in (map still hidden), pre-position so tiles start loading.
+  // While the globe is flying in (map still hidden), pre-position exactly like the globe's end frame, so the
+  // tiles are loaded by the time the crossfade starts (the globe waits for `handoff.ready`).
   useEffect(() => {
     if (!map || view !== 'globe') return;
     return useStore.subscribe((s, prev) => {
       if (s.transition === 'flyingIn' && prev.transition !== 'flyingIn') {
-        map.jumpTo({ center: [s.focus.lon, s.focus.lat], zoom: HANDOFF_ZOOM });
+        handoff.ready = false;
+        placeLikeGlobe(map, s.focus.lat, s.focus.lon, handoffZoom(s.focus.lat, map));
+        map.once('idle', () => (handoff.ready = true));
       }
     });
+  }, [map, view]);
+
+  // On the globe: keep the hidden map parked under the point the globe is looking at, at hand-off scale,
+  // so the tiles for wherever the user is about to click are already cached.
+  useEffect(() => {
+    if (!map || view !== 'globe') return;
+    let last: { lat: number; lon: number } | null = null;
+    const t = window.setInterval(() => {
+      const s = useStore.getState();
+      if (s.transition !== 'idle' || document.hidden) return;
+      const { lat, lon, distance } = handoff.look;
+      if (distance > globeConfig.mapThreshold * 1.8 && last) return; // far out and nothing new: the whole hemisphere is a guess anyway
+      const moved = !last || Math.hypot(lat - last.lat, ((lon - last.lon + 540) % 360) - 180) > PRELOAD_MOVE_DEG;
+      if (!moved) return;
+      last = { lat, lon };
+      placeLikeGlobe(map, lat, lon, handoffZoom(lat, map));
+    }, 1000);
+    return () => window.clearInterval(t);
   }, [map, view]);
 
   return (

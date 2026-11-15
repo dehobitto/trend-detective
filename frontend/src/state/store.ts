@@ -96,6 +96,8 @@ type State = {
   peek: (LatLon & { nonce: number }) | null;
   /** Run the analysis as soon as the investigation panel is ready (set by "Show the global record"). */
   pendingRun: boolean;
+  /** Globe camera distance to start the fly-out from (matches the map's scale when it was left). */
+  exitDistance: number | null;
 };
 
 type Actions = {
@@ -104,7 +106,8 @@ type Actions = {
   /** Switch between the globe and the 2D-only map (remembered on this device). */
   setFlat: (flat: boolean) => void;
   arriveAtMap: () => void;
-  backToGlobe: (from: LatLon) => void;
+  /** Leave the map; `distance` = globe camera distance that matches the map's current scale (smooth crossfade). */
+  backToGlobe: (from: LatLon, distance?: number) => void;
   finishTransition: () => void;
   setBBox: (b: BBox | null) => void;
   /** Use a named region (from place search) as the area: outline + squares on the map, average inside only. */
@@ -152,6 +155,7 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   peek: null,
   pendingRun: false,
+  exitDistance: null,
 
   set: (patch) => set(patch),
 
@@ -187,7 +191,7 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   arriveAtMap: () => set((s) => ({ view: 'map', transition: 'idle', mapEnter: { ...s.mapEnter, nonce: s.mapEnter.nonce + 1 } })),
 
-  backToGlobe: (from) => set({ view: 'globe', transition: 'flyingOut', focus: from, drawing: false }),
+  backToGlobe: (from, distance) => set({ view: 'globe', transition: 'flyingOut', focus: from, drawing: false, exitDistance: distance ?? null }),
 
   finishTransition: () => set({ transition: 'idle' }),
 

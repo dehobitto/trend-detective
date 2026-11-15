@@ -7,6 +7,7 @@ import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { clampLat, latLonToVector3, vector3ToLatLon } from '../../lib/geo';
 import { useStore } from '../../state/store';
+import { globeScreenOffset, handoff } from './handoff';
 import { globeUniforms, liveSunVector, useSun } from './sun';
 import { createWheelClassifier } from './wheelIntent';
 
@@ -24,6 +25,7 @@ const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2
 const camDir = new Vector3();
 const camRight = new Vector3();
 const camUp = new Vector3();
+const studioSun = new Vector3();
 const qIdentity = new Quaternion();
 const qStep = new Quaternion();
 const sph = new Spherical();
@@ -51,10 +53,9 @@ export function CameraRig() {
   // Lift the globe a little so the case-file prompt docked at the bottom never covers its centre.
   useEffect(() => {
     // Wide screens dock the case index on the left, so the globe moves right and sits centred vertically.
-    const docked = size.width >= globeConfig.sideDock.minWidth;
-    const lift = size.width < 760 ? 0.1 : docked ? 0 : globeConfig.verticalLift;
-    const shift = docked ? globeConfig.sideDock.shiftPx : 0;
-    camera.setViewOffset(size.width, size.height, -shift, size.height * lift, size.width, size.height);
+    // (handoff.globeScreenOffset is the single source, so the map can line up with it on the crossfade.)
+    const { dx, dy } = globeScreenOffset(size.width, size.height);
+    camera.setViewOffset(size.width, size.height, -dx, -dy, size.width, size.height);
     camera.updateProjectionMatrix();
   }, [camera, size.width, size.height]);
   const controls = useRef<OrbitControlsImpl>(null);
@@ -102,10 +103,18 @@ export function CameraRig() {
   useEffect(() => {
     const target = latLonToVector3(clampLat(focus.lat), focus.lon, 1);
     if (transition === 'flyingIn') {
-      startFlight(target, globeConfig.arrivalDistance, () => useStore.getState().arriveAtMap());
+      // Crossfade only once the map has its tiles for this spot (it pre-positions at the start of the flight),
+      // so the fade never reveals an empty map. Give up waiting after a moment.
+      startFlight(target, globeConfig.arrivalDistance, () => {
+        const t0 = performance.now();
+        const go = () => (handoff.ready || performance.now() - t0 > 700 ? useStore.getState().arriveAtMap() : window.setTimeout(go, 50));
+        go();
+      });
     } else if (transition === 'flyingOut') {
-      // Start close over the place we left the map, then pull back out.
-      camera.position.copy(target).multiplyScalar(globeConfig.arrivalDistance);
+      // Start over the place we left the map, as far out as the map was zoomed (same scale), then pull back out.
+      const exit = useStore.getState().exitDistance;
+      const startDist = Math.min(restRef.current, Math.max(globeConfig.minDistance, exit ?? globeConfig.arrivalDistance));
+      camera.position.copy(target).multiplyScalar(startDist);
       camera.lookAt(0, 0, 0);
       startFlight(target, restRef.current, () => {
         if (controls.current) {
@@ -250,23 +259,35 @@ export function CameraRig() {
         f.done();
       }
     }
+    // Where we look, for the hidden map to preload there.
+    const look = vector3ToLatLon(camera.position);
+    handoff.look.lat = look.lat;
+    handoff.look.lon = look.lon;
+    handoff.look.distance = camera.position.length();
+
     // The sun sits up and to the left of the viewer, so the visible face is lit with a soft terminator on the right.
     camDir.copy(camera.position).normalize();
     camRight.setFromMatrixColumn(camera.matrixWorld, 0);
     camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+    // Studio light: the sun sits up and to the left of the viewer.
+    const { sunAzimuth: az, sunElevation: el } = globeConfig;
+    studioSun
+      .copy(camDir)
+      .multiplyScalar(Math.cos(az) * Math.cos(el))
+      .addScaledVector(camRight, -Math.sin(az) * Math.cos(el))
+      .addScaledVector(camUp, Math.sin(el))
+      .normalize();
     const sun = useSun.getState();
     if (sun.live) {
-      // The real Sun: day and night where they are right now (plus the time-lapse offset).
+      // The real Sun (day and night as they are now), easing into studio light as the camera comes down to the
+      // ground: the place you dive into is daylit like the map you land on, so the crossfade has no dark-to-bright jump.
       liveSunVector(Date.now() + sun.offsetMs, globeUniforms.uSun.value);
-      globeUniforms.uMoon.value = globeConfig.moonlight;
+      const near = Math.min(1, Math.max(0, (restRef.current * 0.8 - camera.position.length()) / (restRef.current * 0.8 - globeConfig.arrivalDistance)));
+      const k = near * near * (3 - 2 * near);
+      globeUniforms.uSun.value.lerp(studioSun, k).normalize();
+      globeUniforms.uMoon.value = globeConfig.moonlight * (1 - k);
     } else {
-      const { sunAzimuth: az, sunElevation: el } = globeConfig;
-      globeUniforms.uSun.value
-        .copy(camDir)
-        .multiplyScalar(Math.cos(az) * Math.cos(el))
-        .addScaledVector(camRight, -Math.sin(az) * Math.cos(el))
-        .addScaledVector(camUp, Math.sin(el))
-        .normalize();
+      globeUniforms.uSun.value.copy(studioSun);
       globeUniforms.uMoon.value = 0;
     }
   });
