@@ -165,3 +165,36 @@
   position: absolute; inset: 0; display: grid; place-content: center; gap: 12px;
   justify-items: center; background: var(--space); color: var(--ink); font-size: 15px;
 }
+
+/* ---------- audience switch (young detective / scientist) ---------- */
+.audience {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+}
+.audience__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--ink-dim);
+  font: 600 12.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.audience__opt:hover { background: var(--wash); color: var(--ink); }
+.audience__opt[aria-checked='true'] { background: var(--ink); color: var(--panel); }
+/* On the globe: top-right corner. In the panel: a row above the steps. */
+.audience--corner { position: absolute; top: var(--edge); right: var(--edge); z-index: 6; }
+.audience--panel { box-shadow: none; margin: 14px 0 2px 16px; align-self: flex-start; }
+@media (max-width: 760px) {
+  .audience--corner { top: 104px; }
+  .audience__opt { padding: 5px 8px; font-size: 12px; }
+}

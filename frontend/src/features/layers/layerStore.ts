@@ -25,6 +25,8 @@ type LayerState = {
   frameMissing: boolean;
   overlayError: string | null;
   mapCommand: MapCommand | null;
+  /** Before/after swipe on the map: left = first frame, right = last frame of the same month. */
+  compare: boolean;
 
   set: (p: Partial<LayerState>) => void;
   /** Ask the (already visible) map to fly somewhere. */
@@ -45,6 +47,7 @@ export const useLayers = create<LayerState>((set, get) => ({
   frameMissing: false,
   overlayError: null,
   mapCommand: null,
+  compare: false,
   set: (p) => set(p),
   flyMap: (c) => set({ mapCommand: { ...c, nonce: (get().mapCommand?.nonce ?? 0) + 1 } }),
 }));

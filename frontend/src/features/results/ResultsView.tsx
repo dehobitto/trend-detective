@@ -4,6 +4,7 @@ import { Button } from '../../components/Button';
 import { IconDownload } from '../../components/icons';
 import { useStore } from '../../state/store';
 import { CompareView } from './CompareView';
+import { CaseFile } from './DetectiveCase';
 import { StatsTable } from './StatsTable';
 import { TrendChart } from './TrendChart';
 import { VerdictCard } from './VerdictCard';
@@ -14,6 +15,7 @@ export function ResultsView({ job }: { job: Job }) {
   const result = job.result;
   const [csvError, setCsvError] = useState<string | null>(null);
   const example = useStore((s) => s.activeExample);
+  const kid = useStore((s) => s.audience === 'kid');
   // Story extras only apply when the result is the example's own variable.
   const fromExample = example && result && example.variable_id === result.variable.id ? example : null;
   const top = useRef<HTMLDivElement>(null);
@@ -31,30 +33,59 @@ export function ResultsView({ job }: { job: Job }) {
   const warnings = result.warnings;
   const slug = `${result.variable.id.replace(/[^a-z0-9]+/gi, '-')}_${job.request.start.slice(0, 4)}-${job.request.end.slice(0, 4)}`;
 
+  const verdict = <VerdictCard result={result} takeaway={kid ? null : fromExample?.takeaway} />;
+  const warningList = warnings.length > 0 && (
+    <ul className="warnings" aria-label="Warnings">
+      {warnings.map((w) => (
+        <li key={w}>{w}</li>
+      ))}
+    </ul>
+  );
+  const explainer = (
+    <details className="explainer">
+      <summary>What does “significant” mean?</summary>
+      <p>
+        Climate data always wiggles. A trend is <em>significant</em> when wiggles alone would very rarely produce a slope this steep: the p-value is
+        that chance, and we call it significant when it is below {result.stats.alpha} (1 in {Math.round(1 / result.stats.alpha)}).
+      </p>
+      <p>
+        We ask two different tests, a straight-line t-test and the Mann-Kendall test, and only say “significant” when both agree. Significant does not
+        mean large, and not significant does not prove there is no change; it may just need more years of data.
+      </p>
+    </details>
+  );
+  const compare = fromExample?.related_variable_id && (
+    <CompareView key={job.id} job={job} relatedId={fromExample.related_variable_id} kid={kid} />
+  );
+
   return (
     <div className="results" ref={top}>
-      <VerdictCard result={result} takeaway={fromExample?.takeaway} />
-      {warnings.length > 0 && (
-        <ul className="warnings" aria-label="Warnings">
-          {warnings.map((w) => (
-            <li key={w}>{w}</li>
-          ))}
-        </ul>
+      {kid ? (
+        <>
+          <CaseFile result={result} />
+          {fromExample?.takeaway && <p className="verdict__takeaway">{fromExample.takeaway}</p>}
+          <TrendChart result={result} />
+          {compare}
+          <details className="science-fold">
+            <summary>For scientists: the numbers</summary>
+            <div className="results">
+              {verdict}
+              {warningList}
+              {explainer}
+              <StatsTable result={result} />
+            </div>
+          </details>
+        </>
+      ) : (
+        <>
+          {verdict}
+          {warningList}
+          <TrendChart result={result} />
+          {compare}
+          {explainer}
+          <StatsTable result={result} />
+        </>
       )}
-      <TrendChart result={result} />
-      {fromExample?.related_variable_id && <CompareView key={job.id} job={job} relatedId={fromExample.related_variable_id} />}
-      <details className="explainer">
-        <summary>What does “significant” mean?</summary>
-        <p>
-          Climate data always wiggles. A trend is <em>significant</em> when wiggles alone would very rarely produce a slope this steep: the p-value is
-          that chance, and we call it significant when it is below {result.stats.alpha} (1 in {Math.round(1 / result.stats.alpha)}).
-        </p>
-        <p>
-          We ask two different tests, a straight-line t-test and the Mann-Kendall test, and only say “significant” when both agree. Significant does not
-          mean large, and not significant does not prove there is no change; it may just need more years of data.
-        </p>
-      </details>
-      <StatsTable result={result} />
       <div className="results__actions">
         <Button
           size="s"

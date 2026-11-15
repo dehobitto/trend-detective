@@ -48,6 +48,7 @@ const earthFragment = /* glsl */ `
   uniform vec3 uAtmo;
   uniform float uCloudShift;
   uniform float uCloudAlpha;
+  uniform float uMoon;
   uniform float uBumpScale;
   uniform float uExposure;
   uniform vec2 uTexel;
@@ -94,9 +95,13 @@ const earthFragment = /* glsl */ `
     float glint = (pow(nh, 260.0) * 0.6 + pow(nh, 40.0) * 0.012) * water * (1.0 - cl) * smoothstep(0.0, 0.2, geo);
     col += vec3(1.0, 0.94, 0.82) * glint;
 
+    // Moonlight (live-sun mode): a cool, faint view of the land and clouds on the night side.
+    col += (day + vec3(cl) * 0.15) * uMoon * vec3(0.62, 0.7, 0.88) * (1.0 - dayMix);
+
     // City lights on the night side.
-    vec3 night = max(texture2D(uNight, vUv).rgb - 0.035, 0.0);
-    col += night * vec3(1.0, 0.78, 0.48) * 2.2 * (1.0 - dayMix) * (1.0 - 0.7 * cl);
+    // Black Marble's unlit land is a dark navy; in live mode cut it harder so only the lights shine.
+    vec3 night = max(texture2D(uNight, vUv).rgb - (0.035 + 0.5 * uMoon), 0.0);
+    col += night * vec3(1.0, 0.78, 0.48) * (2.2 + 24.0 * uMoon) * (1.0 - dayMix) * (1.0 - 0.7 * cl);
 
     // Atmospheric in-scattering: thicker path towards the limb, only where the air is sunlit.
     float mu = max(dot(n, V), 0.0);
@@ -172,6 +177,7 @@ export function Earth({ onPick, onHover, interactive }: Props) {
         uSun: globeUniforms.uSun,
         uCloudShift: globeUniforms.uCloudShift,
         uCloudAlpha: globeUniforms.uCloudAlpha,
+        uMoon: globeUniforms.uMoon,
         uAtmo: atmo,
         uBumpScale: { value: globeConfig.bumpScale },
         uExposure: exposure,

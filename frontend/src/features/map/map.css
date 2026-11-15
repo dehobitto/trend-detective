@@ -172,3 +172,151 @@
   /* Leave the right-hand column (zoom, basemaps) free: wrap the tools instead of running under it. */
   .map-toolbar { max-width: calc(100vw - 2 * var(--edge) - 52px); }
 }
+
+/* ---------- running analysis: magnifier walking the box corners ---------- */
+.box-scanner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  will-change: transform;
+  filter: drop-shadow(0 2px 4px rgba(11, 16, 32, 0.45));
+}
+.box-scanner__glass { fill: rgba(255, 255, 255, 0.18); }
+.box-scanner__rim { fill: none; stroke: #ffffff; stroke-width: 3.5; }
+.box-scanner__glint { fill: none; stroke: #ffffff; stroke-width: 2; stroke-linecap: round; opacity: 0.85; }
+.box-scanner__handle { stroke: var(--rise); stroke-width: 6; stroke-linecap: round; }
+
+/* ---------- running analysis: status toast over the bottom of the map ---------- */
+.job-toast {
+  position: absolute;
+  left: var(--edge);
+  right: var(--edge);
+  bottom: calc(var(--edge) + 18px);
+  margin: 0 auto;
+  width: min(460px, calc(100vw - 2 * var(--edge)));
+  z-index: 9;
+  padding: 10px 14px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow), 0 10px 30px -12px rgba(24, 33, 43, 0.35);
+  font-family: var(--font-ui);
+  animation: job-toast-in 320ms var(--ease-out);
+}
+/* Above the timeline dock when there is one. */
+.job-toast[data-dock='true'] { bottom: calc(var(--edge) + 112px); }
+/* Centre over the visible map, left of the investigation panel. */
+.job-toast[data-beside-panel='true'] { right: calc(var(--panel-w) + 2 * var(--edge)); }
+.job-toast[data-status='done'] { border-color: var(--ink); }
+@keyframes job-toast-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.job-toast__row { display: flex; align-items: center; gap: 10px; }
+.job-toast__stage { font-weight: 700; font-size: 14.5px; }
+.job-toast__var { flex: 1; min-width: 0; font-size: 13px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-toast__time { font-size: 13px; font-weight: 600; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.job-toast__spin {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--rise);
+  border-radius: 50%;
+  animation: job-spin 0.9s linear infinite;
+}
+.job-toast__spin[data-done='true'] { animation: none; border-color: var(--ink); background: var(--ink); }
+@keyframes job-spin { to { transform: rotate(360deg); } }
+.job-toast__bar {
+  position: relative;
+  height: 4px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  background: var(--panel-raised);
+  border-radius: 2px;
+}
+.job-toast__bar > span {
+  position: absolute;
+  inset: 0;
+  background: var(--rise);
+  transform-origin: left;
+  transition: transform 400ms var(--ease-out);
+}
+/* A light sweep so a long download never looks frozen between progress updates. */
+.job-toast__bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: job-sweep 1.6s ease-in-out infinite;
+}
+.job-toast[data-status='done'] .job-toast__bar::after { display: none; }
+@keyframes job-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.job-toast__msg { margin: 7px 0 0; font-size: 13px; line-height: 1.4; color: var(--ink); }
+.job-toast__hint { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-dim); }
+
+@media (max-width: 1100px) {
+  .job-toast[data-dock='true'] { bottom: calc(var(--edge) + 164px); }
+}
+/* Phones: the bottom belongs to the sheet and the dock above it. */
+@media (max-width: 760px) {
+  .job-toast,
+  .job-toast[data-beside-panel='true'] { right: var(--edge); }
+  .job-toast[data-beside-panel='true'] { bottom: calc(52vh + 140px); } /* above the timeline dock that sits on the sheet */
+  .job-toast { padding: 8px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .job-toast, .job-toast__bar::after, .job-toast__spin { animation: none; }
+}
+
+/* ---------- before / after swipe ---------- */
+.ba { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.ba__before { position: absolute; inset: 0; }
+.ba__before .maplibregl-canvas { outline: none; }
+.ba__divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(11, 16, 32, 0.35);
+}
+.ba__handle {
+  position: absolute;
+  top: 50%;
+  left: -21px;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(11, 16, 32, 0.45);
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+.ba__handle:focus-visible { outline: 2px solid var(--rise); outline-offset: 3px; }
+.ba__chip {
+  position: absolute;
+  top: 168px;
+  padding: 5px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow);
+  font: 700 14px/1.1 var(--font-ui);
+  white-space: nowrap;
+}
+.ba__chip small { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); }
+.ba__chip--loading { left: 50%; transform: translateX(-50%); font-weight: 600; font-size: 13px; }
+@media (max-width: 760px) {
+  .ba__chip { top: 150px; font-size: 13px; }
+}

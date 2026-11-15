@@ -7,7 +7,7 @@ import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { clampLat, latLonToVector3, vector3ToLatLon } from '../../lib/geo';
 import { useStore } from '../../state/store';
-import { globeUniforms } from './sun';
+import { globeUniforms, liveSunVector, useSun } from './sun';
 import { createWheelClassifier } from './wheelIntent';
 
 type Flight = {
@@ -254,13 +254,21 @@ export function CameraRig() {
     camDir.copy(camera.position).normalize();
     camRight.setFromMatrixColumn(camera.matrixWorld, 0);
     camUp.setFromMatrixColumn(camera.matrixWorld, 1);
-    const { sunAzimuth: az, sunElevation: el } = globeConfig;
-    globeUniforms.uSun.value
-      .copy(camDir)
-      .multiplyScalar(Math.cos(az) * Math.cos(el))
-      .addScaledVector(camRight, -Math.sin(az) * Math.cos(el))
-      .addScaledVector(camUp, Math.sin(el))
-      .normalize();
+    const sun = useSun.getState();
+    if (sun.live) {
+      // The real Sun: day and night where they are right now (plus the time-lapse offset).
+      liveSunVector(Date.now() + sun.offsetMs, globeUniforms.uSun.value);
+      globeUniforms.uMoon.value = globeConfig.moonlight;
+    } else {
+      const { sunAzimuth: az, sunElevation: el } = globeConfig;
+      globeUniforms.uSun.value
+        .copy(camDir)
+        .multiplyScalar(Math.cos(az) * Math.cos(el))
+        .addScaledVector(camRight, -Math.sin(az) * Math.cos(el))
+        .addScaledVector(camUp, Math.sin(el))
+        .normalize();
+      globeUniforms.uMoon.value = 0;
+    }
   });
 
   return (

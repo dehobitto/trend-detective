@@ -252,3 +252,21 @@
 
 /* Variable without map imagery: just a one-line note. */
 .layer-dock--empty { padding: 8px 12px; width: fit-content; }
+
+/* Before/after toggle: a labelled pill, the one wide button in the dock head. */
+.ld-btn--compare {
+  display: inline-flex;
+  width: auto;
+  gap: 6px;
+  padding: 0 10px;
+  border-color: var(--line);
+  font: 600 12.5px/1 var(--font-ui);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.ld-btn--compare[aria-pressed='true'] { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+.ld-btn--compare[aria-pressed='true']:hover:not(:disabled) { color: var(--panel); }
+@media (max-width: 760px) {
+  .ld-btn--compare span { display: none; }
+  .ld-btn--compare { padding: 0 7px; }
+}

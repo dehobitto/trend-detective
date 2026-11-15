@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { AudienceSwitch } from '../../components/AudienceSwitch';
 import { Button } from '../../components/Button';
 import { needsNoArea, useStore } from '../../state/store';
 import { ResultsView } from '../results/ResultsView';
@@ -43,6 +44,7 @@ export function InvestigationPanel() {
         <span aria-hidden className="panel__grip-bar" />
         <span className="sr-only">{collapsed ? 'Expand the investigation panel' : 'Collapse the investigation panel'}</span>
       </button>
+      <AudienceSwitch className="audience--panel" />
       <div className="panel__scroll">
         <Step n={1} title={noArea ? 'No area needed' : 'Pick an area'} done={hasArea} active={!hasArea}>
           <AreaStep />

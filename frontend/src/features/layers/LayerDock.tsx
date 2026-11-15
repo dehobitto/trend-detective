@@ -16,6 +16,7 @@ const IconPlay = () => <Svg d="M5 3.5v9l7-4.5z" fill />;
 const IconPause = () => <Svg d="M5 3.5v9M11 3.5v9" />;
 const IconPrev = () => <Svg d="M4 3.5v9M12 3.5L6 8l6 4.5z" />;
 const IconNext = () => <Svg d="M12 3.5v9M4 3.5L10 8l-6 4.5z" />;
+const IconSwipe = () => <Svg d="M8 1.5v13M2.5 3.5h11v9h-11zM5 8H3.5M12.5 8H11" />;
 const IconEye = ({ off }: { off: boolean }) =>
   off ? <Svg d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM3 13L13 3" /> : <Svg d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM8 6.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6z" />;
 
@@ -40,7 +41,7 @@ function yearTicks(frames: string[]) {
  */
 export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boolean; onGlobe?: boolean }) {
   const variable = useSelectedVariable();
-  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, overlayError, set } = useLayers();
+  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, overlayError, compare, set } = useLayers();
   const job = useStore((s) => s.job);
   const sheetCollapsed = useStore((s) => s.panelCollapsed);
 
@@ -107,6 +108,18 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
           <span className="layer-dock__name">{variable.name}</span>
           <span className="layer-dock__src">NASA GIBS imagery</span>
         </div>
+        {!onGlobe && frames.length > 1 && (
+          <button
+            type="button"
+            className="ld-btn ld-btn--compare"
+            aria-pressed={compare}
+            title="Before / after: drag a divider between the first and the last image"
+            onClick={() => set({ compare: !compare, playing: false })}
+          >
+            <IconSwipe />
+            <span>Before / after</span>
+          </button>
+        )}
         <Legend />
         <label className="layer-dock__opacity" title="Layer opacity">
           <span className="sr-only">Opacity</span>
@@ -125,7 +138,7 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
             aria-label={playing ? 'Pause' : 'Play'}
             onClick={() => {
               if (!playing && idx === frames.length - 1) set({ date: frames[0] }); // replay from the start
-              set({ playing: !playing });
+              set({ playing: !playing, compare: false });
             }}
             disabled={frames.length < 2}
           >
@@ -150,7 +163,7 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
             value={Math.max(0, idx)}
             aria-label="Date"
             aria-valuetext={date ? formatFrame(date, stepKind) : undefined}
-            onChange={(e) => set({ playing: false, date: frames[Number(e.target.value)] })}
+            onChange={(e) => set({ playing: false, compare: false, date: frames[Number(e.target.value)] })}
           />
           <div className="layer-dock__ticks" aria-hidden>
             {ticks.map((t) => (

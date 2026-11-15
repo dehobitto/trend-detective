@@ -13,7 +13,7 @@ const PREFIX = 'vgibs-';
  * single z0 tile (cheap, cached by the browser and here). Gap months (e.g. GRACE 2017–18) answer 404.
  */
 const probes = new Map<string, Promise<boolean>>();
-function hasImagery(l: GibsLayer, date: string): Promise<boolean> {
+export function hasImagery(l: GibsLayer, date: string): Promise<boolean> {
   const url = gibsTileUrl(l, date).replace('{z}/{y}/{x}', '0/0/0');
   let p = probes.get(url);
   if (!p) {

@@ -43,11 +43,29 @@ function saveFlat(flat: boolean) {
 }
 const startFlat = typeof window !== 'undefined' && readFlat();
 
+/**
+ * Who is reading: 'kid' shows the detective story (suspect / alibi, case stamps, plain words) and hides the
+ * statistics behind a fold; 'scientist' shows everything. From ?mode=kid|scientist or this device's last choice.
+ */
+export type Audience = 'kid' | 'scientist';
+const AUDIENCE_KEY = 'td-audience';
+function readAudience(): Audience {
+  try {
+    const m = new URLSearchParams(window.location.search).get('mode');
+    if (m === 'kid' || m === 'scientist') return m;
+    return window.localStorage.getItem(AUDIENCE_KEY) === 'kid' ? 'kid' : 'scientist';
+  } catch {
+    return 'scientist';
+  }
+}
+const startAudience: Audience = typeof window !== 'undefined' ? readAudience() : 'scientist';
+
 type State = {
   /** Backend reachability, checked once at startup (there is no offline fallback). */
   server: 'connecting' | 'online' | 'offline';
   /** 2D-only mode: no globe at all, the flat map is the home screen. */
   flat: boolean;
+  audience: Audience;
   /** 2D-only mode: the example case list is open over the map. */
   casesOpen: boolean;
   view: View;
@@ -100,6 +118,7 @@ type Actions = {
   flyTo: (to: LatLon, fitBBox?: boolean, arrival?: Arrival) => void;
   /** Switch between the globe and the 2D-only map (remembered on this device). */
   setFlat: (flat: boolean) => void;
+  setAudience: (a: Audience) => void;
   arriveAtMap: () => void;
   backToGlobe: (from: LatLon) => void;
   finishTransition: () => void;
@@ -113,6 +132,7 @@ type Actions = {
 export const useStore = create<State & Actions>((set, get) => ({
   server: 'connecting',
   flat: startFlat,
+  audience: startAudience,
   casesOpen: startFlat,
   view: startFlat ? 'map' : 'globe',
   transition: 'idle',
@@ -177,6 +197,15 @@ export const useStore = create<State & Actions>((set, get) => ({
       set({ flat: false, casesOpen: false });
       if (s.view === 'map') s.backToGlobe(s.focus);
     }
+  },
+
+  setAudience: (audience) => {
+    try {
+      window.localStorage.setItem(AUDIENCE_KEY, audience);
+    } catch {
+      /* not remembered */
+    }
+    set({ audience });
   },
 
   arriveAtMap: () => set((s) => ({ view: 'map', transition: 'idle', mapEnter: { ...s.mapEnter, nonce: s.mapEnter.nonce + 1 } })),

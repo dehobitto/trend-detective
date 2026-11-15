@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FlatSwitch } from './features/globe/FlatSwitch';
+import { SunControl } from './features/globe/SunControl';
 import { api, checkHealth } from './api/client';
+import { AudienceSwitch } from './components/AudienceSwitch';
 import { Button } from './components/Button';
 import { Wordmark } from './components/Wordmark';
 import { ChatLauncher } from './features/chat/ChatLauncher';
@@ -10,6 +12,7 @@ import { GlobeView } from './features/globe/GlobeView';
 import { InvestigationPanel } from './features/investigate/InvestigationPanel';
 import { LayerDock } from './features/layers/LayerDock';
 import { useFrameSync } from './features/layers/useFrameSync';
+import { MapJobToast } from './features/map/MapJobToast';
 import { MapHint, MapToolbar } from './features/map/MapToolbar';
 import { PlaceSearch } from './features/search/PlaceSearch';
 import { needsNoArea, useStore } from './state/store';
@@ -74,6 +77,7 @@ export default function App() {
 
       <Wordmark />
       <PlaceSearch />
+      {!showPanel && server !== 'offline' && <AudienceSwitch className="audience--corner" />}
       {server === 'offline' && (
         <div className="server-down" role="alert">
           <p className="server-down__title">Can't reach the server</p>
@@ -91,6 +95,7 @@ export default function App() {
       )}
       {!onMap && transition === 'idle' && <LayerDock besidePanel={false} onGlobe />}
       {!onMap && transition === 'idle' && <FlatSwitch />}
+      {!onMap && transition === 'idle' && <SunControl />}
       {onMap && flat && casesOpen && (
         <div className="overlay overlay--flat">
           <ExampleCases />
@@ -101,6 +106,7 @@ export default function App() {
           <MapToolbar panelOpen={showPanel} />
           <MapHint />
           <LayerDock besidePanel={showPanel} />
+          <MapJobToast besidePanel={showPanel} />
         </>
       )}
       {showPanel && <InvestigationPanel />}

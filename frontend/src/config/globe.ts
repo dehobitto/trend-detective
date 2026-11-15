@@ -39,6 +39,8 @@ export const globeConfig = {
   /** Sun direction relative to the viewer, in radians: to the left (terminator on the right edge) and up. */
   sunAzimuth: 0.74,
   sunElevation: 0.3,
+  /** Live-sun mode: faint bluish light on the night side so continents stay readable under the city lights. */
+  moonlight: 0.04,
   /** Cloud shell radius and drift (seconds per full turn relative to the ground). */
   cloudAltitude: 1.006,
   cloudPeriodS: 1800,
