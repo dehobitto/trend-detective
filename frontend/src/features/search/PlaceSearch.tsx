@@ -158,7 +158,7 @@ export function PlaceSearch() {
           aria-autocomplete="list"
           aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
           aria-label="Search for a place"
-          placeholder="Search a city or region"
+          placeholder="Search places"
           value={q}
           disabled={busy}
           onChange={(e) => {

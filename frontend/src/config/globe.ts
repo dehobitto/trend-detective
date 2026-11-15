@@ -29,6 +29,9 @@ export const globeConfig = {
   arrivalDistance: 1.35,
   /** The map's picture starts to drape over the globe below this camera distance (hand-off, see handoff.ts). */
   handoffStartDistance: 1.95,
+  /** The lat/lon grid and the coordinate readout appear only once the camera is closer than this. */
+  gridFrom: 2.15,
+  gridFull: 1.9,
   /** OrbitControls autoRotateSpeed (2.0 = one turn per 30 s at 60 fps). */
   autoRotateSpeed: 0.35,
   /** Resume auto-rotation this long after the user stops interacting. */

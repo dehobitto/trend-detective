@@ -1,7 +1,6 @@
 import type { GeoJSONSource, Map as MlMap } from 'maplibre-gl';
 import { useEffect } from 'react';
 import type { RegionShape } from '../../api/types';
-import { prefersReducedMotion } from '../../config/motion';
 import { useStore } from '../../state/store';
 import { BBOX_FILL, setBBoxData } from './layers';
 
@@ -21,16 +20,11 @@ function maskFeature(r: RegionShape): GeoJSON.Feature<GeoJSON.Polygon> {
 }
 
 function cellsCollection(r: RegionShape): GeoJSON.FeatureCollection {
-  const cx = (r.bbox.west + r.bbox.east) / 2;
-  const cy = (r.bbox.south + r.bbox.north) / 2;
-  const maxD = Math.hypot(r.bbox.east - r.bbox.west, r.bbox.north - r.bbox.south) / 2 || 1;
   return {
     type: 'FeatureCollection',
-    features: r.cells.map((c, i) => ({
+    features: r.cells.map((c) => ({
       type: 'Feature',
-      id: i,
-      // Distance from the centre (0..1): the loading wave ripples outward.
-      properties: { d: Math.hypot((c.west + c.east) / 2 - cx, (c.south + c.north) / 2 - cy) / maxD },
+      properties: {},
       geometry: { type: 'Polygon', coordinates: [[[c.west, c.south], [c.east, c.south], [c.east, c.north], [c.west, c.north], [c.west, c.south]]] },
     })),
   };
@@ -48,7 +42,7 @@ function ensureLayers(map: MlMap) {
       id: 'region-cells-fill',
       type: 'fill',
       source: SRC_CELLS,
-      paint: { 'fill-color': '#ffd27a', 'fill-opacity': ['+', 0.04, ['*', 0.34, ['coalesce', ['feature-state', 'lit'], 0]]] },
+      paint: { 'fill-color': '#ffd27a', 'fill-opacity': 0.06 },
     },
     BBOX_FILL,
   );
@@ -62,13 +56,12 @@ const src = (map: MlMap, id: string) => map.getSource(id) as GeoJSONSource | und
 
 /**
  * A named region on the map: the area outside is dimmed, the squares the analysis uses are drawn as a
- * light grid, and the boundary glows. While its analysis runs, a wave of light ripples across the squares.
+ * light grid, and the boundary glows.
  * The plain bbox rectangle is hidden meanwhile (it is only the squares' bounding box).
  */
 export function useRegionLayers(map: MlMap | null) {
   const region = useStore((s) => s.region);
   const bbox = useStore((s) => s.bbox);
-  const running = useStore((s) => !!s.job && s.job.status !== 'done' && s.job.status !== 'error');
 
   useEffect(() => {
     if (!map) return;
@@ -79,31 +72,4 @@ export function useRegionLayers(map: MlMap | null) {
     src(map, SRC_OUTLINE)?.setData(active ? { type: 'Feature', properties: {}, geometry: active.outline } : empty);
     setBBoxData(map, active ? null : bbox);
   }, [map, region, bbox]);
-
-  // Loading wave: brightness rolls outward from the centre while the data comes in.
-  useEffect(() => {
-    if (!map || !region || !running) return;
-    const n = region.cells.length;
-    const d = cellsCollection(region).features.map((f) => (f.properties as { d: number }).d);
-    const reduced = prefersReducedMotion();
-    let raf = 0;
-    let last = 0;
-    const t0 = performance.now();
-    const frame = (now: number) => {
-      if (now - last > 66) {
-        last = now;
-        const t = (now - t0) / 1000;
-        for (let i = 0; i < n; i++) {
-          const lit = reduced ? 0.5 : Math.pow(Math.max(0, Math.sin((t * 1.6 - d[i] * 3.2) * Math.PI)), 3);
-          map.setFeatureState({ source: SRC_CELLS, id: i }, { lit });
-        }
-      }
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
-    return () => {
-      cancelAnimationFrame(raf);
-      if (map.getSource(SRC_CELLS)) for (let i = 0; i < n; i++) map.setFeatureState({ source: SRC_CELLS, id: i }, { lit: 0 });
-    };
-  }, [map, region, running]);
 }

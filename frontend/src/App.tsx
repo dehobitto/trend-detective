@@ -112,7 +112,7 @@ export default function App() {
         </>
       )}
       {showPanel && <InvestigationPanel />}
-      <ChatLauncher besidePanel={showPanel} />
+      <ChatLauncher besidePanel={showPanel} onMap={onMap} />
     </div>
   );
 }

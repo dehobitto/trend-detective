@@ -1,0 +1,69 @@
+/* Frosted glass, one look for everything that floats over the globe and the map (search, chat, map tools,
+   panels). Neutral: no coloured glows. `.app` in the selectors keeps it above component CSS loaded later. */
+:root {
+  --glass-bg: rgba(246, 247, 252, 0.8);
+  --glass-bg-strong: rgba(248, 249, 252, 0.9);
+  --glass-edge: rgba(255, 255, 255, 0.72);
+  --glass-blur: blur(18px) saturate(150%);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 14px 34px -14px rgba(10, 12, 30, 0.5);
+  --glass-r: 18px;
+  --glass-r-s: 12px;
+}
+
+.app .place-search__box,
+.app .place-search__list,
+.app .map-toolbar .btn,
+.app .layer-dock,
+.app .basemap-switch,
+.app .map .maplibregl-ctrl-group,
+.app .cases,
+.app .gsettings__gear,
+.app .gsettings__menu,
+.app .job-toast,
+.app .map-hint,
+.app .ba__chip,
+.app .server-down {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+/* Search: a pill like the chat input */
+.app .place-search__box { height: 44px; border-radius: 22px; }
+.app .place-search__box:focus-within { border-color: #ffffff; box-shadow: var(--glass-shadow), 0 0 0 3px rgba(255, 255, 255, 0.25); }
+.app .place-search__box input { background: transparent; font-size: 15px; }
+.app .place-search__icon { left: 16px; }
+.app .place-search__box input { padding-left: 42px; }
+.app .place-search__list { margin-top: 8px; padding: 6px; border-radius: var(--glass-r); }
+.app .place-search__item { border-radius: var(--glass-r-s); }
+
+/* Map tools (2D view) */
+.app .map-toolbar .btn { border-radius: var(--glass-r-s); min-height: 38px; }
+.app .map-toolbar .btn--primary,
+.app .map-toolbar .btn[aria-pressed='true'] { background: #1b1f2e; border-color: #1b1f2e; color: #ffffff; }
+.app .layer-dock { border-radius: var(--glass-r); }
+.app .basemap-switch,
+.app .map .maplibregl-ctrl-group { border-radius: var(--glass-r-s); overflow: hidden; }
+.app .map .maplibregl-ctrl-group button { background: transparent; }
+.app .cases { border-radius: 20px; }
+.app .gsettings__gear { border-radius: 50%; }
+.app .gsettings__menu { border-radius: var(--glass-r); }
+.app .job-toast { border-radius: var(--glass-r); }
+.app .map-hint { border-radius: 999px; }
+.app .ba__chip { border-radius: var(--glass-r-s); }
+.app .server-down { border-radius: var(--glass-r); }
+
+/* The analysis panel: glass too, a bit more opaque so long text and the chart stay crisp */
+.app .panel {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 20px;
+}
+@media (max-width: 760px) {
+  .app .panel { border-radius: 20px 20px 0 0; }
+}

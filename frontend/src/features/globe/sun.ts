@@ -21,6 +21,8 @@ export const globeUniforms = {
    * clouds, grid, atmosphere and shading fade, so the crossfade swaps two images that already match.
    */
   uHandoff: { value: 0 },
+  /** Lat/lon grid visibility (0 at rest, 1 when zoomed in). */
+  uGrid: { value: 0 },
   /** The map canvas as a texture, and where it looks: Web Mercator centre (0..1) and world size / canvas size. */
   uMapTex: { value: blankTexture() },
   uMapCenter: { value: new Vector2(0.5, 0.5) },

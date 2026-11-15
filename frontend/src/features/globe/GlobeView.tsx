@@ -12,6 +12,7 @@ import { GlobeOverlay } from './GlobeOverlay';
 import { Graticule } from './Graticule';
 import { LongitudeScale } from './LongitudeScale';
 import { StationMarker } from './StationMarker';
+import { globeUniforms } from './sun';
 import './globe.css';
 
 type Hover = { lat: number; lon: number; x: number; y: number } | null;
@@ -31,7 +32,7 @@ export function GlobeView() {
     const tip = tipRef.current;
     const root = rootRef.current;
     if (!tip || !root) return;
-    const on = !!h && root.dataset.interactive === 'true';
+    const on = !!h && root.dataset.interactive === 'true' && globeUniforms.uGrid.value > 0.5; // coordinates only when zoomed in
     tip.hidden = !on;
     root.style.cursor = on ? 'pointer' : '';
     if (!on || !h) return;

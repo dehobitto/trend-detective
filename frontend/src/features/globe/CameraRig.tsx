@@ -274,6 +274,12 @@ export function CameraRig() {
       }
     }
 
+    {
+      const d = camera.position.length();
+      const g = Math.min(1, Math.max(0, (globeConfig.gridFrom - d) / (globeConfig.gridFrom - globeConfig.gridFull)));
+      globeUniforms.uGrid.value = g;
+    }
+
     // Hand-off: while flying in or out, drape the map's picture over the landing spot as the camera nears it.
     {
       const s = useStore.getState();

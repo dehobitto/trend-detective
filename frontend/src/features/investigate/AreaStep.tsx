@@ -66,7 +66,7 @@ export function AreaStep() {
   if (!bbox || !draft) {
     return (
       <p className="notes">
-        Draw a rectangle on the map with <strong>Draw area</strong>, or hold Shift and drag. Global records (like CO₂ at Mauna Loa) and your own data need no area: pick them in step 2.
+        Draw an area on the map, or hold Shift and drag. Global records and your own data need no area.
       </p>
     );
   }
