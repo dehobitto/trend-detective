@@ -104,7 +104,7 @@ type AnalysisResult = {
   stats: TrendStats
   summary: string            // plain-English verdict, e.g. "Rising by 0.42 °C per decade. Both tests agree this trend is significant (p < 0.001)."
   synthetic: boolean         // true when demo/synthetic data was used
-  provider: string           // "synthetic" | "giovanni" | "upload"
+  provider: string           // "synthetic" | "noaa_gml" | "earthdata" | "upload"
   warnings: string[]         // e.g. "Fewer than 10 years of data: trends may not be reliable."
 }
 

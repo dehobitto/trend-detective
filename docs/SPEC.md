@@ -52,7 +52,7 @@ backend/
     api/               routers: health, catalog, analyses, datasets, chat
     schemas/           pydantic models (mirror docs/API.md exactly)
     catalog/           variables.yaml, examples.yaml, loader
-    providers/         base.py (DataProvider protocol + registry), synthetic.py, nasa_giovanni.py (stub w/ TODOs),
+    providers/         base.py (DataProvider protocol + registry), synthetic.py, earthdata.py (GES DISC OPeNDAP),
                        upload.py (user CSVs)
     processing/        timeseries.py (area mean, resample), preprocess.py (gap fill, deseasonalize/anomalies),
                        trends.py (OLS+t-test+CI, Mann-Kendall, Sen's slope) — pure numpy/scipy, unit tested

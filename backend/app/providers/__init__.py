@@ -1,6 +1,6 @@
 """Data providers. Importing this package registers the built-in providers."""
 
-from app.providers import appeears, knmi, live, nasa_giovanni, noaa_gml, synthetic  # noqa: F401  (registration side effects)
+from app.providers import appeears, earthdata, knmi, live, noaa_gml, synthetic  # noqa: F401  (registration side effects)
 from app.providers.base import (
     DataProvider,
     ProviderError,

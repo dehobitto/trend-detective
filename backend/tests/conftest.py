@@ -16,6 +16,7 @@ def no_network(monkeypatch):
         raise httpx.ConnectError(f"network disabled in tests: {url}")
 
     monkeypatch.setattr("app.providers.noaa_gml.httpx.get", refuse)
+    monkeypatch.setattr("app.providers.earthdata.httpx.get", refuse)
 
 
 @pytest.fixture
@@ -24,6 +25,7 @@ def settings(tmp_path) -> Settings:
     return Settings(
         data_provider="synthetic", synthetic_delay=0, upload_dir=tmp_path / "uploads", cache_dir=tmp_path / "cache",
         grid_prewarm=False, noaa_seed_dir=None,  # tests opt in to the bundled NOAA seed explicitly
+        earthdata_token=None, earthdata_username=None, earthdata_password=None,  # never use a real login
     )
 
 

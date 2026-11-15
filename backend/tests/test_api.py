@@ -109,7 +109,7 @@ def test_live_provider_routes_by_access_and_fails_gracefully(settings):
         provider = c.app.state.services.provider
         assert isinstance(provider, LiveProvider)
         catalog = c.app.state.services.catalog
-        assert provider.provider_for(catalog.get("gldas_gws")).name == "giovanni"
+        assert provider.provider_for(catalog.get("gldas_gws")).name == "earthdata"
         assert provider.provider_for(catalog.get("modis_lst_day")).name == "appeears"
         assert provider.provider_for(catalog.get("noaa_ch4_marine")).name == "noaa_gml"
         body = {"bbox": PHOENIX, "variable_id": "modis_lst_day", "start": "2005-01-01", "end": "2015-12-31"}

@@ -68,11 +68,14 @@ All settings live in `app/config.py` and can be overridden with `TD_`-prefixed v
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TD_DATA_PROVIDER` | `auto` | `auto`: real data where a provider is implemented (NOAA GML records), synthetic elsewhere and as fallback; `synthetic`: demo data for everything; `live`: real providers only, routed by `access`, no fallback (stubs raise); or a single provider name (`noaa_gml`, stubs `giovanni`, `appeears`, `knmi`) |
+| `TD_DATA_PROVIDER` | `auto` | `auto`: real data where a provider is implemented (NOAA GML records; GES DISC products via `earthdata` when an Earthdata login is set or their values are cached), synthetic elsewhere and as fallback; `synthetic`: demo data for everything; `live`: real providers only, routed by `access`, no fallback (stubs raise); or a single provider name (`noaa_gml`, `earthdata`, stubs `appeears`, `knmi`) |
 | `TD_SYNTHETIC_DELAY` | `0.3` | Seconds of artificial delay per job stage for local providers, so progress is visible |
 | `TD_CHAT_BACKEND` | `stub` | Registered chat backend |
 | `TD_CORS_ORIGINS` | `["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173"]` | JSON list of allowed origins |
-| `TD_CACHE_DIR` | `backend/data/cache` | Downloaded source files (gitignored); NOAA files go in `noaa_gml/` |
+| `TD_CACHE_DIR` | `backend/data/cache` | Downloaded source files (gitignored); NOAA files go in `noaa_gml/`, Earthdata granule lists and area means in `earthdata/` |
+| `TD_EARTHDATA_TOKEN` | unset | NASA Earthdata Login bearer token for GES DISC OPeNDAP (also read as `EARTHDATA_TOKEN`). Never commit it |
+| `TD_EARTHDATA_USERNAME` / `TD_EARTHDATA_PASSWORD` | unset | Alternative to the token (also `EARTHDATA_USERNAME`/`EARTHDATA_USER`, `EARTHDATA_PASSWORD`/`EARTHDATA_PASS`, the team's `.env` names) |
+| `TD_EARTHDATA_WORKERS` | `8` | Parallel OPeNDAP requests per analysis |
 | `TD_NOAA_CACHE_TTL_DAYS` | `7` | A cached NOAA file older than this is downloaded again (stale copy used if that fails) |
 | `TD_NOAA_GML_BASE_URL` | `https://gml.noaa.gov/webdata/ccgg/trends` | Where `<gas>/<file>.txt` are downloaded from |
 | `TD_HTTP_TIMEOUT` | `30` | Seconds before a data download gives up |
@@ -105,8 +108,8 @@ app/
                    seed/noaa_gml/ (committed NOAA CO₂/CH₄ files, offline fallback for the NOAA provider)
   tools/           gibs_layers.py (refresh GIBS map layers), build_landmask.py (rebuild data/landmask.npy)
   providers/       base.py (DataProvider protocol + registry, Route), synthetic.py, upload.py,
-                   noaa_gml.py (real CO₂/CH₄ records), real-data stubs nasa_giovanni.py (Giovanni / GES DISC),
-                   appeears.py (MODIS LST), knmi.py (alternative CO₂/CH₄ mirror, unused),
+                   noaa_gml.py (real CO₂/CH₄ records), earthdata.py (real GLDAS / GPM / OMI / MERRA-2 via
+                   GES DISC OPeNDAP), real-data stubs appeears.py (MODIS LST), knmi.py (alternative CO₂/CH₄ mirror, unused),
                    live.py (`auto` and `live`: route a variable to a provider by its `access` field)
   processing/      timeseries.py, preprocess.py, trends.py, summary.py (pure functions, unit tested)
   jobs/            store.py (JobStore protocol + in-memory store), resolve.py (validation, bbox rules, date clamping), runner.py
@@ -196,12 +199,19 @@ providers and `IMPLEMENTED` lists the providers `auto` trusts for real data.
 
 ## How to plug in real NASA data
 
-Three stubs are registered, one per access path, each with a docstring listing its exact products,
-native units and TODOs:
+`earthdata` (`providers/earthdata.py`) is real: it is the team's OPeNDAP data-access code
+(github.com/evheniikozlov/nasa2026, `data_access.py`) behind our provider interface. Granule list from CMR
+(public), one DAP4 subset request per granule for just the bbox cells (daily GLDAS sampled on the 1st,
+OMI NO₂ on 4 days per month), cos(lat) area mean, monthly mean, catalog units; results cached per grid box
+in `TD_CACHE_DIR/earthdata/`. Needs an Earthdata login (see the table above; in Earthdata Login also
+approve the "NASA GESDISC DATA ARCHIVE" application). Offline demo: `.venv/bin/python -m app.prefetch`
+once with a login fills the cache for every example case; afterwards it works without login or network.
+
+The remaining stubs, each with a docstring listing its exact products, native units and TODOs:
 
 | Provider | File | Serves (`access`) | Route |
 |---|---|---|---|
-| `giovanni` | `providers/nasa_giovanni.py` | GLDAS, OMNO2d, MERRA-2 M2TMNXAER, GPM IMERG (`Giovanni`) | Giovanni area-averaged time series, or GES DISC OPeNDAP + our own area mean |
+| `earthdata` (real) | `providers/earthdata.py` | GLDAS, OMNO2d, MERRA-2 M2TMNXAER, GPM IMERG (`Giovanni`) | GES DISC OPeNDAP subsets + our own area mean |
 | `appeears` | `providers/appeears.py` | MODIS MOD11C3 LST day/night (`AppEEARS`) | AppEEARS area task → NetCDF/statistics CSV |
 | `knmi` | `providers/knmi.py` | nothing today (`KNMI Climate Explorer`): the CO₂/CH₄ records now come from NOAA GML directly | KNMI `.dat` text series |
 | `live` / `auto` | `providers/live.py` | everything, by each variable's `access` | delegates to the providers above and `noaa_gml` |
