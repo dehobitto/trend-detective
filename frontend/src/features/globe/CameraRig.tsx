@@ -44,6 +44,7 @@ export function CameraRig() {
   // Rest distance that keeps the whole globe in frame on narrow (portrait) screens too.
   const restDistance = useMemo(() => {
     const aspect = size.width / Math.max(1, size.height);
+    if (size.width >= globeConfig.sideDock.minWidth) return globeConfig.sideDock.distance; // big globe beside the headline
     const halfH = Math.tan(((globeConfig.fov / 2) * Math.PI) / 180) * Math.min(1, aspect);
     return Math.max(globeConfig.defaultDistance, 1.12 / halfH);
   }, [size.width, size.height]);
@@ -281,7 +282,7 @@ export function CameraRig() {
     if (sun.live) {
       // The real Sun (day and night as they are now), easing into studio light as the camera comes down to the
       // ground: the place you dive into is daylit like the map you land on, so the crossfade has no dark-to-bright jump.
-      liveSunVector(Date.now() + sun.offsetMs, globeUniforms.uSun.value);
+      liveSunVector(Date.now(), globeUniforms.uSun.value);
       const near = Math.min(1, Math.max(0, (restRef.current * 0.8 - camera.position.length()) / (restRef.current * 0.8 - globeConfig.arrivalDistance)));
       const k = near * near * (3 - 2 * near);
       globeUniforms.uSun.value.lerp(studioSun, k).normalize();

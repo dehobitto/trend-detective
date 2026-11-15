@@ -165,3 +165,15 @@
   /* Above the folded investigation sheet. */
   .overlay--flat .cases { z-index: 30; }
 }
+
+/* Home screen with the headline above: the index sits under it, wider, two columns, compact. */
+@media (min-width: 1080px) {
+  .overlay:not(.overlay--flat) .cases {
+    width: min(620px, 46vw);
+    max-height: calc(100vh - 520px);
+    min-height: 250px;
+  }
+  .overlay:not(.overlay--flat) .cases__lede { display: none; }
+  .overlay:not(.overlay--flat) .cases__title { margin-bottom: 8px; }
+  .overlay:not(.overlay--flat) .cases__list { grid-template-columns: 1fr 1fr; column-gap: 22px; }
+}

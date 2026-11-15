@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { FlatSwitch } from './features/globe/FlatSwitch';
-import { SunControl } from './features/globe/SunControl';
+import { GlobeSettings } from './features/globe/GlobeSettings';
+import { Hero } from './features/globe/Hero';
 import { api, checkHealth } from './api/client';
 import { Button } from './components/Button';
 import { Wordmark } from './components/Wordmark';
@@ -95,12 +95,12 @@ export default function App() {
 
       {!onMap && (
         <div className="overlay" data-busy={transition !== 'idle'}>
+          <Hero />
           <ExampleCases />
         </div>
       )}
       {!onMap && transition === 'idle' && <LayerDock besidePanel={false} onGlobe />}
-      {!onMap && transition === 'idle' && <FlatSwitch />}
-      {!onMap && transition === 'idle' && <SunControl />}
+      {!onMap && transition === 'idle' && <GlobeSettings />}
       {onMap && flat && casesOpen && (
         <div className="overlay overlay--flat">
           <ExampleCases />

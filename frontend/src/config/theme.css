@@ -23,6 +23,8 @@
   --wash-strong: rgba(24, 33, 43, 0.08);
 
   --font-ui: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Home headline. Swap in Aalto Display (public/fonts + @font-face) once licensed. */
+  --font-display: 'Syne', var(--font-ui);
   /* One family. Width is the display lever: expanded for the wordmark and the verdict figure,
      normal for everything you read. Definitions differ by size, colour and measure. */
   --wide: 118%;

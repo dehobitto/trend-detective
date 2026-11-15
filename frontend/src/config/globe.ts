@@ -7,8 +7,10 @@ export const globeConfig = {
     clouds: '/textures/earth-clouds.jpg',
     water: '/textures/earth-water.jpg',
     bump: '/textures/earth-bump.jpg',
-    /** NASA SVS Deep Star Maps 2020 (public domain), 6144x3072, tone-mapped from the 8k EXR. */
-    stars: '/textures/stars-milky-way.jpg',
+    /** From NASA SVS Deep Star Maps 2020 (public domain): the 4500 brightest stars [ra, dec, brightness, r, g, b]... */
+    stars: '/textures/stars.json',
+    /** ...and the Milky Way's diffuse light (stars removed, softened), 2048x1024. */
+    milkyWay: '/textures/milkyway-glow.jpg',
   },
   fov: 40,
   /** Resting camera distance from Earth's centre (raised automatically on portrait screens). */
@@ -16,7 +18,7 @@ export const globeConfig = {
   /** Shift the globe up by this fraction of the viewport height (room for the case-file prompt). */
   verticalLift: 0.06,
   /** At this width and up the case index docks on the left; the globe shifts right by shiftPx (keep in sync with examples.css). */
-  sideDock: { minWidth: 1080, shiftPx: 212 },
+  sideDock: { minWidth: 1080, shiftPx: 212, shiftFrac: 0.29, distance: 3.0 },
   /** Closest / farthest the user can wheel-zoom. */
   minDistance: 1.25,
   maxDistance: 6,
@@ -41,8 +43,9 @@ export const globeConfig = {
   /** Sun direction relative to the viewer, in radians: to the left (terminator on the right edge) and up. */
   sunAzimuth: 0.74,
   sunElevation: 0.3,
-  /** Brightness of the star map behind the globe (1 = as tone-mapped). Kept low: a backdrop, not a show. */
-  starBrightness: 0.48,
+  /** Night sky behind the globe: point stars and the Milky Way glow. Kept restrained: a backdrop, not a show. */
+  starBrightness: 0.85,
+  milkyWayBrightness: 0.22,
   /** Live-sun mode: faint bluish light on the night side so continents stay readable under the city lights. */
   moonlight: 0.04,
   /** Cloud shell radius and drift (seconds per full turn relative to the ground). */

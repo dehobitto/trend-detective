@@ -57,38 +57,17 @@ function readLive(): boolean {
 type SunState = {
   /** Real sunlight for the current moment (default) vs. studio light that follows the viewer. */
   live: boolean;
-  /** Time-lapse offset added to "now" (ms); the "Spin a day" button runs it through 24 hours. */
-  offsetMs: number;
-  spinning: boolean;
   setLive: (live: boolean) => void;
-  spinDay: () => void;
 };
 
-export const useSun = create<SunState>((set, get) => ({
+export const useSun = create<SunState>((set) => ({
   live: typeof window !== 'undefined' ? readLive() : true,
-  offsetMs: 0,
-  spinning: false,
   setLive: (live) => {
     try {
       window.localStorage.setItem(KEY, live ? 'on' : 'off');
     } catch {
       /* not remembered */
     }
-    set({ live, offsetMs: 0, spinning: false });
-  },
-  spinDay: () => {
-    if (get().spinning) return;
-    set({ live: true, spinning: true, offsetMs: 0 });
-    const t0 = performance.now();
-    const DUR = 9000;
-    const step = (now: number) => {
-      if (!get().spinning) return;
-      const k = Math.min(1, (now - t0) / DUR);
-      const eased = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-      set({ offsetMs: eased * 86_400_000 });
-      if (k < 1) requestAnimationFrame(step);
-      else set({ spinning: false, offsetMs: 0 });
-    };
-    requestAnimationFrame(step);
+    set({ live });
   },
 }));

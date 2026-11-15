@@ -173,20 +173,6 @@
   .map-toolbar { max-width: calc(100vw - 2 * var(--edge) - 52px); }
 }
 
-/* ---------- running analysis: magnifier walking the box corners ---------- */
-.box-scanner {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 3;
-  pointer-events: none;
-  will-change: transform;
-  filter: drop-shadow(0 0 1.5px rgba(11, 16, 32, 0.9));
-}
-.box-scanner__rim { fill: rgba(255, 255, 255, 0.08); stroke: #ffffff; stroke-width: 1.75; }
-.box-scanner__handle { stroke: #ffffff; stroke-width: 2.5; stroke-linecap: round; }
-.box-scanner__cross { stroke: #ffffff; stroke-width: 1; stroke-linecap: round; opacity: 0.8; }
-
 /* ---------- running analysis: status toast over the bottom of the map ---------- */
 .job-toast {
   position: absolute;

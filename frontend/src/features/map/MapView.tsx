@@ -11,7 +11,6 @@ import { distanceForZoom, handoff, mapPointLikeGlobe, matchedZoom, placeLikeGlob
 import { useLayers } from '../layers/layerStore';
 import { BasemapSwitcher, PortalControl } from './BasemapControl';
 import { BeforeAfter } from './BeforeAfter';
-import { BoxScanner } from './BoxScanner';
 import { addBBoxLayers, buildStyle, setBasemap, setBBoxData } from './layers';
 import { registerOverlayProtocol } from './overlayProtocol';
 import { useBoxSelect } from './useBoxSelect';
@@ -209,7 +208,6 @@ export function MapView() {
       <div ref={container} className="map" aria-label="Map. Draw a rectangle to choose the area to investigate." />
       {switcherHost && <BasemapSwitcher host={switcherHost} />}
       <BeforeAfter map={map} />
-      <BoxScanner map={map} />
     </>
   );
 }

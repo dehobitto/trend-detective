@@ -12,7 +12,8 @@ import { globeConfig } from '../../config/globe';
 export function globeScreenOffset(width: number, height: number): { dx: number; dy: number } {
   const docked = width >= globeConfig.sideDock.minWidth;
   const lift = width < 760 ? 0.1 : docked ? 0 : globeConfig.verticalLift;
-  return { dx: docked ? globeConfig.sideDock.shiftPx : 0, dy: -height * lift };
+  // Wide screens: the headline takes the left, the globe sits right of centre (and may run off the edge).
+  return { dx: docked ? Math.round(width * globeConfig.sideDock.shiftFrac) : 0, dy: -height * lift };
 }
 
 /**
