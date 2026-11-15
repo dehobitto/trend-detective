@@ -29,6 +29,7 @@ def settings(tmp_path) -> Settings:
         data_provider="fake", upload_dir=tmp_path / "uploads", cache_dir=tmp_path / "cache",
         noaa_seed_dir=None, cache_seed_dir=None,  # tests opt in to the bundled seeds explicitly
         earthdata_token=None, earthdata_username=None, earthdata_password=None,  # never use a real login
+        chat_backend="stub", gemini_api_key=None, openai_api_key=None,  # never call a real LLM
     )
 
 
