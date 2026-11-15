@@ -8,7 +8,7 @@ const GREETING: ChatMessage = {
   content: 'Hi, I’m your field guide. Ask me what a variable means, why a trend might not be significant, or what to investigate next.',
 };
 
-export function ChatDrawer({ onClose }: { onClose: () => void }) {
+export function ChatDrawer({ onClose, initialQuestion = null }: { onClose: () => void; initialQuestion?: string | null }) {
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -18,12 +18,21 @@ export function ChatDrawer({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => inputRef.current?.focus(), []);
+  // A ready-made question from the launcher: ask it straight away.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (initialQuestion && !asked.current) {
+      asked.current = true;
+      void send(initialQuestion);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion]);
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
 
-  const send = async () => {
-    const content = text.trim();
+  const send = async (preset?: string) => {
+    const content = (preset ?? text).trim();
     if (!content || busy) return;
     const next: ChatMessage[] = [...messages, { role: 'user', content }];
     setMessages(next);
@@ -69,7 +78,7 @@ export function ChatDrawer({ onClose }: { onClose: () => void }) {
         className="chat__form"
         onSubmit={(e) => {
           e.preventDefault();
-          send();
+          void send();
         }}
       >
         <textarea
@@ -82,7 +91,7 @@ export function ChatDrawer({ onClose }: { onClose: () => void }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              send();
+              void send();
             }
           }}
         />

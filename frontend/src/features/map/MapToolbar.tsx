@@ -39,7 +39,7 @@ export function MapToolbar({ panelOpen }: { panelOpen: boolean }) {
             const c = m.getCenter();
             const el = m.getContainer();
             const zoom = matchedZoom(c.lat, globeConfig.arrivalDistance, el.clientHeight);
-            const { dx, dy } = globeScreenOffset(el.clientWidth, el.clientHeight);
+            const { dx, dy } = globeScreenOffset(el.clientWidth, el.clientHeight, globeConfig.arrivalDistance);
             let left = false;
             const leave = () => {
               if (left) return;

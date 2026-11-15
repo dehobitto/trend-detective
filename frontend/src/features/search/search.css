@@ -1,7 +1,7 @@
 /* Place search: top-left under the wordmark, on both the globe and the map. Theme tokens only. */
 .place-search {
   position: absolute;
-  top: 70px;
+  top: var(--edge); /* the wordmark plate is gone: the search leads the top-left corner */
   left: var(--edge);
   width: min(320px, calc(100vw - 2 * var(--edge)));
   z-index: 12;

@@ -156,7 +156,7 @@
 /* 2D-only mode: the case list opens from the map toolbar and hangs under it (the map's own controls stay free). */
 @media (min-width: 1080px) {
   .overlay--flat .cases {
-    top: 170px;
+    top: 120px;
     bottom: auto;
     max-height: calc(100vh - 190px);
   }

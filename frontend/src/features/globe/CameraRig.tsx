@@ -54,13 +54,15 @@ export function CameraRig() {
   // Lift the globe a little so the case-file prompt docked at the bottom never covers its centre.
   useEffect(() => {
     // Wide screens dock the case index on the left, so the globe moves right and sits centred vertically.
-    // (handoff.globeScreenOffset is the single source, so the map can line up with it on the crossfade.)
-    const { dx, dy } = globeScreenOffset(size.width, size.height);
+    // (handoff.globeScreenOffset is the single source; it is re-applied every frame as the distance changes.)
+    const { dx, dy } = globeScreenOffset(size.width, size.height, camera.position.length());
     camera.setViewOffset(size.width, size.height, -dx, -dy, size.width, size.height);
     camera.updateProjectionMatrix();
+    lastOffset.current = `${dx},${dy}`;
   }, [camera, size.width, size.height]);
   const controls = useRef<OrbitControlsImpl>(null);
   const flight = useRef<Flight | null>(null);
+  const lastOffset = useRef('');
   const resumeTimer = useRef<number>();
   const reduced = useReducedMotion();
 
@@ -260,6 +262,17 @@ export function CameraRig() {
         f.done();
       }
     }
+    // The wallpaper-style side shift fades as the camera comes down (centred at the hand-off).
+    {
+      const { dx, dy } = globeScreenOffset(size.width, size.height, camera.position.length());
+      const key = `${dx},${dy}`;
+      if (key !== lastOffset.current) {
+        lastOffset.current = key;
+        camera.setViewOffset(size.width, size.height, -dx, -dy, size.width, size.height);
+        camera.updateProjectionMatrix();
+      }
+    }
+
     // Where we look, for the hidden map to preload there.
     const look = vector3ToLatLon(camera.position);
     handoff.look.lat = look.lat;

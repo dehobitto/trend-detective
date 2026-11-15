@@ -4,7 +4,6 @@ import { GlobeSettings } from './features/globe/GlobeSettings';
 import { Hero } from './features/globe/Hero';
 import { api, checkHealth } from './api/client';
 import { Button } from './components/Button';
-import { Wordmark } from './components/Wordmark';
 import { ChatLauncher } from './features/chat/ChatLauncher';
 import { ExampleCases } from './features/examples/ExampleCases';
 import { GlobeView } from './features/globe/GlobeView';
@@ -81,7 +80,6 @@ export default function App() {
         </div>
       )}
 
-      <Wordmark />
       <PlaceSearch />
       {server === 'offline' && (
         <div className="server-down" role="alert">

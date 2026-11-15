@@ -70,3 +70,62 @@
   .chat-launch span { display: none; }
   .chat-launch { padding: 9px; }
 }
+
+/* ---------- round "curious" launcher with a mini label, and its four questions ---------- */
+.curious-launch { display: flex; align-items: center; gap: 10px; }
+.curious-launch__label {
+  padding: 6px 11px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  font: 600 12.5px/1 var(--font-ui);
+  color: var(--ink);
+  white-space: nowrap;
+  animation: curious-in 500ms var(--ease-out) both 600ms;
+}
+.curious-launch__btn {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 6px 20px -6px rgba(5, 7, 13, 0.55);
+  cursor: pointer;
+  transition: transform 200ms var(--ease-out);
+}
+.curious-launch__btn:hover { transform: scale(1.06); }
+.curious-launch__btn:focus-visible { outline: 2px solid #ffb547; outline-offset: 3px; }
+.curious {
+  width: min(330px, calc(100vw - 2 * var(--edge)));
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow);
+  animation: curious-in 260ms var(--ease-out) both;
+}
+.curious__q,
+.curious__own {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--ink);
+  font: 500 13.5px/1.35 var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.curious__q:hover,
+.curious__own:hover { background: var(--wash); }
+.curious__q + .curious__q { border-top: 1px solid var(--line); border-radius: 0; }
+.curious__own { margin-top: 4px; font-weight: 700; color: var(--ink-dim); }
+@keyframes curious-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 760px) { .curious-launch__label { display: none; } }
+@media (prefers-reduced-motion: reduce) { .curious, .curious-launch__label { animation: none; } }

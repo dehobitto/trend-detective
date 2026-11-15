@@ -149,8 +149,8 @@
 .hero {
   position: absolute;
   left: calc(var(--edge) + 8px);
-  top: 138px;
-  width: min(60vw, 900px);
+  top: 92px;
+  width: min(50vw, 760px);
   z-index: 4;
   pointer-events: none;
   color: #f4f6f8;
@@ -166,7 +166,7 @@
   margin: 0;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(44px, 5.6vw, 104px);
+  font-size: clamp(38px, 4.5vw, 84px);
   line-height: 0.95;
   text-shadow: 0 2px 24px rgba(5, 7, 13, 0.55);
   letter-spacing: -0.035em;

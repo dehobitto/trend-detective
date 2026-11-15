@@ -92,7 +92,7 @@
 }
 .map-toolbar {
   position: absolute;
-  top: 118px;
+  top: 66px;
   left: var(--edge);
   display: flex;
   gap: 8px;
@@ -122,11 +122,11 @@
 
 @media (max-width: 760px) {
   .map-hint {
-    top: 200px; /* below the toolbar, which wraps to two rows on phones */
+    top: 150px; /* below the toolbar, which wraps to two rows on phones */
     font-size: 12px;
   }
   .map-toolbar {
-    top: 108px;
+    top: 60px;
   }
   .basemap-switch { width: auto; }
   .basemap-switch__opt { font-size: 0; gap: 0; padding: 3px; }
@@ -291,7 +291,7 @@
 .ba__handle:focus-visible { outline: 2px solid var(--rise); outline-offset: 3px; }
 .ba__chip {
   position: absolute;
-  top: 168px;
+  top: 120px;
   padding: 5px 10px;
   background: var(--panel);
   border: 1px solid var(--line-strong);
@@ -303,5 +303,5 @@
 .ba__chip small { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); }
 .ba__chip--loading { left: 50%; transform: translateX(-50%); font-weight: 600; font-size: 13px; }
 @media (max-width: 760px) {
-  .ba__chip { top: 150px; font-size: 13px; }
+  .ba__chip { top: 110px; font-size: 13px; }
 }

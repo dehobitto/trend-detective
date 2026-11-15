@@ -18,7 +18,8 @@ export const globeConfig = {
   /** Shift the globe up by this fraction of the viewport height (room for the case-file prompt). */
   verticalLift: 0.06,
   /** At this width and up the case index docks on the left; the globe shifts right by shiftPx (keep in sync with examples.css). */
-  sideDock: { minWidth: 1080, shiftPx: 212, shiftFrac: 0.29, distance: 3.0 },
+  /** Wide screens: big globe at rest distance `distance`, about `visible` of its width showing at the right edge. */
+  sideDock: { minWidth: 1080, distance: 2.3, visible: 2 / 3 },
   /** Closest / farthest the user can wheel-zoom. */
   minDistance: 1.25,
   maxDistance: 6,

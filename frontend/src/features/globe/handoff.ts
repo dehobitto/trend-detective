@@ -8,12 +8,25 @@ import { globeConfig } from '../../config/globe';
  * - where the globe is looking right now (the hidden map preloads tiles there).
  */
 
-/** Pixels the globe's look-at point sits away from the screen centre (+x right, +y down). */
-export function globeScreenOffset(width: number, height: number): { dx: number; dy: number } {
+/**
+ * Pixels the globe's look-at point sits away from the screen centre (+x right, +y down), for a camera at
+ * `distance` (Earth radii). Wide screens, at rest: a big globe like an animated wallpaper, with about
+ * `sideDock.visible` of its width showing at the right edge and the headline on the left. The shift fades
+ * out as the camera comes down, so at the hand-off distance the place sits in the middle, like on the map.
+ */
+export function globeScreenOffset(width: number, height: number, distance: number = globeConfig.sideDock.distance): { dx: number; dy: number } {
   const docked = width >= globeConfig.sideDock.minWidth;
-  const lift = width < 760 ? 0.1 : docked ? 0 : globeConfig.verticalLift;
-  // Wide screens: the headline takes the left, the globe sits right of centre (and may run off the edge).
-  return { dx: docked ? Math.round(width * globeConfig.sideDock.shiftFrac) : 0, dy: -height * lift };
+  const rest = docked ? globeConfig.sideDock.distance : globeConfig.defaultDistance;
+  const k = Math.min(1, Math.max(0, (distance - globeConfig.arrivalDistance) / (rest - globeConfig.arrivalDistance)));
+  const ease = k * k * (3 - 2 * k);
+  if (!docked) {
+    const lift = width < 760 ? 0.1 : globeConfig.verticalLift;
+    return { dx: 0, dy: -height * lift * ease };
+  }
+  // On-screen radius of the globe at rest, then put its centre so `visible` of the width is on screen.
+  const rPx = (height / 2) * (1 / Math.sqrt(rest * rest - 1)) / Math.tan(((globeConfig.fov / 2) * Math.PI) / 180);
+  const centreX = width - rPx * (2 * globeConfig.sideDock.visible - 1);
+  return { dx: Math.round((centreX - width / 2) * ease), dy: 0 };
 }
 
 /**
@@ -36,7 +49,7 @@ export function distanceForZoom(lat: number, zoom: number, height: number): numb
 /** Put `lat/lon` on the map at the globe's look-at screen point, at `zoom`. */
 export function placeLikeGlobe(map: MlMap, lat: number, lon: number, zoom: number) {
   const el = map.getContainer();
-  const { dx, dy } = globeScreenOffset(el.clientWidth, el.clientHeight);
+  const { dx, dy } = globeScreenOffset(el.clientWidth, el.clientHeight, globeConfig.arrivalDistance);
   map.jumpTo({ center: [lon, lat], zoom });
   if (dx || dy) map.jumpTo({ center: map.unproject([el.clientWidth / 2 - dx, el.clientHeight / 2 - dy]) });
 }
@@ -44,7 +57,7 @@ export function placeLikeGlobe(map: MlMap, lat: number, lon: number, zoom: numbe
 /** The place under the globe's look-at screen point on the map (what the globe should fly out from). */
 export function mapPointLikeGlobe(map: MlMap): { lat: number; lon: number } {
   const el = map.getContainer();
-  const { dx, dy } = globeScreenOffset(el.clientWidth, el.clientHeight);
+  const { dx, dy } = globeScreenOffset(el.clientWidth, el.clientHeight, globeConfig.arrivalDistance);
   const p = map.unproject([el.clientWidth / 2 + dx, el.clientHeight / 2 + dy]);
   return { lat: p.lat, lon: p.lng };
 }
