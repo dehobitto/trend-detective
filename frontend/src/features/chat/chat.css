@@ -1,15 +1,18 @@
+/* Centred horizontally, the disc's centre at 4/5 of the height; questions and chat open above it. */
 .chat-dock {
   position: absolute;
-  right: var(--edge);
-  bottom: var(--edge);
+  left: 50%;
+  bottom: calc(20vh - 32px);
+  transform: translateX(-50%);
   z-index: 20;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  transition: right 250ms var(--ease-out);
+  align-items: center;
+  gap: 12px;
+  transition: left 250ms var(--ease-out);
 }
-.chat-dock[data-beside-panel='true'] { right: calc(var(--panel-w) + 2 * var(--edge)); }
+/* With the investigation panel open: centre over the map that is still visible. */
+.chat-dock[data-beside-panel='true'] { left: calc((100vw - var(--panel-w) - 2 * var(--edge)) / 2); }
 .chat-launch {
   display: inline-flex;
   align-items: center;
@@ -45,10 +48,8 @@
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 @media (max-width: 760px) {
-  .chat-dock { top: var(--edge); bottom: auto; flex-direction: column-reverse; }
-  .chat-dock[data-beside-panel='true'] { right: var(--edge); }
-  .chat-launch span { display: none; }
-  .chat-launch { padding: 9px; }
+  /* Phones: the investigation sheet covers the lower half, so with it open the disc moves to the top. */
+  .chat-dock[data-beside-panel='true'] { left: 50%; top: var(--edge); bottom: auto; flex-direction: column-reverse; }
 }
 
 /* ---------- glass chat: a mini-Earth orb, floating question / message bubbles, a pill input ---------- */
@@ -67,7 +68,8 @@
   color: #1b1f2e;
 }
 
-.curious-launch { display: flex; align-items: center; gap: 12px; }
+.curious-launch { position: relative; display: flex; align-items: center; }
+.curious-launch__label { position: absolute; left: calc(100% + 14px); top: 50%; translate: 0 -50%; }
 .curious-launch__label {
   padding: 8px 14px;
   border-radius: 999px;
@@ -76,57 +78,54 @@
   animation: glass-in 500ms var(--ease-out) both 600ms;
 }
 
-/* The orb: a little glass Earth that keeps turning. */
+/* The launcher: a liquid-glass disc with a chat icon (refracts and brightens what is behind it). */
 .orb {
   position: relative;
-  width: 58px;
-  height: 58px;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
   padding: 0;
-  border: 0;
   border-radius: 50%;
-  background: #0b1a33;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background:
+    radial-gradient(120% 120% at 28% 18%, rgba(255, 255, 255, 0.55) 0, rgba(255, 255, 255, 0.12) 42%, rgba(255, 255, 255, 0.04) 70%),
+    radial-gradient(80% 60% at 70% 110%, rgba(150, 190, 255, 0.35), transparent 70%),
+    rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px) saturate(190%) contrast(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) contrast(1.08);
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.95),
+    inset 0 -10px 18px rgba(255, 255, 255, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 0 6px rgba(255, 255, 255, 0.05),
+    0 14px 34px -10px rgba(5, 7, 13, 0.6);
+  color: #ffffff;
   cursor: pointer;
-  overflow: hidden;
-  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35), 0 0 22px rgba(90, 160, 255, 0.45), 0 12px 28px -10px rgba(5, 7, 13, 0.7);
-  transition: transform 250ms var(--ease-out);
+  transition: transform 300ms cubic-bezier(0.2, 1.5, 0.4, 1), box-shadow 300ms;
   flex: none;
 }
-.orb:hover { transform: scale(1.06); }
-.orb:focus-visible { outline: 2px solid #ffb547; outline-offset: 4px; }
-.orb__earth {
+.orb::after {
+  /* a thin bright arc along the top edge, like light bending in thick glass */
+  content: '';
   position: absolute;
-  inset: 0;
+  inset: 3px;
   border-radius: 50%;
-  background: url('/textures/earth-day.jpg') 0 50% / 200% 100% repeat-x;
-  animation: orb-turn 40s linear infinite;
-  /* Curved like a sphere: darker towards the limb. */
-  box-shadow: inset -10px -12px 18px rgba(0, 0, 0, 0.55), inset 6px 6px 12px rgba(120, 190, 255, 0.25);
-}
-.orb__shine {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.85) 0, rgba(255, 255, 255, 0.25) 14%, transparent 34%),
-    radial-gradient(circle at 50% 120%, rgba(110, 180, 255, 0.45), transparent 55%);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.55), transparent 38%);
+  -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%);
+  mask: radial-gradient(circle, transparent 62%, #000 64%);
   pointer-events: none;
 }
-.orb__x {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  color: #ffffff;
-  opacity: 0;
-  transform: scale(0.6);
-  transition: opacity 200ms, transform 250ms var(--ease-out);
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
-}
-.orb[data-open='true'] .orb__earth { filter: brightness(0.55); }
+.orb:hover { transform: scale(1.08); }
+.orb:active { transform: scale(0.96); }
+.orb:focus-visible { outline: 2px solid #ffb547; outline-offset: 4px; }
+.orb svg { grid-area: 1 / 1; filter: drop-shadow(0 1px 3px rgba(5, 7, 13, 0.55)); transition: opacity 200ms, transform 300ms var(--ease-out); }
+.orb__x { opacity: 0; transform: rotate(-45deg) scale(0.6); }
+.orb[data-open='true'] .orb__chat { opacity: 0; transform: scale(0.6); }
 .orb[data-open='true'] .orb__x { opacity: 1; transform: none; }
-@keyframes orb-turn { to { background-position: -200% 50%; } }
 
 /* Ready-made questions: a stack of glass pills above the orb. */
-.curious { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; width: min(340px, calc(100vw - 2 * var(--edge))); }
+.curious { display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(340px, calc(100vw - 2 * var(--edge))); }
 .curious__q,
 .curious__own {
   max-width: 100%;
@@ -139,7 +138,7 @@
   transition: transform 180ms var(--ease-out);
 }
 .curious__q:hover,
-.curious__own:hover { transform: translateX(-3px); }
+.curious__own:hover { transform: translateY(-2px); }
 .curious__q:nth-child(2) { animation-delay: 40ms; }
 .curious__q:nth-child(3) { animation-delay: 80ms; }
 .curious__q:nth-child(4) { animation-delay: 120ms; }
@@ -214,7 +213,7 @@
 }
 .chat__send:disabled { opacity: 0.35; cursor: default; }
 @keyframes glass-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
-@media (max-width: 760px) { .curious-launch__label { display: none; } .orb { width: 50px; height: 50px; } }
+@media (max-width: 760px) { .curious-launch__label { display: none; } .orb { width: 56px; height: 56px; } }
 @media (prefers-reduced-motion: reduce) {
-  .orb__earth, .bubble, .curious__q, .curious__own, .curious-launch__label { animation: none; }
+  .bubble, .curious__q, .curious__own, .curious-launch__label { animation: none; }
 }
