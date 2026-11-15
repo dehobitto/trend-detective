@@ -1,16 +1,5 @@
 import { appConfig } from '../config/app';
-import type {
-  AnalysisRequest,
-  ChatRequest,
-  ChatResponse,
-  Dataset,
-  ExampleCase,
-  Health,
-  Job,
-  Place,
-  TrendApi,
-  Variable,
-} from './types';
+import type { AnalysisRequest, ChatRequest, ChatResponse, Dataset, ExampleCase, Health, Job, Place, RegionShape, TrendApi, Variable } from './types';
 
 /** Error carrying the HTTP status and the FastAPI `detail` message. */
 export class ApiRequestError extends Error {
@@ -81,6 +70,7 @@ export const httpApi: TrendApi = {
   deleteDataset: (id) => request<void>(`/datasets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   chat: (req: ChatRequest) => request<ChatResponse>('/chat', json(req)),
   geocode: (q, limit = 6, signal) => request<Place[]>(`/geocode?${new URLSearchParams({ q, limit: String(limit) })}`, { signal }),
+  getRegionShape: (osm) => request<RegionShape>(`/regions/shape?${new URLSearchParams({ osm })}`),
 };
 
 /** The API everyone should call. There is no offline fallback: if the backend is down, calls fail. */

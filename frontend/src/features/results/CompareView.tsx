@@ -4,7 +4,6 @@ import { Button } from '../../components/Button';
 import { useStore } from '../../state/store';
 import { JobProgress } from '../investigate/JobProgress';
 import { pollAnalysis } from '../investigate/useRunAnalysis';
-import { CaseBoard } from './DetectiveCase';
 import { TrendChart } from './TrendChart';
 import { VerdictCard } from './VerdictCard';
 
@@ -12,21 +11,20 @@ import { VerdictCard } from './VerdictCard';
  * "Compare with …": runs a second analysis for the same area and period with a related variable
  * (e.g. rainfall next to groundwater) and shows its verdict and chart underneath.
  */
-export function CompareView({ job, relatedId, kid = false }: { job: Job; relatedId: string; kid?: boolean }) {
+export function CompareView({ job, relatedId }: { job: Job; relatedId: string }) {
   const related = useStore((s) => s.variables.find((v) => v.id === relatedId));
   const [other, setOther] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
-  const started = useRef(false);
   useEffect(() => {
     alive.current = true; // StrictMode mounts twice; re-arm after the first cleanup
     return () => void (alive.current = false);
   }, []);
 
+  if (!related) return null;
   const running = !!other && other.status !== 'done' && other.status !== 'error';
 
   const run = async () => {
-    started.current = true;
     setError(null);
     try {
       const done = await pollAnalysis({ ...job.request, variable_id: relatedId }, (j) => alive.current && setOther(j), () => !alive.current);
@@ -36,12 +34,6 @@ export function CompareView({ job, relatedId, kid = false }: { job: Job; related
     }
   };
 
-  // Young detectives get the second clue automatically: the board is the point of the case.
-  useEffect(() => {
-    if (kid && related && !started.current) void run();
-  });
-
-  if (!related) return null;
   return (
     <section className="compare" aria-label={`Comparison with ${related.name}`}>
       {!other?.result && (
@@ -64,14 +56,8 @@ export function CompareView({ job, relatedId, kid = false }: { job: Job; related
       )}
       {other?.result && (
         <div className="compare__result">
-          {kid && job.result ? (
-            <CaseBoard main={job.result} other={other.result} />
-          ) : (
-            <>
-              <h3 className="compare__title">Compared with {related.name.toLowerCase()}</h3>
-              <VerdictCard result={other.result} compact />
-            </>
-          )}
+          <h3 className="compare__title">Compared with {related.name.toLowerCase()}</h3>
+          <VerdictCard result={other.result} compact />
           <TrendChart result={other.result} height={150} />
         </div>
       )}

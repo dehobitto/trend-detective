@@ -3,7 +3,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { FlatSwitch } from './features/globe/FlatSwitch';
 import { SunControl } from './features/globe/SunControl';
 import { api, checkHealth } from './api/client';
-import { AudienceSwitch } from './components/AudienceSwitch';
 import { Button } from './components/Button';
 import { Wordmark } from './components/Wordmark';
 import { ChatLauncher } from './features/chat/ChatLauncher';
@@ -77,7 +76,6 @@ export default function App() {
 
       <Wordmark />
       <PlaceSearch />
-      {!showPanel && server !== 'offline' && <AudienceSwitch className="audience--corner" />}
       {server === 'offline' && (
         <div className="server-down" role="alert">
           <p className="server-down__title">Can't reach the server</p>

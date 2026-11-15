@@ -20,6 +20,7 @@ export function AreaStep() {
   const [error, setError] = useState<string | null>(null);
   const noArea = useStore(needsNoArea);
   const variable = useSelectedVariable();
+  const region = useStore((s) => (s.region && s.region.bbox === s.bbox ? s.region : null));
 
   useEffect(() => {
     setDraft(bbox ? { west: String(bbox.west), south: String(bbox.south), east: String(bbox.east), north: String(bbox.north) } : null);
@@ -35,6 +36,30 @@ export function AreaStep() {
             : 'Global record: one worldwide average. The map area is not used.'
           : 'Your own data is a single series, so the map area is not used.'}
       </p>
+    );
+  }
+
+  if (region) {
+    const deg = `${region.cell_deg}°`;
+    const km = Math.round(region.cell_deg * 111);
+    return (
+      <div className="area area--region">
+        <p className="area__region-name">
+          {region.name} <span className="area__region-kind">{region.kind}</span>
+        </p>
+        <p className="notes">
+          The boundary is approximated by <strong>{region.cells.length} squares</strong> of {deg} (about {km} km). The average uses only these squares,
+          not the sea or neighbours around it.
+        </p>
+        <div className="area__actions">
+          <Button size="s" variant="ghost" onClick={() => setBBox(region.bbox)} title="Use the whole rectangle around the region instead">
+            Use rectangle
+          </Button>
+          <Button size="s" variant="ghost" onClick={() => setBBox(null)}>
+            Clear
+          </Button>
+        </div>
+      </div>
     );
   }
 

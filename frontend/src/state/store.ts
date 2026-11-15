@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Aggregation, BBox, Dataset, ExampleCase, Job, Variable } from '../api/types';
+import type { Aggregation, BBox, Dataset, ExampleCase, Job, RegionShape, Variable } from '../api/types';
 import { appConfig } from '../config/app';
 import { mapConfig } from '../config/map';
 
@@ -43,29 +43,12 @@ function saveFlat(flat: boolean) {
 }
 const startFlat = typeof window !== 'undefined' && readFlat();
 
-/**
- * Who is reading: 'kid' shows the detective story (suspect / alibi, case stamps, plain words) and hides the
- * statistics behind a fold; 'scientist' shows everything. From ?mode=kid|scientist or this device's last choice.
- */
-export type Audience = 'kid' | 'scientist';
-const AUDIENCE_KEY = 'td-audience';
-function readAudience(): Audience {
-  try {
-    const m = new URLSearchParams(window.location.search).get('mode');
-    if (m === 'kid' || m === 'scientist') return m;
-    return window.localStorage.getItem(AUDIENCE_KEY) === 'kid' ? 'kid' : 'scientist';
-  } catch {
-    return 'scientist';
-  }
-}
-const startAudience: Audience = typeof window !== 'undefined' ? readAudience() : 'scientist';
 
 type State = {
   /** Backend reachability, checked once at startup (there is no offline fallback). */
   server: 'connecting' | 'online' | 'offline';
   /** 2D-only mode: no globe at all, the flat map is the home screen. */
   flat: boolean;
-  audience: Audience;
   /** 2D-only mode: the example case list is open over the map. */
   casesOpen: boolean;
   view: View;
@@ -81,6 +64,8 @@ type State = {
   mapMounted: boolean;
 
   bbox: BBox | null;
+  /** A named area picked by name (country, state, city): its boundary and squares; bbox = the squares' box. */
+  region: RegionShape | null;
   drawing: boolean;
   panelRequested: boolean;
   /** Phones: the investigation bottom sheet is folded down to its grip (the timeline dock docks above it). */
@@ -118,11 +103,12 @@ type Actions = {
   flyTo: (to: LatLon, fitBBox?: boolean, arrival?: Arrival) => void;
   /** Switch between the globe and the 2D-only map (remembered on this device). */
   setFlat: (flat: boolean) => void;
-  setAudience: (a: Audience) => void;
   arriveAtMap: () => void;
   backToGlobe: (from: LatLon) => void;
   finishTransition: () => void;
   setBBox: (b: BBox | null) => void;
+  /** Use a named region (from place search) as the area: outline + squares on the map, average inside only. */
+  applyRegion: (r: RegionShape) => void;
   applyExample: (ex: ExampleCase) => void;
   selectVariable: (id: string) => void;
   peekAt: (to: LatLon) => void;
@@ -132,7 +118,6 @@ type Actions = {
 export const useStore = create<State & Actions>((set, get) => ({
   server: 'connecting',
   flat: startFlat,
-  audience: startAudience,
   casesOpen: startFlat,
   view: startFlat ? 'map' : 'globe',
   transition: 'idle',
@@ -141,6 +126,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   mapMounted: startFlat,
 
   bbox: null,
+  region: null,
   drawing: false,
   panelRequested: false,
   panelCollapsed: false,
@@ -199,26 +185,21 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
   },
 
-  setAudience: (audience) => {
-    try {
-      window.localStorage.setItem(AUDIENCE_KEY, audience);
-    } catch {
-      /* not remembered */
-    }
-    set({ audience });
-  },
-
   arriveAtMap: () => set((s) => ({ view: 'map', transition: 'idle', mapEnter: { ...s.mapEnter, nonce: s.mapEnter.nonce + 1 } })),
 
   backToGlobe: (from) => set({ view: 'globe', transition: 'flyingOut', focus: from, drawing: false }),
 
   finishTransition: () => set({ transition: 'idle' }),
 
-  setBBox: (bbox) => set({ bbox, job: null, runError: null, ...(bbox ? { casesOpen: false } : {}) }),
+  // Any hand-made box (drawn, dragged, typed, an example's) replaces a named region.
+  setBBox: (bbox) => set({ bbox, region: null, job: null, runError: null, ...(bbox ? { casesOpen: false } : {}) }),
+
+  applyRegion: (region) => set({ bbox: region.bbox, region, job: null, runError: null, casesOpen: false, activeExample: null }),
 
   applyExample: (ex) => {
     set({
       bbox: ex.bbox,
+      region: null,
       variableId: ex.variable_id,
       start: ex.start,
       end: ex.end,

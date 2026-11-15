@@ -22,11 +22,36 @@ export function areaFor(p: Place): BBox {
   return { west: r(west), south: r(south), east: r(Math.min(180, west + w)), north: r(Math.min(90, south + h)) };
 }
 
+/** Places with a real boundary (OSM relations: countries, states, districts, cities). */
+const hasBoundary = (p: Place) => !!p.osm && p.osm.startsWith('R');
+
+/**
+ * "Use this area" on a place with a boundary: fetch it, approximated by squares, and make it the area
+ * (outline on the map, the average covers only the squares). Until it arrives the place's rectangle stands in.
+ */
+async function adoptRegion(p: Place, placeholder: BBox) {
+  try {
+    const region = await api.getRegionShape(p.osm as string);
+    const s = useStore.getState();
+    const b = s.bbox;
+    // Only if the user has not drawn something else meanwhile.
+    if (b && b.west === placeholder.west && b.south === placeholder.south && b.east === placeholder.east && b.north === placeholder.north) {
+      s.applyRegion(region);
+      if (s.view === 'map') useLayers.getState().flyMap({ center: { lat: p.lat, lon: p.lon }, bounds: region.bbox });
+    }
+  } catch (e) {
+    useStore.getState().set({ mapNotice: `${e instanceof Error ? e.message : 'No boundary for this place'}. Using its rectangle instead.` });
+  }
+}
+
 /** Go to a place: from the globe this runs the fly-in hand-off; on the map it flies there. */
 export function goToPlace(p: Place, useArea: boolean) {
   const s = useStore.getState();
   const bounds = useArea ? areaFor(p) : p.bbox;
-  if (useArea) s.setBBox(bounds);
+  if (useArea) {
+    s.setBBox(bounds);
+    if (hasBoundary(p) && bounds) void adoptRegion(p, bounds);
+  }
   const center = { lat: p.lat, lon: p.lon };
   if (s.view === 'globe') s.flyTo(center, false, { bounds, zoom: cfg.pointZoom, via: 'search' });
   else useLayers.getState().flyMap({ center, bounds, zoom: cfg.pointZoom });

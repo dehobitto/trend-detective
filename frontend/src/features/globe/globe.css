@@ -98,7 +98,7 @@
 .sun-ctl {
   position: absolute;
   right: var(--edge);
-  top: calc(var(--edge) + 48px); /* under the young detective / scientist switch */
+  top: var(--edge);
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -128,6 +128,6 @@
 .sun-ctl__text { display: grid; gap: 1px; }
 .sun-ctl__time { font-size: 11.5px; font-weight: 500; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) {
-  .sun-ctl { top: 146px; }
+  .sun-ctl { top: 104px; }
   .sun-ctl__btn--spin .sun-ctl__label { display: none; }
 }

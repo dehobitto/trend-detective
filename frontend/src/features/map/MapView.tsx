@@ -14,6 +14,7 @@ import { addBBoxLayers, buildStyle, setBasemap, setBBoxData } from './layers';
 import { registerOverlayProtocol } from './overlayProtocol';
 import { useBoxSelect } from './useBoxSelect';
 import { useGibsOverlay } from './useGibsOverlay';
+import { useRegionLayers } from './useRegionLayers';
 import { useStationMarker } from './useStationMarker';
 import { useTrackpadPan } from './useTrackpadPan';
 import './map.css';
@@ -112,6 +113,7 @@ export function MapView() {
   }, []);
 
   useBoxSelect(map);
+  useRegionLayers(map);
   useStationMarker(map);
   useGibsOverlay(map);
   useTrackpadPan(map);
@@ -122,7 +124,9 @@ export function MapView() {
 
   // Keep the drawn rectangle in sync with the store (panel edits, examples, clears).
   useEffect(() => {
-    if (map) setBBoxData(map, bbox);
+    // A named region draws its own outline (useRegionLayers); the rectangle is only its squares' box.
+    const region = useStore.getState().region;
+    if (map) setBBoxData(map, region && region.bbox === bbox ? null : bbox);
     // Phones: a box drawn low on the map ends up under the bottom sheet that opens with it. Bring it into view.
     if (!map || !bbox || window.innerWidth > 760 || map.isMoving()) return;
     const { view, transition } = useStore.getState();

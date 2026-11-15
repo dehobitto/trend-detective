@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { useSelectedVariable, useStore } from '../../state/store';
 
 const STAGE = {
-  queued: { scientist: 'Queued', kid: 'Getting ready' },
-  fetching: { scientist: 'Downloading from NASA', kid: 'Searching NASA’s archives' },
-  processing: { scientist: 'Preparing the series', kid: 'Sorting the clues' },
-  analyzing: { scientist: 'Testing the trend', kid: 'Checking if it’s a fluke' },
-  done: { scientist: 'Done', kid: 'Case cracked!' },
-  error: { scientist: 'Could not finish', kid: 'The trail went cold' },
+  queued: 'Queued',
+  fetching: 'Downloading from NASA',
+  processing: 'Preparing the series',
+  analyzing: 'Testing the trend',
+  done: 'Done',
+  error: 'Could not finish',
 } as const;
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -19,7 +19,6 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).
  */
 export function MapJobToast({ besidePanel }: { besidePanel: boolean }) {
   const job = useStore((s) => s.job);
-  const kid = useStore((s) => s.audience === 'kid');
   const variable = useSelectedVariable();
   const hasDock = !!variable && variable.coverage !== 'series'; // the timeline dock (or its 'no imagery' note) sits below
   const [now, setNow] = useState(() => Date.now());
@@ -47,7 +46,7 @@ export function MapJobToast({ besidePanel }: { besidePanel: boolean }) {
   if (!job || (!running && lingering !== job.id)) return null;
   const pct = Math.round(job.progress * 100);
   const elapsed = startedAt?.id === job.id ? (now - startedAt.t) / 1000 : 0;
-  const label = STAGE[job.status][kid ? 'kid' : 'scientist'];
+  const label = STAGE[job.status];
   // The backend's download message already explains the first-time wait; only add it when it doesn't.
   const slow = running && elapsed > 20 && !/first time/i.test(job.message ?? '');
 
@@ -67,7 +66,7 @@ export function MapJobToast({ besidePanel }: { besidePanel: boolean }) {
       {running && job.message && <p className="job-toast__msg">{job.message}</p>}
       {slow && (
         <p className="job-toast__hint">
-          {kid ? 'Big archives take a while the first time. After that this place is instant.' : 'A new area is fetched from NASA once; afterwards it is cached and instant.'}
+          A new area is fetched from NASA once; afterwards it is cached and instant.
         </p>
       )}
     </div>

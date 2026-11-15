@@ -48,6 +48,8 @@ export function useRunAnalysis() {
       aggregation: s.aggregation,
       deseasonalize: s.aggregation === 'monthly' ? s.deseasonalize : false,
       alpha: s.alpha,
+      // A named region: average only inside its squares.
+      ...(!noArea && s.region && s.bbox === s.region.bbox ? { cells: s.region.cells, region_name: s.region.name } : {}),
     };
     const id = ++runId.current;
     s.set({ runError: null });

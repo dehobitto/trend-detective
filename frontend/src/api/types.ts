@@ -49,7 +49,20 @@ export type GibsLayer = {
 
 export type MapLayer = GibsLayer;
 
-export type Place = { name: string; display_name: string; lat: number; lon: number; bbox: BBox | null; kind: string };
+export type Place = { name: string; display_name: string; lat: number; lon: number; bbox: BBox | null; kind: string; osm?: string | null };
+
+/** A named area's OSM boundary approximated by grid squares (GET /api/regions/shape). */
+export type RegionShape = {
+  osm: string;
+  name: string;
+  kind: string;
+  /** Simplified boundary, GeoJSON Polygon or MultiPolygon geometry. */
+  outline: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  /** The squares the analysis averages over. */
+  cells: BBox[];
+  cell_deg: number;
+  bbox: BBox;
+};
 
 export type ExampleCase = {
   id: string;
@@ -78,6 +91,9 @@ export type AnalysisRequest = {
   aggregation: Aggregation;
   deseasonalize: boolean;
   alpha: number;
+  /** A named region's squares: the average covers only these (bbox = their bounding box). */
+  cells?: BBox[] | null;
+  region_name?: string | null;
 };
 
 export type JobStatus = 'queued' | 'fetching' | 'processing' | 'analyzing' | 'done' | 'error';
@@ -131,6 +147,8 @@ export type AnalysisResult = {
   summary: string;
   provider: string;
   warnings: string[];
+  /** Set when the analysis averaged over a named region's squares. */
+  region_name?: string | null;
 };
 
 export type Dataset = {
@@ -168,6 +186,7 @@ export interface TrendApi {
   deleteDataset(id: string): Promise<void>;
   chat(req: ChatRequest): Promise<ChatResponse>;
   geocode(q: string, limit?: number, signal?: AbortSignal): Promise<Place[]>;
+  getRegionShape(osm: string): Promise<RegionShape>;
 }
 
 export const UPLOAD_PREFIX = 'upload:';
