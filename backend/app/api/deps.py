@@ -12,6 +12,7 @@ from app.config import Settings
 from app.geocode import Geocoder
 from app.jobs import AnalysisRunner, JobStore
 from app.providers import DataProvider, UploadProvider
+from app.regions import RegionService
 
 
 @dataclass
@@ -24,6 +25,7 @@ class Services:
     runner: AnalysisRunner
     chat: ChatBackend
     geocoder: Geocoder
+    regions: RegionService
 
 
 def get_services(request: Request) -> Services:

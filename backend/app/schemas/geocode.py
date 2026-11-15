@@ -15,3 +15,5 @@ class Place(BaseModel):
     bbox: BBox | None
     kind: str
     """What the place is, e.g. "city", "country", "state", "river"."""
+    osm: str | None = None
+    """OpenStreetMap id ("R60199" = relation, "W…" way, "N…" node): pass it to /api/regions/shape for the boundary."""

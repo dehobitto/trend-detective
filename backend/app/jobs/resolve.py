@@ -35,6 +35,8 @@ class Plan:
     bbox: BBox | None = None
     """The area passed to the provider: None for uploads and "series" variables (any request bbox is ignored)."""
     warnings: list[str] = field(default_factory=list)
+    cells: list[BBox] | None = None
+    """A named region's squares: the provider averages only inside them (``providers.base.fetch_mask``)."""
 
 
 def resolve(
@@ -76,7 +78,8 @@ def resolve(
             f"The date range is too short for {aggregation} analysis: pick at least {min_years} years."
         )
     return Plan(variable=variable, provider=chosen, start=start, end=end, aggregation=aggregation,
-                bbox=bbox, warnings=warnings)
+                bbox=bbox, warnings=warnings,
+                cells=request.cells if bbox is not None and request.cells else None)
 
 
 def clamp_period(

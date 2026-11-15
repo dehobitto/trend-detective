@@ -29,7 +29,8 @@ from app.schemas.common import BBox
 log = logging.getLogger(__name__)
 
 STEPS = (0.1, 0.25, 0.5, 1.0, 2.0, 3.0, 5.0)
-MAX_CELLS = 64
+MAX_CELLS = 300
+"""Squares are only a mask (no extra downloads), so the cap is about drawing them, not speed."""
 MIN_COVER = 0.35
 MAX_SPAN_DEG = (90.0, 60.0)
 """Width and height limits: beyond that a region is too big to analyse as one area."""

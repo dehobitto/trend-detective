@@ -20,6 +20,7 @@ from app.catalog import Catalog
 from app.chat import create_chat_backend
 from app.config import Settings, get_settings
 from app.geocode import Geocoder
+from app.regions import RegionService
 from app.jobs import AnalysisRunner, InMemoryJobStore
 from app.providers import UploadProvider, UploadStore, create_provider
 
@@ -30,6 +31,7 @@ def build_services(settings: Settings) -> Services:
     uploads = UploadProvider(UploadStore(settings.upload_dir))
     jobs = InMemoryJobStore(max_jobs=settings.max_jobs)
     runner = AnalysisRunner(jobs, catalog, provider, uploads)
+    geocoder = Geocoder(settings)
     return Services(
         settings=settings,
         catalog=catalog,
@@ -38,7 +40,8 @@ def build_services(settings: Settings) -> Services:
         jobs=jobs,
         runner=runner,
         chat=create_chat_backend(settings.chat_backend, settings),
-        geocoder=Geocoder(settings),
+        geocoder=geocoder,
+        regions=RegionService(geocoder.client, geocoder.nominatim_lookup_url, Path(settings.cache_dir), geocoder.nominatim_slot),
     )
 
 

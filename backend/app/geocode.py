@@ -10,6 +10,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from contextlib import contextmanager
 
 import httpx
 
@@ -68,9 +69,11 @@ def places_from_photon(data: dict) -> list[Place]:
         extent = props.get("extent")
         bbox = _place_bbox(extent[0], extent[3], extent[2], extent[1]) if extent and len(extent) == 4 else None
         display = _join_unique([name, props.get("city"), props.get("county"), props.get("state"), props.get("country")])
+        osm_type, osm_id = props.get("osm_type"), props.get("osm_id")
         places.append(Place(
             name=name, display_name=display, lat=lat, lon=lon, bbox=bbox,
             kind=next((k for k in (props.get("type"), props.get("osm_value")) if k and k != "other"), "place"),
+            osm=f"{osm_type}{osm_id}" if osm_type in ("N", "W", "R") and osm_id else None,
         ))
     return places
 
@@ -92,9 +95,11 @@ def places_from_nominatim(data: list) -> list[Place]:
         if bb and len(bb) == 4:
             south, north, west, east = (float(x) for x in bb)
             bbox = _place_bbox(west, south, east, north)
+        osm_type = {"relation": "R", "way": "W", "node": "N"}.get(item.get("osm_type") or "")
         places.append(Place(
             name=name, display_name=display or name, lat=lat, lon=lon, bbox=bbox,
             kind=item.get("addresstype") or item.get("type") or item.get("category") or "place",
+            osm=f"{osm_type}{item['osm_id']}" if osm_type and item.get("osm_id") else None,
         ))
     return places
 
@@ -156,15 +161,25 @@ class Geocoder:
         r.raise_for_status()
         return places_from_photon(r.json())[:limit]
 
-    def _nominatim(self, query: str, limit: int) -> list[Place]:
-        with self._nominatim_lock:  # usage policy: at most 1 request per second
+    @contextmanager
+    def nominatim_slot(self):
+        """Hold the Nominatim slot: usage policy allows at most 1 request per second (search and lookup share it)."""
+        with self._nominatim_lock:
             wait = self._nominatim_last + self.min_interval - time.monotonic()
             if wait > 0:
                 time.sleep(wait)
             try:
-                r = self.client.get(self.nominatim_url, params={"format": "jsonv2", "q": query, "limit": limit, "accept-language": "en"})
+                yield
             finally:
                 self._nominatim_last = time.monotonic()
+
+    @property
+    def nominatim_lookup_url(self) -> str:
+        return self.nominatim_url.rsplit("/", 1)[0] + "/lookup"
+
+    def _nominatim(self, query: str, limit: int) -> list[Place]:
+        with self.nominatim_slot():
+            r = self.client.get(self.nominatim_url, params={"format": "jsonv2", "q": query, "limit": limit, "accept-language": "en"})
         r.raise_for_status()
         return places_from_nominatim(r.json())[:limit]
 

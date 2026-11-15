@@ -55,7 +55,7 @@ def test_blackmarble_skips_tiles_without_squares(settings, fake_laads):  # noqa:
 
 def test_approximate_a_triangle():
     triangle = {"type": "Polygon", "coordinates": [[[0, 0], [4, 0], [0, 4], [0, 0]]]}
-    cells, step, union, outline = approximate(triangle, max_cells=64)
+    cells, step, union, outline = approximate(triangle, max_cells=64)  # explicit cap: 0.5° squares
     assert step == 0.5 and 20 <= len(cells) <= 40
     assert union.west == 0 and union.south == 0 and union.east <= 4 and union.north <= 4
     assert 6 <= cells_union_area(cells) <= 10  # triangle area is 8

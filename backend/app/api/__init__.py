@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 
-from app.api import analyses, catalog, chat, datasets, geocode, health
+from app.api import analyses, catalog, chat, datasets, geocode, health, regions
 
 api_router = APIRouter(prefix="/api")
-for module in (health, catalog, analyses, datasets, chat, geocode):
+for module in (health, catalog, analyses, datasets, chat, geocode, regions):
     api_router.include_router(module.router)
 
 __all__ = ["api_router"]

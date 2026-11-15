@@ -63,7 +63,7 @@ def test_geocode_uses_photon_and_caches(client):
     assert r.status_code == 200, r.text
     places = r.json()
     assert [p["name"] for p in places] == ["Punjab", "Lake Chad"]
-    assert set(places[0]) == {"name", "display_name", "lat", "lon", "bbox", "kind"}
+    assert set(places[0]) == {"name", "display_name", "lat", "lon", "bbox", "kind", "osm"}
     assert upstream.calls[0].url.params["q"] == "Punjab" and upstream.calls[0].url.params["limit"] == "2"
     assert c.get("/api/geocode", params={"q": "  punjab ", "limit": 2}).json() == places
     assert len(upstream.calls) == 1  # second answer came from the cache

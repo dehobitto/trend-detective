@@ -19,6 +19,7 @@ from app.processing import timeseries as ts
 from app.processing import trends
 from app.processing.summary import build_summary
 from app.providers import DataProvider, ProviderError, UploadProvider, fetch_progress
+from app.providers.base import fetch_mask
 from app.schemas.analysis import AnalysisRequest, AnalysisResult, SeriesPoint, TrendStats
 
 log = logging.getLogger(__name__)
@@ -70,8 +71,10 @@ class AnalysisRunner:
                 "A new area takes a while the first time; after that it is instant.",
             )
 
-        with fetch_progress(on_progress):
+        with fetch_progress(on_progress), fetch_mask(plan.cells):
             monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
+        # Providers may attach notes ("sampled every ~N km…"); read them now, resampling drops attrs.
+        provider_notes = list(monthly.attrs.get("notes", []))
 
         self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…")
         is_monthly = plan.aggregation == "monthly"
@@ -92,7 +95,7 @@ class AnalysisRunner:
         stats = TrendStats.model_validate(analysis.stats)
         valid_index = analyzed.dropna().index
         warnings = (
-            plan.warnings + processed.warnings + self._quality_warnings(valid_index, analysis)
+            provider_notes + plan.warnings + processed.warnings + self._quality_warnings(valid_index, analysis)
         )
         return AnalysisResult(
             variable=plan.variable.public(),
@@ -102,6 +105,7 @@ class AnalysisRunner:
             stats=stats,
             summary=build_summary(stats, plan.variable.units, valid_index[0].year, valid_index[-1].year),
             provider=provider.name,
+            region_name=request.region_name if plan.cells else None,
             warnings=warnings,
         )
 

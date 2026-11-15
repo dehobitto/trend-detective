@@ -28,6 +28,11 @@ class AnalysisRequest(BaseModel):
     deseasonalize: bool | None = None
     """Defaults to true for monthly, false for annual."""
     alpha: float = Field(default=0.05, gt=0, lt=0.5)
+    cells: list[BBox] | None = Field(default=None, max_length=600)
+    """A named region approximated by grid squares (``/api/regions/shape``): the average covers only these
+    squares. ``bbox`` should be their bounding box. Ignored for "series" variables and uploads."""
+    region_name: str | None = Field(default=None, max_length=120)
+    """Display name of that region (echoed in the result)."""
 
     @model_validator(mode="after")
     def _check(self) -> "AnalysisRequest":
@@ -84,6 +89,8 @@ class AnalysisResult(BaseModel):
     stats: TrendStats
     summary: str
     provider: str
+    region_name: str | None = None
+    """Set when the request averaged over a named region's squares."""
     warnings: list[str]
 
 
