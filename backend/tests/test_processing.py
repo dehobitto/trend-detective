@@ -78,19 +78,17 @@ def test_seasonal_cycle_short_or_cycle_free_records():
 
 def _stats(**kw) -> TrendStats:
     base = dict(n=100, slope_per_year=0.042, slope_per_decade=0.42, slope_ci_low_per_decade=0.3,
-                slope_ci_high_per_decade=0.5, intercept=0, r_squared=0.5, t_stat=5, p_value=0.0001,
-                mk_tau=0.4, mk_z=5, mk_p_value=0.0002, sens_slope_per_decade=0.41, total_change=1.8,
+                slope_ci_high_per_decade=0.5, intercept=0, r_squared=0.5,
+                mk_tau=0.4, mk_z=5, mk_p_value=0.0002, total_change=1.8,
                 percent_change=None, direction="rising", significant=True, alpha=0.05)
     return TrendStats(**(base | kw))
 
 
 def test_summary_texts():
     assert build_summary(_stats(), "°C", 1980, 2023).startswith("Rising by 0.42 °C per decade")
-    assert "Both tests agree" in build_summary(_stats(), "°C", 1980, 2023)
-    not_sig = _stats(p_value=0.3, mk_p_value=0.4, significant=False)
+    assert "Mann-Kendall test confirms" in build_summary(_stats(), "°C", 1980, 2023)
+    not_sig = _stats(mk_p_value=0.4, significant=False)
     assert "not statistically significant" in build_summary(not_sig, "°C", 1980, 2023)
-    mixed = _stats(p_value=0.01, mk_p_value=0.2, significant=False)
-    assert "Only the regression" in build_summary(mixed, "°C", 1980, 2023)
     assert "per decade (+" in build_summary(_stats(), "unitless", 2000, 2020)
     assert format_number(0.000123) == "0.00012" and format_number(1234.5) == "1,200"
 

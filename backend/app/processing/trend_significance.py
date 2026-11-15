@@ -552,9 +552,7 @@ def assess_trend(y, t=None, *, seasonal=None, period: Optional[int] = None,
                     stationarity_class=stationarity, adf_p=adf_p, kpss_p=kpss_p, dfa_alpha=dfa,
                     residual_seasonality=resid_seas, outliers=int(outl.sum()), diagnostics=diag, breaks=brk)
 
-    # --- Block C: trend tests ---------------------------------------------
-    maxlags = int(max(1, np.floor(4 * (n / 100.0) ** (2 / 9))))
-
+    # --- Block C: trend test (Mann-Kendall TFPW) --------------------------------
     def add(res: TestResult):
         if res.p_value is not None and res.significant is None:
             res.significant = bool(res.p_value < alpha)
@@ -562,147 +560,12 @@ def assess_trend(y, t=None, *, seasonal=None, period: Optional[int] = None,
             res.direction = _direction(res.estimate, res.significant)
         tests.append(res)
 
-    # 1. OLS: classical t-test (reference only; votes only if there is no autocorrelation/heteroscedasticity)
-    iid_ok = (not sig_autocorr) and (not heterosk)
-    add(TestResult("OLS t-тест (класичний)", "parametric", statistic=float(ols.tvalues[1]),
-                   p_value=float(ols.pvalues[1]), estimate=b_ols / 1.0,
-                   ci=tuple(map(float, ols.conf_int(alpha)[1])), voting=iid_ok,
-                   note="" if iid_ok else "довідково: порушено незалежність/однорідність"))
-
-    # 2. OLS + HAC (Newey-West), t distribution
-    try:
-        hac = sm.OLS(yv, X).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags, "use_correction": True}, use_t=True)
-        add(TestResult("OLS + HAC (Newey-West)", "parametric", statistic=float(hac.tvalues[1]),
-                       p_value=float(hac.pvalues[1]), estimate=b_ols,
-                       ci=tuple(map(float, hac.conf_int(alpha)[1])), note=f"maxlags={maxlags}"))
-    except Exception as ex:
-        add(TestResult("OLS + HAC (Newey-West)", "parametric", applicable=False, note=str(ex)[:40]))
-
-    # 3. Regression with AR(1) errors (maximum likelihood)
-    try:
-        from statsmodels.tsa.statespace.sarimax import SARIMAX
-        tstd = tc / tc.std()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            m1 = SARIMAX(yv, exog=tstd, order=(1, 0, 0), trend="c").fit(disp=False)
-            m0 = SARIMAX(yv, order=(1, 0, 0), trend="c").fit(disp=False)
-        coef = float(m1.params[1]) / float(tc.std())
-        ci = m1.conf_int(alpha)[1] / float(tc.std())
-        lr = 2 * (m1.llf - m0.llf)
-        add(TestResult("Регресія з AR(1)-помилками (Wald)", "parametric", statistic=float(m1.tvalues[1]),
-                       p_value=float(m1.pvalues[1]), estimate=coef, ci=(float(ci[0]), float(ci[1])),
-                       note=f"LR p={1 - stats.chi2.cdf(lr, 1):.3g}; ΔAIC={m0.aic - m1.aic:.1f}"))
-        diag["delta_aic_trend_vs_none"] = float(m0.aic - m1.aic)
-        diag["delta_bic_trend_vs_none"] = float(m0.bic - m1.bic)
-    except Exception as ex:
-        add(TestResult("Регресія з AR(1)-помилками (Wald)", "parametric", applicable=False, note=str(ex)[:40]))
-
-    # 4. Mann-Kendall (naive) + Sen
-    S, var, z, p_mk, tau = _mk_core(yv)
-    slopes, full = _pair_slopes(yv, tv)
-    ci_sen = None
-    if full:
-        C = stats.norm.ppf(1 - alpha / 2) * math.sqrt(var)
-        N = len(slopes)
-        srt = np.sort(slopes)
-        lo = int(np.clip(math.floor((N - C) / 2) - 1, 0, N - 1))
-        hi = int(np.clip(math.ceil((N + C) / 2), 0, N - 1))
-        ci_sen = (float(srt[lo]), float(srt[hi]))
-    add(TestResult("Манн-Кендалл + Theil-Sen (наївний)", "nonparametric", statistic=float(z), p_value=float(p_mk),
-                   estimate=b_sen, ci=ci_sen, voting=not sig_autocorr,
-                   note=f"tau={tau:.3f}" + ("" if not sig_autocorr else "; довідково: є автокореляція")))
-
-    # 5. TFPW + MK, Hamed-Rao
+    # Mann-Kendall TFPW (Yue-Pilon): handles autocorrelation via pre-whitening,
+    # falls back to plain MK when autocorrelation is not significant.
     z_t, p_t, r1_t, prewhitened = _tfpw_mk(yv, alpha)
     add(TestResult("Манн-Кендалл TFPW (Yue-Pilon)", "nonparametric", statistic=float(z_t), p_value=float(p_t),
-                   estimate=b_sen, voting=bool(sig_autocorr),
+                   estimate=b_sen, voting=True,
                    note=f"r1={r1_t:.2f}" + ("" if prewhitened else "; автокореляція незначуща (=звичайний MK)")))
-    if _pmk is not None:
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                hr = _pmk.hamed_rao_modification_test(yv, alpha=alpha)
-            add(TestResult("Манн-Кендалл Hamed-Rao", "nonparametric", statistic=float(hr.z), p_value=float(hr.p),
-                           estimate=b_sen, voting=bool(sig_autocorr),
-                           note="поправка на значущі лаги ACF"))
-        except Exception as ex:
-            add(TestResult("Манн-Кендалл Hamed-Rao", "nonparametric", applicable=False, note=str(ex)[:40]))
-    else:
-        add(TestResult("Манн-Кендалл Hamed-Rao", "nonparametric", applicable=False, note="pip install pymannkendall"))
-
-    # 6. Spearman (reference only)
-    rho_s, p_s = stats.spearmanr(tv, yv)
-    add(TestResult("Spearman ρ (час)", "nonparametric", statistic=float(rho_s), p_value=float(p_s),
-                   estimate=b_sen, voting=False, note="довідково, без поправки на автокореляцію"))
-
-    # 7. Drift test on first differences (guards against a spurious trend)
-    d = np.diff(yv)
-    try:
-        dm = sm.OLS(d, np.ones(len(d))).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags}, use_t=True)
-        drift = float(dm.params[0]) / med_dt
-        add(TestResult("Дрейф на перших різницях (HAC)", "parametric", statistic=float(dm.tvalues[0]),
-                       p_value=float(dm.pvalues[0]), estimate=drift,
-                       ci=tuple(float(v) / med_dt for v in dm.conf_int(alpha)[0]),
-                       voting=possible_unit_root,
-                       note="для I(1)-рядів" if possible_unit_root else "довідково"))
-    except Exception as ex:
-        add(TestResult("Дрейф на перших різницях (HAC)", "parametric", applicable=False, note=str(ex)[:40]))
-
-    # --- Block D: resampling ---------------------------------------------------
-    # 8. Block bootstrap of residuals
-    l_blk = int(np.clip(round(n ** (1 / 3) * (1 + max(rho_c, 0)) / (1 - max(rho_c, 0))), 2, max(2, n // 4)))
-    nb = math.ceil(n / l_blk)
-    starts = rng.integers(0, n - l_blk + 1, (n_boot, nb))
-    idx = (starts[:, :, None] + np.arange(l_blk)[None, None, :]).reshape(n_boot, -1)[:, :n]
-    Yb = ols.fittedvalues[None, :] + resid[idx]
-    bs_ols = _ols_slope_vec(Yb, tc, sxx)
-    lo_b, hi_b = np.percentile(bs_ols, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-    p_b = float(min(1.0, 2 * min(np.mean(bs_ols <= 0), np.mean(bs_ols >= 0)) + 1.0 / n_boot))
-    add(TestResult("Блоковий bootstrap (нахил OLS)", "resampling", p_value=p_b, estimate=b_ols,
-                   ci=(float(lo_b), float(hi_b)), note=f"блок={l_blk}, B={n_boot}"))
-    if n <= 250:
-        Bs = min(n_boot, 300)
-        sen_res = yv - b_sen * tv - a_sen
-        idx2 = idx[:Bs]
-        bs_sen = np.array([_sen_slope(b_sen * tv + a_sen + sen_res[idx2[k]], tv)[0] for k in range(Bs)])
-        lo_s, hi_s = np.percentile(bs_sen, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-        p_bs = float(min(1.0, 2 * min(np.mean(bs_sen <= 0), np.mean(bs_sen >= 0)) + 1.0 / Bs))
-        add(TestResult("Блоковий bootstrap (нахил Theil-Sen)", "resampling", p_value=p_bs, estimate=b_sen,
-                       ci=(float(lo_s), float(hi_s)), note=f"блок={l_blk}, B={Bs}"))
-
-    # 9. Surrogate tests
-    obs_slope = b_ols
-    res_for_surr = resid_sen
-    surr_ar = _ar1_noise(rng, n_surr, n, rho_c) * res_for_surr.std()
-    s_ar = _ols_slope_vec(surr_ar, tc, sxx)
-    p_ar = float((1 + np.sum(np.abs(s_ar) >= abs(obs_slope))) / (n_surr + 1))
-    add(TestResult("Сурогати AR(1) (H0: шум без тренду)", "surrogate", p_value=p_ar, estimate=obs_slope,
-                   note=f"ρ={rho_c:.2f}, B={n_surr}"))
-    if n >= 32:
-        surr_ph = _phase_surrogates(rng, res_for_surr, n_surr)
-        s_ph = _ols_slope_vec(surr_ph, tc, sxx)
-        p_ph = float((1 + np.sum(np.abs(s_ph) >= abs(obs_slope))) / (n_surr + 1))
-        long_mem = dfa is not None and dfa > 0.75
-        add(TestResult("Фазові сурогати (зберігають спектр)", "surrogate", p_value=p_ph, estimate=obs_slope,
-                       note="зберігає форму спектра шуму" + ("; довга пам'ять" if long_mem else "")))
-
-    # 10. Stage 2 method (trend_fn)
-    if trend_fn is not None:
-        try:
-            def stat_fn(arr):
-                tr = np.asarray(trend_fn(arr), dtype=float)
-                return float(tr[-1] - tr[0])
-            obs = stat_fn(yv)
-            Bf = min(n_surr, 299)
-            sims = np.empty(Bf)
-            for k in range(Bf):
-                sims[k] = stat_fn(surr_ar[k] + yv.mean())
-            p_f = float((1 + np.sum(np.abs(sims) >= abs(obs))) / (Bf + 1))
-            add(TestResult("Тренд етапу 2: сурогати AR(1)", "surrogate", statistic=obs, p_value=p_f,
-                           estimate=obs / span if span else None, direction=_direction(obs, p_f < alpha),
-                           note=f"статистика = повна зміна тренду; B={Bf}"))
-        except Exception as ex:
-            add(TestResult("Тренд етапу 2: сурогати AR(1)", "surrogate", applicable=False, note=str(ex)[:40]))
 
     # --- Block D: sensitivity -------------------------------------------------
     variants = []
@@ -777,11 +640,6 @@ def assess_trend(y, t=None, *, seasonal=None, period: Optional[int] = None,
         if break_sign_change:
             verdict = "ambiguous"
             rationale_parts.append("знак тренду змінюється на зламі: єдиний монотонний тренд недоречний")
-        if possible_unit_root:
-            dr = next((t for t in tests if t.name.startswith("Дрейф") and t.applicable), None)
-            if dr is not None and not dr.significant:
-                verdict = "ambiguous"
-                rationale_parts.append("ряд схожий на random walk, а дрейф на різницях незначущий (ризик хибного тренду)")
     if verdict == "not_significant" and brk.get("sup_f_p") is not None and brk["sup_f_p"] < alpha:
         verdict = "ambiguous"
         rationale_parts.append("монотонного тренду не виявлено, але є значущий злам: можливий кусково-лінійний тренд")
@@ -790,7 +648,6 @@ def assess_trend(y, t=None, *, seasonal=None, period: Optional[int] = None,
     penalties = 0
     penalties += n < 30
     penalties += bool(resid_seas)
-    penalties += bool(possible_unit_root)
     penalties += bool(dfa is not None and dfa > 0.75)
     penalties += bool(brk.get("sup_f_p") is not None and brk["sup_f_p"] < alpha)
     penalties += missing_frac > 0.05

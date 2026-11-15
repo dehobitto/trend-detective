@@ -127,12 +127,9 @@ export type TrendStats = {
   slope_ci_high_per_decade: number;
   intercept: number;
   r_squared: number;
-  t_stat: number;
-  p_value: number;
   mk_tau: number;
   mk_z: number;
   mk_p_value: number;
-  sens_slope_per_decade: number;
   total_change: number;
   percent_change: number | null;
   direction: 'rising' | 'falling' | 'flat';
@@ -150,7 +147,7 @@ export type TestRow = {
   voting: boolean;
 };
 
-/** The multi-test check of the trend (OLS variants, Mann-Kendall variants, bootstraps, surrogates). */
+/** Trend significance check (Mann-Kendall TFPW + sensitivity analysis). */
 export type TrendAssessment = {
   verdict: 'significant_up' | 'significant_down' | 'not_significant' | 'ambiguous' | 'insufficient_data';
   confidence: 'low' | 'medium' | 'high';

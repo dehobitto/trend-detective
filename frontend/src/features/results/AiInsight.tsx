@@ -10,7 +10,7 @@ function describe(r: AnalysisResult): string {
   const a = r.assessment;
   return [
     `${r.variable.name} (${r.variable.units})${r.region_name ? ` in ${r.region_name}` : ''}: ${r.summary}`,
-    a ? `Multi-test check: ${a.verdict.replace('_', ' ')}, ${a.confidence} confidence, ${a.tests_significant} of ${a.tests_voting} tests significant.` : '',
+    a ? `Mann-Kendall TFPW: ${a.verdict.replace('_', ' ')}, ${a.confidence} confidence.` : '',
     r.warnings.length ? `Caveats: ${r.warnings.join(' ')}` : '',
   ]
     .filter(Boolean)

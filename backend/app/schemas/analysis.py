@@ -68,12 +68,9 @@ class TrendStats(BaseModel):
     slope_ci_high_per_decade: float
     intercept: float
     r_squared: float
-    t_stat: float
-    p_value: float
     mk_tau: float
     mk_z: float
     mk_p_value: float
-    sens_slope_per_decade: float
     total_change: float
     percent_change: float | None
     direction: Direction
@@ -106,7 +103,7 @@ class TestRow(BaseModel):
 
 
 class TrendAssessment(BaseModel):
-    """The multi-test check of the trend (OLS variants, Mann-Kendall variants, bootstraps, surrogates)."""
+    """Trend significance check (Mann-Kendall TFPW + sensitivity analysis)."""
 
     verdict: Literal["significant_up", "significant_down", "not_significant", "ambiguous", "insufficient_data"]
     confidence: Literal["low", "medium", "high"]

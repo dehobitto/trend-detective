@@ -133,6 +133,34 @@ def sens_slope(t: np.ndarray, y: np.ndarray) -> float:
     return float(np.median((y[j] - y[i])[keep] / dt[keep]))
 
 
+def sens_slope_ci(
+    t: np.ndarray, y: np.ndarray, alpha: float = 0.05,
+) -> tuple[float, float, tuple[float, float]]:
+    """Sen's slope with a nonparametric confidence interval based on Mann-Kendall variance.
+
+    Returns ``(slope, intercept, (ci_low, ci_high))`` where ``intercept = median(y - slope * t)``.
+    """
+    t, y = _clean(t, y)
+    n = len(t)
+    i, j = np.triu_indices(n, k=1)
+    dt = t[j] - t[i]
+    keep = dt != 0
+    slopes = (y[j] - y[i])[keep] / dt[keep]
+    slope = float(np.median(slopes))
+    intercept = float(np.median(y - slope * t))
+
+    # CI from the Mann-Kendall variance of S
+    _, tie_counts = np.unique(y, return_counts=True)
+    tie_term = float(np.sum(tie_counts * (tie_counts - 1) * (2 * tie_counts + 5)))
+    var_s = (n * (n - 1) * (2 * n + 5) - tie_term) / 18.0
+    C = stats.norm.ppf(1 - alpha / 2) * np.sqrt(var_s)
+    N = len(slopes)
+    srt = np.sort(slopes)
+    lo = int(np.clip(np.floor((N - C) / 2) - 1, 0, N - 1))
+    hi = int(np.clip(np.ceil((N + C) / 2), 0, N - 1))
+    return slope, intercept, (float(srt[lo]), float(srt[hi]))
+
+
 def lag1_autocorrelation(x: np.ndarray) -> float:
     """Lag-1 autocorrelation of a series (NaNs dropped)."""
     x = np.asarray(x, dtype=float)
@@ -190,44 +218,56 @@ def analyze(
     t = np.asarray(t_years, dtype=float)
     t = t - t[0]
     y = np.asarray(y, dtype=float)
-    fit = ols(t, y, alpha)
     mk = mann_kendall(y)
-    sen = sens_slope(t, y)
+    sen_b, sen_a, sen_ci = sens_slope_ci(t, y, alpha)
 
     valid = ~np.isnan(y)
+    n = int(valid.sum())
     span = float(t[valid][-1] - t[valid][0])
-    total_change = fit.slope * span
+    total_change = sen_b * span
     mean = reference_mean if reference_mean is not None else float(np.nanmean(y))
     percent = None
     if ratio_scale and abs(mean) > 1e-9:
         percent = total_change / abs(mean) * 100
     series_std = float(np.nanstd(y))
-    resid = y - fit.predict(t)
-    ci_low, ci_high = fit.mean_ci(t)
+
+    # Trend line and CI band based on Sen's slope.
+    # Pivot CI lines through the temporal midpoint so the band always contains the trend.
+    trend = sen_a + sen_b * t
+    t_mid = (t[valid][0] + t[valid][-1]) / 2
+    y_mid = sen_a + sen_b * t_mid
+    dt = t - t_mid
+    raw_lo = y_mid + sen_ci[0] * dt
+    raw_hi = y_mid + sen_ci[1] * dt
+    ci_low = np.minimum(raw_lo, raw_hi)
+    ci_high = np.maximum(raw_lo, raw_hi)
+
+    resid = y - trend
+    # R² of the Sen line (descriptive: share of variance explained by a straight line)
+    ss_tot = float(np.nansum((y[valid] - np.nanmean(y)) ** 2))
+    ss_res = float(np.nansum(resid[valid] ** 2))
+    r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 1.0
 
     stats_fields: dict[str, float | int | bool | str | None] = {
-        "n": fit.n,
-        "slope_per_year": fit.slope,
-        "slope_per_decade": fit.slope * 10,
-        "slope_ci_low_per_decade": fit.slope_ci[0] * 10,
-        "slope_ci_high_per_decade": fit.slope_ci[1] * 10,
-        "intercept": fit.intercept,
-        "r_squared": fit.r_squared,
-        "t_stat": fit.t_stat,
-        "p_value": fit.p_value,
+        "n": n,
+        "slope_per_year": sen_b,
+        "slope_per_decade": sen_b * 10,
+        "slope_ci_low_per_decade": sen_ci[0] * 10,
+        "slope_ci_high_per_decade": sen_ci[1] * 10,
+        "intercept": sen_a,
+        "r_squared": r_squared,
         "mk_tau": mk.tau,
         "mk_z": mk.z,
         "mk_p_value": mk.p_value,
-        "sens_slope_per_decade": sen * 10,
         "total_change": total_change,
         "percent_change": percent,
-        "direction": classify_direction(fit.slope, span, series_std),
-        "significant": bool(mk.p_value < alpha and fit.p_value < alpha),
+        "direction": classify_direction(sen_b, span, series_std),
+        "significant": bool(mk.p_value < alpha),
         "alpha": alpha,
     }
     return TrendAnalysis(
         stats=stats_fields,
-        trend=fit.predict(t),
+        trend=trend,
         ci_low=ci_low,
         ci_high=ci_high,
         residual_lag1=lag1_autocorrelation(resid),

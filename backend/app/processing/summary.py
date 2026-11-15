@@ -32,9 +32,8 @@ def with_units(value: str, units: str) -> str:
 
 
 def build_summary(stats: TrendStats, units: str, start_year: int, end_year: int) -> str:
-    """One or two sentences: direction + rate, then whether the tests agree it is significant."""
+    """One or two sentences: direction + rate, then whether the Mann-Kendall test finds it significant."""
     rate = with_units(format_number(abs(stats.slope_per_decade)), units)
-    p_ols, p_mk = stats.p_value, stats.mk_p_value
     period = f"{start_year}–{end_year}"
 
     if stats.direction == "flat" and not stats.significant:
@@ -45,13 +44,10 @@ def build_summary(stats: TrendStats, units: str, start_year: int, end_year: int)
         head = f"{verb} by {rate} per decade ({'+' if stats.total_change > 0 else '−'}{total} over {period})."
 
     if stats.significant:
-        tail = f"Both tests agree this trend is significant ({format_p(max(p_ols, p_mk))})."
-    elif p_ols < stats.alpha or p_mk < stats.alpha:
-        which = "the regression (t-test)" if p_ols < stats.alpha else "the Mann-Kendall test"
-        tail = f"Only {which} finds it significant, so treat it with caution."
+        tail = f"The Mann-Kendall test confirms this trend is significant ({format_p(stats.mk_p_value)})."
     else:
         tail = (
-            f"This is not statistically significant ({format_p(min(p_ols, p_mk))}): "
+            f"This is not statistically significant ({format_p(stats.mk_p_value)}): "
             "it could just be natural year-to-year variability."
         )
     return f"{head} {tail}"

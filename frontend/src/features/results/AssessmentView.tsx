@@ -11,45 +11,24 @@ const VERDICT: Record<TrendAssessment['verdict'], string> = {
 
 const pct = (x: number | null) => (x === null ? null : `${Math.round(x * 100)}%`);
 
-/** The robustness check: one line that sums up many tests, the full table one click away. */
+/** Trend significance check based on Mann-Kendall TFPW + sensitivity analysis. */
 export function AssessmentView({ a }: { a: TrendAssessment }) {
   const same = pct(a.robust_same_sign);
+  const mk = a.tests[0];
   return (
-    <section className="assess" aria-label="Robustness check">
+    <section className="assess" aria-label="Trend significance">
       <div className="assess__head">
-        <span className="assess__title">Robustness check</span>
+        <span className="assess__title">Trend significance</span>
         <span className="assess__verdict" data-verdict={a.verdict}>
           {VERDICT[a.verdict]}
         </span>
       </div>
       <p className="assess__line">
-        {a.tests_significant} of {a.tests_voting} independent tests find a significant trend, {a.confidence} confidence
-        {same ? `. Same direction in ${same} of trimmed and resampled versions of the record` : ''}
+        Mann-Kendall TFPW:
+        {mk ? <> slope {mk.estimate === null ? '–' : fmt(mk.estimate)}/yr, <em>p</em>&nbsp;=&nbsp;{mk.p_value === null ? '–' : mk.p_value < 0.001 ? '<0.001' : fmt(mk.p_value, 2)}</> : ' –'}
+        , {a.confidence} confidence
+        {same ? `. Consistent direction in ${same} of trimmed and resampled versions` : ''}
       </p>
-      <details className="assess__more">
-        <summary>All tests</summary>
-        <table className="assess__table">
-          <thead>
-            <tr>
-              <th>Test</th>
-              <th>Slope</th>
-              <th>p</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {a.tests.map((t) => (
-              <tr key={t.name} data-voting={t.voting}>
-                <td>{t.name}</td>
-                <td>{t.estimate === null ? '–' : fmt(t.estimate)}</td>
-                <td>{t.p_value === null ? '–' : t.p_value < 0.001 ? '<0.001' : fmt(t.p_value, 2)}</td>
-                <td className="assess__mark">{t.significant ? (t.direction === 'down' ? '▼' : t.direction === 'up' ? '▲' : '●') : '·'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="assess__note">Slopes are per year. Dimmed rows are for reference and are not counted.</p>
-      </details>
     </section>
   );
 }

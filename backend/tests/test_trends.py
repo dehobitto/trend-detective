@@ -92,7 +92,6 @@ def test_analyze_packages_stats_per_decade_and_direction():
     out = trends.analyze(t, y, alpha=0.05, reference_mean=10.0)
     s = out.stats
     assert s["slope_per_decade"] == pytest.approx(-0.2, abs=0.02)
-    assert s["sens_slope_per_decade"] == pytest.approx(-0.2, abs=0.02)
     assert s["direction"] == "falling"
     assert s["significant"] is True
     assert s["percent_change"] == pytest.approx(s["total_change"] / 10 * 100)

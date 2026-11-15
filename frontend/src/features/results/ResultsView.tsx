@@ -46,14 +46,15 @@ export function ResultsView({ job }: { job: Job }) {
       {result.assessment && <AssessmentView a={result.assessment} />}
       {fromExample?.related_variable_id && <CompareView key={job.id} job={job} relatedId={fromExample.related_variable_id} />}
       <details className="explainer">
-        <summary>What does “significant” mean?</summary>
+        <summary>What does &ldquo;significant&rdquo; mean?</summary>
         <p>
           Climate data always wiggles. A trend is <em>significant</em> when wiggles alone would very rarely produce a slope this steep: the p-value is
           that chance, and we call it significant when it is below {result.stats.alpha} (1 in {Math.round(1 / result.stats.alpha)}).
         </p>
         <p>
-          We ask two different tests, a straight-line t-test and the Mann-Kendall test, and only say “significant” when both agree. Significant does not
-          mean large, and not significant does not prove there is no change; it may just need more years of data.
+          We use the Mann-Kendall test &mdash; it counts whether later values tend to be higher (or lower) than earlier ones, without assuming the data
+          follows a bell curve. The trend line and its rate use Sen&apos;s slope, the median of all pairwise slopes, which resists outliers. Significant
+          does not mean large, and not significant does not prove there is no change; it may just need more years of data.
         </p>
       </details>
       <StatsTable result={result} />

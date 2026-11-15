@@ -1,4 +1,4 @@
-"""The multi-test trend assessment (``trend_significance.assess_trend``) shaped for the API, in English."""
+"""Trend assessment (``trend_significance.assess_trend``) shaped for the API, in English."""
 
 from __future__ import annotations
 
@@ -8,19 +8,7 @@ from app.processing.trend_significance import Report
 from app.schemas.analysis import TestRow, TrendAssessment
 
 TEST_NAMES = {
-    "OLS t-тест (класичний)": "OLS t-test",
-    "OLS + HAC (Newey-West)": "OLS + HAC (Newey-West)",
-    "Регресія з AR(1)-помилками (Wald)": "Regression with AR(1) errors",
-    "Манн-Кендалл + Theil-Sen (наївний)": "Mann-Kendall + Theil-Sen",
     "Манн-Кендалл TFPW (Yue-Pilon)": "Mann-Kendall TFPW",
-    "Манн-Кендалл Hamed-Rao": "Mann-Kendall Hamed-Rao",
-    "Spearman ρ (час)": "Spearman ρ",
-    "Дрейф на перших різницях (HAC)": "Drift of first differences",
-    "Блоковий bootstrap (нахил OLS)": "Block bootstrap, OLS slope",
-    "Блоковий bootstrap (нахил Theil-Sen)": "Block bootstrap, Theil-Sen slope",
-    "Сурогати AR(1) (H0: шум без тренду)": "AR(1) surrogates",
-    "Фазові сурогати (зберігають спектр)": "Phase surrogates",
-    "Тренд етапу 2: сурогати AR(1)": "Two-stage trend, AR(1) surrogates",
 }
 
 
