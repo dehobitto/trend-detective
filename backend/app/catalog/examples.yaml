@@ -24,6 +24,28 @@
   center: {lat: 30.5, lon: 75.5}
   related_variable_id: gldas_gws
 
+- id: spain-groundwater
+  title: Is southern Spain pumping its groundwater dry?
+  question: Has the groundwater under the Guadalquivir basin in Andalusia gone down since 2003, and did the rain change enough to explain it?
+  bbox: {west: -6.8, south: 36.9, east: -4.6, north: 38.3}
+  variable_id: gldas_gws
+  start: 2003-02-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 37.6, lon: -5.7}
+  related_variable_id: gpm_precipitation
+
+- id: spain-green
+  title: Why is Andalusia getting greener?
+  question: Has the farmland of the Guadalquivir basin become greener since 2001 while its groundwater was falling?
+  bbox: {west: -6.8, south: 36.9, east: -4.6, north: 38.3}
+  variable_id: modis_ndvi
+  start: 2001-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 37.6, lon: -5.7}
+  related_variable_id: gldas_gws
+
 - id: delhi-no2
   title: Is Delhi's air getting dirtier?
   question: Has nitrogen dioxide from traffic and power plants over Delhi increased since 2005?
