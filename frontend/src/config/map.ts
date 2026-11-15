@@ -86,6 +86,10 @@ export const mapConfig = {
   wheelArrivalZoom: 4.5,
   /** Zooming out below this returns to the globe. */
   returnToGlobeZoom: 1.7,
+  /** 2D-only mode: start zoomed out so the whole world fits the window width (clamped to minZoom). */
+  flatStartZoom: () => Math.max(1, Math.log2(window.innerWidth / 512) + 0.15),
+  /** 2D-only mode is remembered on this device; ?view=2d or ?view=3d in the URL overrides it. */
+  flatStorageKey: 'td.view',
   /** Hard limits for the map itself. */
   minZoom: 1,
   maxZoom: 18,

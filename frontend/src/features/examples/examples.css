@@ -152,3 +152,16 @@
   .cases__list { grid-template-columns: 1fr; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
   .case { margin: 0; padding-left: 8px; padding-right: 2px; }
 }
+
+/* 2D-only mode: the case list opens from the map toolbar and hangs under it (the map's own controls stay free). */
+@media (min-width: 1080px) {
+  .overlay--flat .cases {
+    top: 170px;
+    bottom: auto;
+    max-height: calc(100vh - 190px);
+  }
+}
+@media (max-width: 760px) {
+  /* Above the folded investigation sheet. */
+  .overlay--flat .cases { z-index: 30; }
+}

@@ -37,3 +37,13 @@ export const IconSend = () => (
     <path d="M2.5 8h10M9 4.5L12.5 8 9 11.5" />
   </svg>
 );
+export const IconMap = () => (
+  <svg {...base}>
+    <path d="M2 4l4-1.5 4 1.5 4-1.5v9.5l-4 1.5-4-1.5-4 1.5z M6 2.5v9.5 M10 4v9.5" />
+  </svg>
+);
+export const IconList = () => (
+  <svg {...base}>
+    <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" />
+  </svg>
+);

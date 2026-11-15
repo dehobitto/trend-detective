@@ -76,3 +76,20 @@
   white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) { .lon-scale { transition: none; } }
+
+/* "2D map only" switch, under the place search on the globe. */
+.flat-switch {
+  position: absolute;
+  top: 118px;
+  left: var(--edge);
+  z-index: 5;
+}
+/* Phones: an icon button right of the search box, clear of the layer dock that opens under the search. */
+@media (max-width: 760px) {
+  .flat-switch { top: 58px; left: auto; right: var(--edge); }
+  .flat-switch .btn { min-height: 36px; min-width: 40px; justify-content: center; }
+  .flat-switch__label { display: none; }
+}
+@media (max-width: 760px) {
+  .app[data-view='globe'] .place-search { width: calc(100vw - 2 * var(--edge) - 50px); }
+}

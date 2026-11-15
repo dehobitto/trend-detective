@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { FlatSwitch } from './features/globe/FlatSwitch';
 import { api, initApi } from './api/client';
 import { Badge } from './components/Badge';
 import { Wordmark } from './components/Wordmark';
@@ -34,6 +35,13 @@ export default function App() {
   const mapMounted = useStore((s) => s.mapMounted);
   const apiMode = useStore((s) => s.apiMode);
   const panelVisible = useStore((s) => !!s.bbox || needsNoArea(s) || s.panelRequested);
+  const flat = useStore((s) => s.flat);
+  const casesOpen = useStore((s) => s.casesOpen);
+  // 2D-only mode never loads the globe (big textures, WebGL) until someone switches back to it.
+  const [globeWanted, setGlobeWanted] = useState(!flat);
+  useEffect(() => {
+    if (!flat) setGlobeWanted(true);
+  }, [flat]);
 
   useEffect(() => {
     bootstrap();
@@ -45,10 +53,12 @@ export default function App() {
   const showPanel = onMap && panelVisible;
 
   return (
-    <div className="app" data-view={view}>
-      <div className="layer layer--globe" data-visible={!onMap} aria-hidden={onMap}>
-        <GlobeView />
-      </div>
+    <div className="app" data-view={view} data-flat={flat}>
+      {globeWanted && (
+        <div className="layer layer--globe" data-visible={!onMap} aria-hidden={onMap}>
+          <GlobeView />
+        </div>
+      )}
       {mapMounted && (
         <div className="layer layer--map" data-visible={onMap} aria-hidden={!onMap}>
           <ErrorBoundary label="map">
@@ -73,6 +83,12 @@ export default function App() {
         </div>
       )}
       {!onMap && transition === 'idle' && <LayerDock besidePanel={false} onGlobe />}
+      {!onMap && transition === 'idle' && <FlatSwitch />}
+      {onMap && flat && casesOpen && (
+        <div className="overlay overlay--flat">
+          <ExampleCases />
+        </div>
+      )}
       {onMap && (
         <>
           <MapToolbar panelOpen={showPanel} />

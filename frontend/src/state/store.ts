@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Aggregation, BBox, Dataset, ExampleCase, Job, Variable } from '../api/types';
 import type { ApiMode } from '../api/client';
 import { appConfig } from '../config/app';
+import { mapConfig } from '../config/map';
 
 export type View = 'globe' | 'map';
 /** Globe-side animation phase. 'flyingIn' ends with view = 'map'; 'flyingOut' runs after returning. */
@@ -23,8 +24,32 @@ if (typeof window !== 'undefined') {
 const recentZoomGesture = () => performance.now() - lastZoomGestureAt < 600;
 export type MapEnter = { nonce: number; fitBBox: boolean } & Arrival;
 
+/** 2D-only mode: from the URL (?view=2d / ?view=3d) or what this device chose last time. */
+function readFlat(): boolean {
+  try {
+    const v = new URLSearchParams(window.location.search).get('view');
+    if (v === '2d') return true;
+    if (v === '3d') return false;
+    return window.localStorage.getItem(mapConfig.flatStorageKey) === '2d';
+  } catch {
+    return false;
+  }
+}
+function saveFlat(flat: boolean) {
+  try {
+    window.localStorage.setItem(mapConfig.flatStorageKey, flat ? '2d' : '3d');
+  } catch {
+    /* private mode etc.: the choice just isn't remembered */
+  }
+}
+const startFlat = typeof window !== 'undefined' && readFlat();
+
 type State = {
   apiMode: ApiMode | 'connecting';
+  /** 2D-only mode: no globe at all, the flat map is the home screen. */
+  flat: boolean;
+  /** 2D-only mode: the example case list is open over the map. */
+  casesOpen: boolean;
   view: View;
   transition: Transition;
   /** Where the camera / map is centred during a hand-off. */
@@ -71,6 +96,8 @@ type State = {
 type Actions = {
   set: (patch: Partial<State>) => void;
   flyTo: (to: LatLon, fitBBox?: boolean, arrival?: Arrival) => void;
+  /** Switch between the globe and the 2D-only map (remembered on this device). */
+  setFlat: (flat: boolean) => void;
   arriveAtMap: () => void;
   backToGlobe: (from: LatLon) => void;
   finishTransition: () => void;
@@ -83,11 +110,13 @@ type Actions = {
 
 export const useStore = create<State & Actions>((set, get) => ({
   apiMode: 'connecting',
-  view: 'globe',
+  flat: startFlat,
+  casesOpen: startFlat,
+  view: startFlat ? 'map' : 'globe',
   transition: 'idle',
-  focus: { lat: 0, lon: 0 },
-  mapEnter: { nonce: 0, fitBBox: false },
-  mapMounted: false,
+  focus: startFlat ? { lat: 20, lon: 10 } : { lat: 0, lon: 0 },
+  mapEnter: startFlat ? { nonce: 1, fitBBox: false, zoom: mapConfig.flatStartZoom() } : { nonce: 0, fitBBox: false },
+  mapMounted: startFlat,
 
   bbox: null,
   drawing: false,
@@ -118,9 +147,33 @@ export const useStore = create<State & Actions>((set, get) => ({
   set: (patch) => set(patch),
 
   flyTo: (to, fitBBox = false, arrival = {}) => {
+    if (get().flat) {
+      // No globe: the map itself moves there (frames the box / place, or zooms in on the point).
+      set((s) => ({ focus: to, casesOpen: false, mapEnter: { nonce: s.mapEnter.nonce + 1, fitBBox, ...arrival, via: arrival.via ?? 'click' } }));
+      return;
+    }
     if (get().transition !== 'idle' || get().view !== 'globe') return;
     const via = arrival.via ?? (recentZoomGesture() ? 'wheel' : 'click');
     set({ transition: 'flyingIn', focus: to, mapMounted: true, mapEnter: { nonce: get().mapEnter.nonce, fitBBox, ...arrival, via } });
+  },
+
+  setFlat: (flat) => {
+    saveFlat(flat);
+    const s = get();
+    if (flat === s.flat) return;
+    if (flat) {
+      set({
+        flat: true,
+        casesOpen: !s.bbox,
+        view: 'map',
+        transition: 'idle',
+        mapMounted: true,
+        mapEnter: { nonce: s.mapEnter.nonce + 1, fitBBox: !!s.bbox, zoom: s.bbox ? undefined : mapConfig.flatStartZoom(), via: 'click' },
+      });
+    } else {
+      set({ flat: false, casesOpen: false });
+      if (s.view === 'map') s.backToGlobe(s.focus);
+    }
   },
 
   arriveAtMap: () => set((s) => ({ view: 'map', transition: 'idle', mapEnter: { ...s.mapEnter, nonce: s.mapEnter.nonce + 1 } })),
@@ -129,7 +182,7 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   finishTransition: () => set({ transition: 'idle' }),
 
-  setBBox: (bbox) => set({ bbox, job: null, runError: null }),
+  setBBox: (bbox) => set({ bbox, job: null, runError: null, ...(bbox ? { casesOpen: false } : {}) }),
 
   applyExample: (ex) => {
     set({

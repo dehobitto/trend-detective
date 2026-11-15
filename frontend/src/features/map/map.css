@@ -168,3 +168,7 @@
   font-weight: 600;
   white-space: nowrap;
 }
+@media (max-width: 760px) {
+  /* Leave the right-hand column (zoom, basemaps) free: wrap the tools instead of running under it. */
+  .map-toolbar { max-width: calc(100vw - 2 * var(--edge) - 52px); }
+}

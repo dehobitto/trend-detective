@@ -95,7 +95,7 @@ export function MapView() {
     // Zooming out far enough hands back to the globe (user gestures only, not fitBounds).
     m.on('zoom', (e) => {
       const s = useStore.getState();
-      if (!('originalEvent' in e) || !e.originalEvent) return;
+      if (!('originalEvent' in e) || !e.originalEvent || s.flat) return;
       if (s.view === 'map' && m.getZoom() < mapConfig.returnToGlobeZoom) {
         const c = m.getCenter();
         s.backToGlobe({ lat: c.lat, lon: wrapLon(c.lng) });

@@ -15,6 +15,7 @@ export function ExampleCases() {
   const examples = useStore((s) => s.examples);
   const variables = useStore((s) => s.variables);
   const applyExample = useStore((s) => s.applyExample);
+  const flat = useStore((s) => s.flat);
   const transition = useStore((s) => s.transition);
   const [focused, setFocused] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>({ step: 'cases' });
@@ -71,7 +72,7 @@ export function ExampleCases() {
           Pick a place to investigate
         </h2>
         <p className="cases__lede" aria-live="polite">
-          {focused === 'guide' ? 'Two quick questions, then we take you there.' : ex ? ex.question : 'Click anywhere on Earth or scroll in to open the map. Or start from a case below.'}
+          {focused === 'guide' ? 'Two quick questions, then we take you there.' : ex ? ex.question : flat ? 'Draw an area on the map or search for a place. Or start from a case below.' : 'Click anywhere on Earth or scroll in to open the map. Or start from a case below.'}
         </p>
         <div className="cases__list" onMouseLeave={() => setFocused(null)}>
           {examples.map((x) => (
