@@ -22,7 +22,9 @@
 .chat-dock[data-docked='left'][data-on-map='true'] { bottom: 118px !important; } /* above the map style button */
 @keyframes dock-in { from { opacity: 0; scale: 0.7; } to { opacity: 1; scale: 1; } }
 /* On the map: above the timeline dock. With the panel open: centre over the map that is still visible. */
-.chat-dock[data-on-map='true'] { bottom: 132px; transition: left 250ms var(--ease-out), bottom 250ms var(--ease-out); }
+.chat-dock[data-on-map='true'] { bottom: var(--edge); transition: left 250ms var(--ease-out), bottom 250ms var(--ease-out); }
+/* A variable on the map brings the timeline dock: sit above it. */
+.app:has(.layer-dock) .chat-dock[data-on-map='true'] { bottom: 132px; }
 /* While an analysis runs its status toast takes that spot: lift the chat above it. */
 @media (min-width: 761px) {
   .app:has(.job-toast[data-dock='true']) .chat-dock[data-on-map='true'] { bottom: calc(var(--edge) + 124px + var(--job-toast-h, 96px)); }
@@ -226,8 +228,9 @@
   scrollbar-width: none;
   /* Bubbles scrolled past the top fade out softly instead of being cut. */
   padding-top: 40px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.35) 22px, #000 64px);
-  mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.35) 22px, #000 64px);
+  padding-bottom: 18px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.2) 24px, rgba(0, 0, 0, 0.7) 64px, #000 110px, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.2) 24px, rgba(0, 0, 0, 0.7) 64px, #000 110px, #000 calc(100% - 26px), transparent 100%);
 }
 /* On the map the dock sits higher (above the timeline): keep the chat clear of the search bar. */
 .chat-dock[data-on-map='true'] .chat { max-height: min(560px, calc(100vh - 340px)); }
@@ -280,6 +283,8 @@
 .bubble--user { align-self: flex-end; border-bottom-right-radius: 8px; background: rgb(222, 228, 255); }
 /* Messages are solid, not glass: long text has to stay readable over any map. */
 .chat .bubble--assistant { background: rgb(250, 250, 255); }
+/* No backdrop blur on messages: Chrome skips an ancestor's mask for blurred children, so the top fade broke. */
+.chat .bubble { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .bubble--error { align-self: stretch; color: var(--danger); }
 .bubble--typing { display: inline-flex; gap: 5px; padding: 14px 16px; }
 .bubble--typing span { width: 7px; height: 7px; border-radius: 50%; background: #6b6f88; animation: typing 1.1s ease-in-out infinite; }
@@ -332,3 +337,18 @@
 @media (prefers-reduced-motion: reduce) {
   .bubble, .curious__q, .curious__own, .curious-launch__label { animation: none; }
 }
+
+/* The "Curious about Earth?" pill is a button too: tilts and dents like the question pills. */
+.curious-launch__label {
+  --rx: 0deg;
+  --ry: 0deg;
+  --dent: 0;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transform: perspective(500px) rotateX(var(--rx)) rotateY(var(--ry)) scale(calc(1 - var(--dent) * 0.04));
+  transition: transform 120ms var(--ease-out), background-color 160ms, box-shadow 160ms;
+}
+.curious-launch__label:hover { background: rgba(255, 255, 255, 0.92); }
+.curious-launch__label { animation-fill-mode: backwards; } /* "both" would pin transform and kill the tilt */
+.curious-launch__label[data-pressed='true'] { --dent: 1; }
+.curious-launch__label:focus-visible { outline: 2px solid #ffb547; outline-offset: 3px; }

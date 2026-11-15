@@ -29,7 +29,8 @@
   -webkit-backdrop-filter: var(--glass-blur);
 }
 
-/* Search: a pill like the chat input, tucked into the top-left corner */
+/* Search: a pill like the chat input; nearly solid so it reads over any map */
+.app .place-search__box { background: rgba(246, 247, 252, 0.93); }
 .app .place-search { top: 12px; left: 50%; translate: -50% 0; width: min(380px, calc(100vw - 24px)); }
 /* With the analysis panel open: centre over the part of the map that is still visible. */
 .app:has(.panel) .place-search { left: calc((100vw - var(--panel-w) - 2 * var(--edge)) / 2); width: min(380px, calc(100vw - var(--panel-w) - 4 * var(--edge))); }
@@ -37,8 +38,8 @@
 .app .place-search__box { height: 48px; border-radius: 24px; }
 /* Home screen: lighter glass so the stars and the globe show through */
 .app .place-search[data-view='globe'] .place-search__box {
-  background: rgba(246, 247, 252, 0.52);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(246, 247, 252, 0.93);
+  border-color: rgba(255, 255, 255, 0.8);
 }
 .app .place-search[data-view='globe'] .place-search__box input::placeholder { color: #4b4f66; }
 .app .place-search__box:focus-within { border-color: #ffffff; box-shadow: var(--glass-shadow), 0 0 0 3px rgba(255, 255, 255, 0.25); }

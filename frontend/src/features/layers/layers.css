@@ -64,11 +64,13 @@
   height: 42px;
   overflow: hidden;
   border-radius: var(--radius-s);
-  background: #fff; /* GIBS legend images are drawn for a white background */
+  background: transparent;
 }
 /* GIBS horizontal legends carry their own title on top; crop it (the layer name is already shown). */
 .layer-dock__legend-img {
   display: block;
+  /* GIBS legends are drawn on white: multiply drops the white so the colour bar sits on the glass. */
+  mix-blend-mode: multiply;
   width: 100%;
   height: auto;
   margin-top: -9%;
@@ -275,6 +277,6 @@
 @media (min-width: 1101px) {
   .layer-dock { bottom: calc(var(--edge) + 14px); }
   .job-toast[data-dock='true'] { bottom: calc(var(--edge) + 126px); }
-  .chat-dock[data-on-map='true'] { bottom: 146px; }
+  .app:has(.layer-dock) .chat-dock[data-on-map='true'] { bottom: 146px; }
   .app:has(.job-toast[data-dock='true']) .chat-dock[data-on-map='true'] { bottom: calc(var(--edge) + 138px + var(--job-toast-h, 96px)); }
 }

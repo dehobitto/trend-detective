@@ -6,6 +6,8 @@ import { CURIOUS_QUESTIONS } from './questions';
 import './chat.css';
 
 const DOCK_KEY = 'td.chatDock';
+/** Asked when the "Curious about Earth?" pill itself is pressed. */
+const START_QUESTION = 'I’m new here. How do I get started, and what should I try first?';
 
 /**
  * The chat button, centred near the bottom. It opens four ready-made questions and a field to ask your own;
@@ -134,7 +136,16 @@ export function ChatLauncher({ besidePanel, onMap = false }: { besidePanel: bool
         </div>
       )}
       <div className="curious-launch">
-        {!open && !picker && !docked && <span className="curious-launch__label">{kept ? 'Back to the chat' : 'Curious about Earth?'}</span>}
+        {!open && !picker && !docked && (
+          <button
+            type="button"
+            className="curious-launch__label"
+            onClick={() => (kept ? set({ chatOpen: true }) : ask(START_QUESTION))}
+            {...pressable}
+          >
+            {kept ? 'Back to the chat' : 'Curious about Earth?'}
+          </button>
+        )}
         <button
           type="button"
           className="orb"

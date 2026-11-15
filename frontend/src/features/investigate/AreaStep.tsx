@@ -66,7 +66,7 @@ export function AreaStep() {
   if (!bbox || !draft) {
     return (
       <p className="notes">
-        Draw an area on the map, or hold Shift and drag. Global records and your own data need no area.
+        Draw an area on the map, or hold Shift and drag. Global records need no area.
       </p>
     );
   }

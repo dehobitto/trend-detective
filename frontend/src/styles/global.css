@@ -47,7 +47,7 @@ body {
 .layer[data-visible='false'] { opacity: 0; visibility: hidden; pointer-events: none; z-index: 0; }
 
 .overlay { transition: opacity 300ms; }
-.overlay[data-busy='true'] { opacity: 0; pointer-events: none; }
+.overlay[data-busy='true'] { opacity: 0; pointer-events: none; transition-delay: 380ms; } /* let the headline fly off first */
 
 .server-down {
   position: absolute;

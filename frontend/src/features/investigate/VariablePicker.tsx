@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { UPLOAD_PREFIX, type Sphere, type Variable } from '../../api/types';
 import { Button } from '../../components/Button';
 import { useStore } from '../../state/store';
-import { UploadDataset } from '../datasets/UploadDataset';
 
 const SPHERES: { id: Sphere; label: string }[] = [
   { id: 'atmosphere', label: 'Atmosphere' },
@@ -56,7 +55,7 @@ function VariableOption({ v, selected, onSelect }: { v: Variable; selected: bool
   );
 }
 
-/** Variable choice, grouped by Earth sphere, plus the user's own uploads as "Your data". */
+/** Variable choice, grouped by Earth sphere, (uploads are no longer offered in the UI; the API still accepts them). */
 export function VariablePicker() {
   const variables = useStore((s) => s.variables);
   const datasets = useStore((s) => s.datasets);
@@ -121,26 +120,6 @@ export function VariablePicker() {
           </div>
         );
       })}
-      <div className="var-group">
-        <h3 className="var-group__title">Your data</h3>
-        {datasets.map((d) => (
-          <button
-            key={d.id}
-            type="button"
-            role="radio"
-            aria-checked={variableId === `${UPLOAD_PREFIX}${d.id}`}
-            className="var-opt"
-            onClick={() => choose(`${UPLOAD_PREFIX}${d.id}`)}
-          >
-            <span className="var-opt__name">{d.name}</span>
-            <span className="var-opt__units">
-              {d.units ? `${d.units} · ` : ''}
-              {d.start.slice(0, 4)}–{d.end.slice(0, 4)}
-            </span>
-          </button>
-        ))}
-        <UploadDataset onUploaded={(id) => choose(`${UPLOAD_PREFIX}${id}`)} />
-      </div>
     </div>
   );
 }

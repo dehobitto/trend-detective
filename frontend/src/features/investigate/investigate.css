@@ -24,7 +24,7 @@
 .panel__scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 20px 20px 16px;
+  padding: 4px 18px 20px 18px;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -34,8 +34,8 @@
    from the number through the step: solid ink once the step is done, a hairline while it is open. */
 .step {
   display: grid;
-  grid-template-columns: 24px 1fr;
-  column-gap: 12px;
+  grid-template-columns: 26px 1fr;
+  column-gap: 10px;
   padding-top: 16px;
 }
 .step__head { display: contents; }
@@ -44,9 +44,9 @@
   grid-row: 1;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-s);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
   border: 1px solid var(--line-strong);
   color: var(--ink-dim);
   background: var(--panel);
@@ -67,7 +67,7 @@
 }
 .step__aside { grid-column: 2; grid-row: 1; justify-self: end; align-self: center; }
 .step__body {
-  grid-column: 2;
+  grid-column: 1 / -1; /* full width: the number sits only beside the title, no empty gutter below it */
   grid-row: 2;
   padding: 10px 0 20px;
   min-width: 0;
@@ -84,6 +84,9 @@
 .step[data-done='true']::before { width: 2px; background: var(--ink); }
 /* The last step holds the results, which carry their own rule. */
 .step:last-child::before { display: none; }
+/* No rail now that the body uses the full width; steps are separated by a hairline instead. */
+.step::before { display: none; }
+.step + .step { border-top: 1px solid var(--line); }
 
 /* ---------- shared text ---------- */
 .notes {
