@@ -30,12 +30,19 @@
   -webkit-backdrop-filter: var(--glass-blur);
 }
 
-/* Search: a pill like the chat input */
-.app .place-search__box { height: 44px; border-radius: 22px; }
+/* Search: a pill like the chat input, tucked into the top-left corner */
+.app .place-search { top: 12px; left: 12px; width: min(340px, calc(100vw - 24px)); }
+.app .place-search__box { height: 48px; border-radius: 24px; }
+/* Home screen: lighter glass so the stars and the globe show through */
+.app .place-search[data-view='globe'] .place-search__box {
+  background: rgba(246, 247, 252, 0.52);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.app .place-search[data-view='globe'] .place-search__box input::placeholder { color: #4b4f66; }
 .app .place-search__box:focus-within { border-color: #ffffff; box-shadow: var(--glass-shadow), 0 0 0 3px rgba(255, 255, 255, 0.25); }
-.app .place-search__box input { background: transparent; font-size: 15px; }
-.app .place-search__icon { left: 16px; }
-.app .place-search__box input { padding-left: 42px; }
+.app .place-search__box input { background: transparent; font-size: 16.5px; line-height: 1; padding-top: 0; padding-bottom: 0; align-self: center; height: 100%; }
+.app .place-search__icon { left: 17px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; }
+.app .place-search__box input { padding-left: 44px; }
 .app .place-search__list { margin-top: 8px; padding: 6px; border-radius: var(--glass-r); }
 .app .place-search__item { border-radius: var(--glass-r-s); }
 

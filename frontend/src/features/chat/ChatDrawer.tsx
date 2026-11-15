@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../state/store';
 import { chatAdapter, type ChatMessage } from './chatAdapter';
+import { Markdown } from './Markdown';
 
 const GREETING: ChatMessage = {
   role: 'assistant',
@@ -57,9 +58,15 @@ export function ChatDrawer({ onClose, initialQuestion = null }: { onClose: () =>
     <section className="chat" role="dialog" aria-label="Field guide chat" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="chat__list" ref={list} aria-live="polite">
         {messages.map((m, i) => (
-          <p key={i} className={`bubble bubble--${m.role}`}>
-            {m.content}
-          </p>
+          m.role === 'assistant' ? (
+            <div key={i} className="bubble bubble--assistant bubble--md">
+              <Markdown text={m.content} />
+            </div>
+          ) : (
+            <p key={i} className={`bubble bubble--${m.role}`}>
+              {m.content}
+            </p>
+          )
         ))}
         {busy && (
           <p className="bubble bubble--assistant bubble--typing" aria-label="Thinking">

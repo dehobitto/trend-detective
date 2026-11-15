@@ -79,7 +79,7 @@
 @media (prefers-reduced-motion: reduce) { .lon-scale { transition: none; } }
 
 @media (max-width: 760px) {
-  .app[data-view='globe'] .place-search { width: calc(100vw - 2 * var(--edge) - 50px); }
+  .app[data-view='globe'] .place-search { width: calc(100vw - 24px - 50px); }
 }
 
 /* On the dark sky: light longitude scale. */
