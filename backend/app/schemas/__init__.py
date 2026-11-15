@@ -9,14 +9,13 @@ from app.schemas.analysis import (
     TrendStats,
 )
 from app.schemas.chat import ChatContext, ChatMessage, ChatRequest, ChatResponse
-from app.schemas.common import BBox, ExampleCase, GibsMapLayer, GridMapLayer, LatLon, Location, MapLayer, Variable
+from app.schemas.common import BBox, ExampleCase, GibsMapLayer, LatLon, Location, MapLayer, Variable
 from app.schemas.dataset import Dataset
 from app.schemas.geocode import Place
-from app.schemas.grid import Colormap, GridFrame, TrendGrid
 from app.schemas.health import Health
 
 __all__ = [
     "AnalysisRequest", "AnalysisResult", "BBox", "ChatContext", "ChatMessage", "ChatRequest",
-    "ChatResponse", "Colormap", "Dataset", "ExampleCase", "GibsMapLayer", "GridFrame", "GridMapLayer", "TrendGrid", "Health",
+    "ChatResponse", "Dataset", "ExampleCase", "GibsMapLayer", "Health",
     "Job", "JobStatus", "LatLon", "Location", "MapLayer", "Place", "SeriesPoint", "TrendStats", "Variable",
 ]

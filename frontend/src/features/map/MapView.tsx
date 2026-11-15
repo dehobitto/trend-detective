@@ -12,7 +12,6 @@ import { addBBoxLayers, buildStyle, setBasemap, setBBoxData } from './layers';
 import { registerOverlayProtocol } from './overlayProtocol';
 import { useBoxSelect } from './useBoxSelect';
 import { useGibsOverlay } from './useGibsOverlay';
-import { useGridOverlay } from './useGridOverlay';
 import { useStationMarker } from './useStationMarker';
 import { useTrackpadPan } from './useTrackpadPan';
 import './map.css';
@@ -113,7 +112,6 @@ export function MapView() {
   useBoxSelect(map);
   useStationMarker(map);
   useGibsOverlay(map);
-  useGridOverlay(map);
   useTrackpadPan(map);
 
   useEffect(() => {

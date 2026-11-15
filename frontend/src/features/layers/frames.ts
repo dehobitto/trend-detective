@@ -1,4 +1,4 @@
-import type { Colormap, GibsLayer, MapLayer } from '../../api/types';
+import type { GibsLayer } from '../../api/types';
 import { mapConfig } from '../../config/map';
 
 const GIBS_WMTS = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best';
@@ -57,22 +57,16 @@ function overlap(a0: string, a1: string, b0: string, b1: string): [string, strin
 }
 
 /** Frames for the timeline: the layer's availability ∩ the investigation range. */
-export function framesFor(layer: MapLayer, start: string, end: string, gridDates: string[] | null): string[] {
-  if (layer.kind === 'gibs') {
-    const [s, e] = overlap(layer.time_start, layer.time_end, start, end);
-    let step = layer.time_step;
-    // Daily layers: one frame a month keeps a 20-year slider usable (day = first available of that month).
-    if (step === 'daily' && mapConfig.variableLayer.dailyFrameStep === 'monthly') {
-      const day = String(mapConfig.variableLayer.dailyFrameDay).padStart(2, '0');
-      return stepDates(s, e, 'monthly')
-        .map((d) => `${d.slice(0, 8)}${day}`)
-        .filter((d) => d >= s && d <= e);
-    }
-    return stepDates(s, e, step);
+export function framesFor(layer: GibsLayer, start: string, end: string): string[] {
+  const [s, e] = overlap(layer.time_start, layer.time_end, start, end);
+  // Daily layers: one frame a month keeps a 20-year slider usable (day = first available of that month).
+  if (layer.time_step === 'daily' && mapConfig.variableLayer.dailyFrameStep === 'monthly') {
+    const day = String(mapConfig.variableLayer.dailyFrameDay).padStart(2, '0');
+    return stepDates(s, e, 'monthly')
+      .map((d) => `${d.slice(0, 8)}${day}`)
+      .filter((d) => d >= s && d <= e);
   }
-  if (!gridDates?.length) return [];
-  const inRange = gridDates.filter((d) => d >= start.slice(0, 7) + '-01' && d <= end);
-  return inRange.length ? inRange : gridDates;
+  return stepDates(s, e, layer.time_step);
 }
 
 /** Index of the frame closest to `date` (frames are sorted). */
@@ -108,53 +102,4 @@ export function formatFrame(date: string, step: GibsLayer['time_step'] | 'monthl
   if (step === 'yearly') return String(d.getUTCFullYear());
   if (step === 'monthly') return d.toLocaleDateString('en', { month: 'short', year: 'numeric', timeZone: 'UTC' });
   return d.toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-}
-
-/* ------------------------------------------------------------------ colour */
-
-function hexToRgb(h: string): [number, number, number] {
-  const x = h.replace('#', '');
-  const f = x.length === 3 ? x.split('').map((c) => c + c).join('') : x.slice(0, 6);
-  return [parseInt(f.slice(0, 2), 16), parseInt(f.slice(2, 4), 16), parseInt(f.slice(4, 6), 16)];
-}
-
-/** Colour at value `v` on a colormap (linear between stops). */
-function colourAt(stops: (readonly [number, [number, number, number]])[], v: number): [number, number, number] {
-  let k = 0;
-  while (k < stops.length - 2 && v > stops[k + 1][0]) k++;
-  const [v0, c0] = stops[k];
-  const [v1, c1] = stops[Math.min(k + 1, stops.length - 1)];
-  const t = v1 === v0 ? 0 : Math.max(0, Math.min(1, (v - v0) / (v1 - v0)));
-  return [0, 1, 2].map((j) => c0[j] + (c1[j] - c0[j]) * t) as [number, number, number];
-}
-
-const sortedStops = (cmap: Colormap) => [...cmap.stops].sort((a, b) => a[0] - b[0]).map(([v, c]) => [v, hexToRgb(c)] as const);
-
-/**
- * 256-entry RGB lookup table spanning [min, max], stepped into `classes` flat colour classes
- * (each the colour at its class centre), the way filled-contour climate maps are drawn.
- */
-export function buildLut(cmap: Colormap, min: number, max: number, classes: number): Uint8ClampedArray {
-  const lut = new Uint8ClampedArray(256 * 3);
-  const stops = sortedStops(cmap);
-  for (let i = 0; i < 256; i++) {
-    const c = Math.min(classes - 1, Math.floor((i / 256) * classes));
-    const v = min + ((max - min) * (c + 0.5)) / classes;
-    const rgb = colourAt(stops, v);
-    for (let j = 0; j < 3; j++) lut[i * 3 + j] = rgb[j];
-  }
-  return lut;
-}
-
-/** CSS background for a stepped legend: one flat block per class, hairline gaps between them. */
-export function cssSteps(cmap: Colormap, min: number, max: number, classes: number): string {
-  const stops = sortedStops(cmap);
-  const parts: string[] = [];
-  for (let c = 0; c < classes; c++) {
-    const [r, g, b] = colourAt(stops, min + ((max - min) * (c + 0.5)) / classes).map(Math.round);
-    const a = (c / classes) * 100;
-    const z = ((c + 1) / classes) * 100;
-    parts.push(`rgb(${r} ${g} ${b}) ${a.toFixed(2)}%`, `rgb(${r} ${g} ${b}) ${z.toFixed(2)}%`);
-  }
-  return `linear-gradient(90deg, ${parts.join(', ')})`;
 }

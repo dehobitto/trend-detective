@@ -1,4 +1,4 @@
-"""NOAA GML provider: parsing (committed fixtures), disk cache, and the ``auto`` routing/fallback. No network."""
+"""NOAA GML provider: parsing (committed fixtures), disk cache, seed files and ``live`` routing. No network."""
 
 import datetime as dt
 import os
@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from app.catalog import Catalog
 from app.main import create_app
 from app.providers import ProviderError, create_provider
-from app.providers.noaa_gml import FALLBACK_WARNING, file_name, file_url, parse_monthly
+from app.providers.noaa_gml import file_name, file_url, parse_monthly
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SERIES_FILES = {"mauna_loa_co2": "co2_mm_mlo", "noaa_co2_marine": "co2_mm_gl", "noaa_ch4_marine": "ch4_mm_gl"}
@@ -119,11 +119,11 @@ def test_broken_download_is_not_cached(settings, monkeypatch):
     assert not (settings.cache_dir / "noaa_gml" / "ch4_mm_gl.txt").exists()
 
 
-# ------------------------------------------------------------------------------------ auto routing ----
+# ------------------------------------------------------------------------------------ live routing ----
 
 @pytest.fixture
-def auto_settings(settings):
-    return settings.model_copy(update={"data_provider": "auto"})
+def live_settings(settings):
+    return settings.model_copy(update={"data_provider": "live"})
 
 
 def analyze(client: TestClient, **body) -> dict:
@@ -134,53 +134,29 @@ def analyze(client: TestClient, **body) -> dict:
     return job["result"]
 
 
-def test_auto_is_the_default_provider(monkeypatch):
+def test_live_is_the_default_provider(monkeypatch):
     from app.config import Settings
 
     monkeypatch.delenv("TD_DATA_PROVIDER", raising=False)
-    assert Settings(_env_file=None).data_provider == "auto"
+    assert Settings(_env_file=None).data_provider == "live"
 
 
-def test_auto_uses_real_noaa_data_for_series_and_synthetic_elsewhere(auto_settings):
-    seed_cache(auto_settings.cache_dir)
-    with TestClient(create_app(auto_settings)) as c:
-        assert c.get("/api/health").json()["provider"] == "auto"
+def test_live_uses_real_noaa_data_from_the_cache(live_settings):
+    seed_cache(live_settings.cache_dir)
+    with TestClient(create_app(live_settings)) as c:
         real = analyze(c, variable_id="mauna_loa_co2", start="1958-03-01", end="1960-12-31")
-        assert real["synthetic"] is False and real["provider"] == "noaa_gml"
-        assert not any("Demo data" in w or "NOAA" in w for w in real["warnings"])
-        assert real["series"][0]["value"] == 315.71
-        assert real["stats"]["direction"] == "rising"
-
-        demo = analyze(c, variable_id="gldas_gws", bbox={"west": 74, "south": 29, "east": 77, "north": 32},
-                       start="2004-01-01", end="2020-12-31")
-        assert demo["synthetic"] is True and demo["provider"] == "synthetic"
+    assert real["provider"] == "noaa_gml" and "synthetic" not in real
+    assert real["series"][0]["value"] == 315.71
+    assert real["stats"]["direction"] == "rising"
 
 
-def test_auto_falls_back_to_synthetic_when_noaa_is_unreachable(auto_settings):
-    # empty cache + httpx failure (conftest makes every download raise ConnectError)
-    with TestClient(create_app(auto_settings)) as c:
-        result = analyze(c, variable_id="noaa_ch4_marine", start="1990-01-01", end="2020-12-31")
-    assert result["synthetic"] is True and result["provider"] == "synthetic"
-    assert FALLBACK_WARNING in result["warnings"] and FALLBACK_WARNING == "Couldn't reach NOAA; showing demo data."
-    assert any("Demo data" in w for w in result["warnings"])
-
-
-def test_synthetic_setting_forces_demo_data_even_with_a_cache(settings):
-    seed_cache(settings.cache_dir)
-    with TestClient(create_app(settings)) as c:  # conftest: data_provider="synthetic"
-        result = analyze(c, variable_id="mauna_loa_co2", start="1958-03-01", end="1960-12-31")
-    assert result["synthetic"] is True and result["provider"] == "synthetic"
-    assert FALLBACK_WARNING not in result["warnings"]
-
-
-def test_bundled_seed_is_used_when_noaa_is_unreachable_and_nothing_is_cached(auto_settings):
+def test_bundled_seed_is_used_when_noaa_is_unreachable_and_nothing_is_cached(live_settings):
     from app.config import Settings
 
-    seeded = auto_settings.model_copy(update={"noaa_seed_dir": Settings.model_fields["noaa_seed_dir"].default})
+    seeded = live_settings.model_copy(update={"noaa_seed_dir": Settings.model_fields["noaa_seed_dir"].default})
     with TestClient(create_app(seeded)) as c:  # conftest makes every download fail
         result = analyze(c, variable_id="mauna_loa_co2", start="1990-01-01", end="2020-12-31")
-    assert result["synthetic"] is False and result["provider"] == "noaa_gml"
-    assert FALLBACK_WARNING not in result["warnings"]
+    assert result["provider"] == "noaa_gml"
     assert (seeded.cache_dir / "noaa_gml" / "co2_mm_mlo.txt").exists()  # copied, so retried only after the TTL
 
 

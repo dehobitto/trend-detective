@@ -4,15 +4,17 @@ One Docker container serves everything: FastAPI at `/api`, the built React app a
 It is a long-running process, so the in-memory job store and background jobs work as in local dev.
 Primary host: **Render** (`render.yaml`). Alternative: **Fly.io** (`fly.toml`, `.github/workflows/deploy-fly.yml`).
 CI (`.github/workflows/ci.yml`) runs on every push and PR: backend pytest, frontend typecheck + build, and a
-smoke test that builds the Docker image, runs it and checks health, variables, an analysis to `done`, CSV,
-`/api/grid` and the frontend (`scripts/smoke.sh`). Deploys happen only after CI is green.
+smoke test that builds the Docker image, runs it and checks health, variables, an analysis to `done`, CSV
+and the frontend (`scripts/smoke.sh`). Deploys happen only after CI is green.
 
 ## What you need
 
 - A GitHub account/org for the repo (empty repo, no README).
 - Render account (free) logged in with GitHub — or a Fly.io account + `flyctl` if you choose Fly.
-- Later: the Earthdata token for real NASA data, as a `TD_` environment variable set in the host's
-  dashboard (never in git). Nothing secret is needed today: NOAA and the geocoder are public.
+- A NASA Earthdata login (https://urs.earthdata.nasa.gov) for the NASA data: `TD_EARTHDATA_USERNAME` and
+  `TD_EARTHDATA_PASSWORD` as secrets in the host's dashboard (never in git). Username + password serve both
+  GES DISC and AppEEARS; a token (`TD_EARTHDATA_TOKEN`) alone serves only GES DISC. In Earthdata Login,
+  approve the "NASA GESDISC DATA ARCHIVE" application. NOAA and the geocoder are public.
 
 ## 1. GitHub (both hosts)
 
@@ -32,13 +34,13 @@ Settings → Branches → protect `main`, require the `CI` checks for PRs.
 3. Done. `autoDeployTrigger: checksPass` means every push to `main` deploys **only after all GitHub checks
    on that commit pass**; a red CI never deploys. (Service → Settings → Build & Deploy → Auto-Deploy should
    show "After CI Checks Pass".)
-4. Env vars: Service → Environment. Defaults are in `render.yaml` (`TD_DATA_PROVIDER=auto`,
-   `TD_GRID_PREWARM=false`). Add secrets (e.g. the Earthdata token) there.
+4. Env vars: Service → Environment. Defaults are in `render.yaml` (`TD_DATA_PROVIDER=live`). Set the secrets
+   `TD_EARTHDATA_USERNAME` / `TD_EARTHDATA_PASSWORD` there (the blueprint declares them with `sync: false`).
 
 Free plan notes: the service sleeps after ~15 min idle (first request then takes ~1 min) — open the URL a
-few minutes before the demo. 512 MB RAM: measured locally, idle ~165 MB, a map trend grid peaks ~400 MB,
-the startup grid prewarm peaks ~560 MB (hence disabled). If you see restarts/OOM in the logs, upgrade to an
-instance with ≥1 GB (Standard) or use Fly with 1 GB.
+few minutes before the demo. 512 MB RAM: idle was ~165 MB when measured locally; the old memory-heavy map
+grids are gone, but OPeNDAP/AppEEARS downloads have not been measured on the host yet. If you see
+restarts/OOM in the logs, upgrade to an instance with ≥1 GB (Standard) or use Fly with 1 GB.
 
 ## 2b. Fly.io (alternative)
 
@@ -52,7 +54,8 @@ fly tokens create deploy -x 999999h                      # -> GitHub secret FLY_
 
 GitHub → Settings → Secrets and variables → Actions: secret `FLY_API_TOKEN`, variable `FLY_DEPLOY=true`.
 From then on `deploy-fly.yml` deploys the exact commit CI tested, only when CI on `main` succeeded.
-Env/secrets: `fly secrets set TD_...=...`. (If you pick Render, leave `FLY_DEPLOY` unset; the workflow skips.)
+Env/secrets: `fly secrets set TD_EARTHDATA_USERNAME=... TD_EARTHDATA_PASSWORD=...` (`fly.toml` already sets
+`TD_DATA_PROVIDER=live`). (If you pick Render, leave `FLY_DEPLOY` unset; the workflow skips.)
 
 ## Rollback
 
@@ -75,9 +78,15 @@ cd backend && TD_STATIC_DIR=../frontend/dist .venv/bin/uvicorn app.main:app --po
 
 - Run exactly **one worker/process** (the Dockerfile does): jobs and uploads are per-process memory/disk.
 - Cache and uploads live in `/app/data` inside the container (`TD_CACHE_DIR`, `TD_UPLOAD_DIR`) and are
-  **ephemeral**: a redeploy or a Render sleep/wake clears uploaded datasets and finished jobs. Fine for the demo.
+  **ephemeral**: a redeploy or a Render sleep/wake clears uploaded datasets, finished jobs and the data cache.
+- **Cold cache after every deploy**: the first request for each area downloads from NASA (GES DISC: tens of
+  seconds; AppEEARS: minutes, the first answer is "NASA is preparing this area, try again in a few minutes").
+  Either accept the warm-up (click through every example case before the demo, twice for the MODIS ones), or
+  give the container a persistent disk (Render Disk / Fly volume mounted at `/app/data`) and run the
+  prefetch there once: `cd /app/backend && python -m app.prefetch` (Render Shell or `fly ssh console`; needs the
+  Earthdata secrets; AppEEARS waits up to `--wait` minutes, re-running resumes the same tasks).
 - NOAA CO₂/CH₄: downloaded on first use; if NOAA is unreachable the bundled copies in
   `backend/app/data/seed/noaa_gml/` are used (real data, as fresh as the last commit of those files).
-  Refresh them with `cd backend && .venv/bin/python -m app.prefetch && cp data/cache/noaa_gml/*.txt app/data/seed/noaa_gml/`.
+  Refresh them with `cd backend && .venv/bin/python -m app.prefetch --noaa && cp data/cache/noaa_gml/*.txt app/data/seed/noaa_gml/`.
 - Frontend calls same-origin `/api`. To point a separately hosted frontend at this backend, build it with
   `VITE_API_BASE=https://<backend>/api` and set `TD_CORS_ORIGINS='["https://<frontend-origin>"]'` on the backend.

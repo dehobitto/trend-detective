@@ -180,8 +180,6 @@ class UploadProvider:
     """Serves uploaded datasets. Monthly or finer data is averaged to months; annual data is kept as is."""
 
     name = "upload"
-    synthetic = False
-    local = True
 
     def __init__(self, store: UploadStore) -> None:
         self.store = store

@@ -57,7 +57,6 @@ CMR_PAGE_SIZE = 2000
 DAP4_NS = "{http://xml.opendap.org/ns/DAP/4.0#}"
 MIN_COVERAGE = 0.5
 """Without a login, serve cached values only if at least this share of the requested granules is cached."""
-FALLBACK_WARNING = "Couldn't load NASA Earthdata for this area; showing demo data."
 
 
 @dataclass(frozen=True)
@@ -264,9 +263,6 @@ class EarthdataProvider:
     """Real GES DISC data through OPeNDAP subsetting, cached on disk."""
 
     name = "earthdata"
-    synthetic = False
-    local = False
-    fallback_warning = FALLBACK_WARNING
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -285,14 +281,6 @@ class EarthdataProvider:
         s = self._settings
         return bool(s.earthdata_token or (s.earthdata_username and s.earthdata_password))
 
-    def serves(self, variable: CatalogVariable) -> bool:
-        """Route ``variable`` here (``auto`` mode) when we can log in or have cached values for it."""
-        if self.has_login:
-            return True
-        short_name = variable.product.split(".", 1)[0]
-        values_dir = self._cache_dir / short_name / "values"
-        return values_dir.is_dir() and any(values_dir.iterdir())
-
     # -- public API ------------------------------------------------------------------------------------
 
     def fetch(self, variable: CatalogVariable, bbox: BBox | None, start: dt.date, end: dt.date) -> pd.Series:
@@ -303,13 +291,18 @@ class EarthdataProvider:
         if bbox is None:
             raise ProviderError(f"{variable.name} needs an area on the map.")
         box = Box.for_bbox(grid, bbox)
+        cache_key = f"{short_name}.{version}:{field}"
+        if not self.has_login and not self._values_path(short_name, cache_key, box).exists():
+            raise ProviderError(
+                f"Real NASA data for {variable.name} in this area is not downloaded yet and no Earthdata login "
+                "is set (TD_EARTHDATA_TOKEN)."
+            )
 
         granules = self._granules(short_name, version, start, end)
         dates = sample_dates(granules, grid, start, end)
         if not dates:
             raise ProviderError(f"NASA has no {variable.name} data between {start} and {end}.")
 
-        cache_key = f"{short_name}.{version}:{field}"
         cached = self._read_values(short_name, cache_key, box)
         missing = [d for d in dates if d.isoformat() not in cached]
         if missing:
@@ -360,8 +353,7 @@ class EarthdataProvider:
         found: dict[dt.date, str] = {}
         try:
             for _ in range(20):  # 366 daily granules fit in one page; guard against endless paging
-                r = httpx.get(CMR_GRANULES_URL, params=params, headers=headers, timeout=self._timeout)
-                r.raise_for_status()
+                r = self._cmr_get(params, headers)
                 items = r.json().get("items", [])
                 found.update(granules_from_umm(items))
                 after = r.headers.get("CMR-Search-After")
@@ -373,6 +365,20 @@ class EarthdataProvider:
             raise ProviderError("Couldn't reach NASA's data search (CMR). Please try again later.") from exc
         # CMR returns granules overlapping the range: keep only this year's.
         return {d: u for d, u in found.items() if d.year == year}
+
+    def _cmr_get(self, params: dict[str, Any], headers: dict[str, str], attempts: int = 3) -> httpx.Response:
+        """CMR drops connections now and then: retry a few times with a short pause."""
+        for attempt in range(attempts):
+            try:
+                r = httpx.get(CMR_GRANULES_URL, params=params, headers=headers, timeout=self._timeout)
+                r.raise_for_status()
+                r.json()  # a truncated body is a failed attempt too
+                return r
+            except (httpx.HTTPError, ValueError):
+                if attempt == attempts - 1:
+                    raise
+                time.sleep(1.5 * (attempt + 1))
+        raise AssertionError("unreachable")
 
     # -- downloads (OPeNDAP, needs login) --------------------------------------------------------------
 

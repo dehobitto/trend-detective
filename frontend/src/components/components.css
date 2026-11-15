@@ -49,8 +49,6 @@
   background: var(--panel);
   white-space: nowrap;
 }
-/* Demo data is a warning about the numbers, so it inverts rather than whispering. */
-.badge--demo { background: var(--ink); border-color: var(--ink); color: var(--panel); }
 .badge--rise { border-color: var(--rise); color: var(--rise); }
 .badge--fall { border-color: var(--fall); color: var(--fall); }
 

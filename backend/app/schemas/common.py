@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 
 Sphere = Literal["atmosphere", "land", "ocean", "water"]
 Coverage = Literal["global", "land", "ocean", "series"]
@@ -69,13 +69,7 @@ class GibsMapLayer(BaseModel):
     legend_url: str | None = None
 
 
-class GridMapLayer(BaseModel):
-    """The backend serves gridded values via /api/grid (synthetic now, real later)."""
-
-    kind: Literal["grid"] = "grid"
-
-
-MapLayer = Annotated[GibsMapLayer | GridMapLayer, Field(discriminator="kind")]
+MapLayer = GibsMapLayer
 
 
 class Variable(BaseModel):
@@ -88,18 +82,19 @@ class Variable(BaseModel):
     source: str
     mission_or_model: str
     product: str
-    temporal_resolution: Literal["daily", "monthly"]
+    temporal_resolution: Literal["daily", "8-day", "monthly"]
     available_start: dt.date
     available_end: dt.date
     coverage: Coverage
     dataset: str
     """Dataset name as the team uses it, e.g. "GLDAS_CLSM025_DA1_D v2.2"."""
     access: str
-    """How real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "NOAA GML" | "KNMI Climate Explorer"."""
+    """How real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "NOAA GML"."""
     location: Location | None = None
     """Station position for "series" variables measured at one place (Mauna Loa), else null."""
     map_layer: MapLayer | None = None
-    """How the map shows this variable over time: GIBS imagery tiles or /api/grid frames; null for "series"."""
+    """NASA GIBS imagery for the map's time slider; null when there is none ("series" variables, and area
+    variables without a GIBS layer)."""
 
     @property
     def is_series(self) -> bool:

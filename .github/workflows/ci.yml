@@ -64,7 +64,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Run container
-        run: docker run -d --name td -p 8200:8000 -e TD_GRID_PREWARM=false trend-detective:ci
+        run: docker run -d --name td -p 8200:8000 trend-detective:ci
       - name: Smoke test
         run: scripts/smoke.sh http://localhost:8200
       - name: Container logs

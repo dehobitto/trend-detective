@@ -83,7 +83,6 @@ class AnalysisResult(BaseModel):
     series: list[SeriesPoint]
     stats: TrendStats
     summary: str
-    synthetic: bool
     provider: str
     warnings: list[str]
 

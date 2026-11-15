@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import logging
-import time
 
 import numpy as np
 import pandas as pd
@@ -27,7 +26,6 @@ log = logging.getLogger(__name__)
 SHORT_RECORD_YEARS = 10
 HIGH_AUTOCORRELATION = 0.5
 MIN_POINTS = 5
-SYNTHETIC_WARNING = "Demo data: these values are simulated, not real NASA measurements."
 
 
 class AnalysisRunner:
@@ -37,13 +35,11 @@ class AnalysisRunner:
         catalog: Catalog,
         provider: DataProvider,
         uploads: UploadProvider,
-        stage_delay: float = 0.0,
     ) -> None:
         self.store = store
         self.catalog = catalog
         self.provider = provider
         self.uploads = uploads
-        self.stage_delay = stage_delay
 
     def run(self, job_id: str) -> None:
         job = self.store.get(job_id)
@@ -59,27 +55,16 @@ class AnalysisRunner:
         else:
             self.store.update(job_id, status="done", progress=1.0, message="Done", result=result)
 
-    def _stage(self, job_id: str, status: str, progress: float, message: str, plan: Plan | None = None) -> None:
+    def _stage(self, job_id: str, status: str, progress: float, message: str) -> None:
         self.store.update(job_id, status=status, progress=progress, message=message)
-        if plan is not None and plan.provider.local and self.stage_delay > 0:
-            time.sleep(self.stage_delay)
 
     def _run(self, job_id: str, request: AnalysisRequest) -> AnalysisResult:
         plan = resolve(request, self.catalog, self.provider, self.uploads)
         provider = plan.provider
-        self._stage(job_id, "fetching", 0.1, f"Fetching {plan.variable.name} data…", plan)
-        fallback_warnings: list[str] = []
-        try:
-            monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
-        except ProviderError as exc:
-            if plan.fallback is None:
-                raise
-            log.warning("%s failed for %s (%s); using %s", provider.name, plan.variable.id, exc, plan.fallback.name)
-            provider = plan.fallback
-            monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
-            fallback_warnings = [plan.fallback_warning] if plan.fallback_warning else []
+        self._stage(job_id, "fetching", 0.1, f"Fetching {plan.variable.name} data from {_source(plan)}…")
+        monthly = provider.fetch(plan.variable, plan.bbox, plan.start, plan.end)
 
-        self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…", plan)
+        self._stage(job_id, "processing", 0.45, "Cleaning and averaging the data…")
         is_monthly = plan.aggregation == "monthly"
         series = monthly if is_monthly or ts.infer_frequency(monthly.index) == "annual" else ts.to_annual(monthly)
         processed = prep.preprocess(series, want_deseasonalized=bool(request.deseasonalize), is_monthly=is_monthly)
@@ -87,7 +72,7 @@ class AnalysisRunner:
         if analyzed.notna().sum() < MIN_POINTS:
             raise InvalidRequest("Not enough data in this period to test for a trend. Try a longer date range.")
 
-        self._stage(job_id, "analyzing", 0.75, "Testing whether the trend is real…", plan)
+        self._stage(job_id, "analyzing", 0.75, "Testing whether the trend is real…")
         analysis = trends.analyze(
             ts.decimal_years(analyzed.index),
             analyzed.to_numpy(),
@@ -98,8 +83,7 @@ class AnalysisRunner:
         stats = TrendStats.model_validate(analysis.stats)
         valid_index = analyzed.dropna().index
         warnings = (
-            plan.warnings + fallback_warnings + processed.warnings
-            + self._quality_warnings(valid_index, analysis, provider)
+            plan.warnings + processed.warnings + self._quality_warnings(valid_index, analysis)
         )
         return AnalysisResult(
             variable=plan.variable.public(),
@@ -108,15 +92,12 @@ class AnalysisRunner:
             series=_series_points(processed, analysis),
             stats=stats,
             summary=build_summary(stats, plan.variable.units, valid_index[0].year, valid_index[-1].year),
-            synthetic=provider.synthetic,
             provider=provider.name,
             warnings=warnings,
         )
 
     @staticmethod
-    def _quality_warnings(
-        index: pd.DatetimeIndex, analysis: trends.TrendAnalysis, provider: DataProvider
-    ) -> list[str]:
+    def _quality_warnings(index: pd.DatetimeIndex, analysis: trends.TrendAnalysis) -> list[str]:
         warnings = []
         years = ts.span_years(index)
         if years < SHORT_RECORD_YEARS:
@@ -128,9 +109,11 @@ class AnalysisRunner:
                 f"Neighboring values are strongly linked (autocorrelation {analysis.residual_lag1:.2f}), "
                 "so the p-values may make the trend look more certain than it is."
             )
-        if provider.synthetic:
-            warnings.append(SYNTHETIC_WARNING)
         return warnings
+
+
+def _source(plan: Plan) -> str:
+    return "your upload" if plan.provider.name == "upload" else plan.variable.source
 
 
 def _clean(x: float) -> float | None:

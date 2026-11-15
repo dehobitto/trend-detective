@@ -19,7 +19,7 @@ export interface ChatAdapter {
   send(req: ChatRequest): Promise<ChatResponse>;
 }
 
-/** Default: the backend's /api/chat endpoint (or the in-browser mock when offline). */
+/** Default: the backend's /api/chat endpoint. */
 export const backendChatAdapter: ChatAdapter = {
   send: (req) => api.chat(req),
 };

@@ -10,7 +10,7 @@ must be averaged to calendar months (``processing.timeseries.to_monthly``) and o
 ready-made record (Mauna Loa CO₂, NOAA CH₄): they receive ``bbox=None``.
 
 To add a provider: implement the protocol, decorate a factory with ``@register_provider("name")``,
-import the module in ``app/providers/__init__.py`` and set ``TD_DATA_PROVIDER=name``.
+import the module in ``app/providers/__init__.py`` and map the catalog ``access`` value to it in ``live.py``.
 """
 
 from __future__ import annotations
@@ -35,10 +35,6 @@ class ProviderError(Exception):
 class DataProvider(Protocol):
     name: str
     """Reported as ``AnalysisResult.provider`` and in ``/api/health``."""
-    synthetic: bool
-    """True when values are made up (UI shows a "Demo data" badge)."""
-    local: bool
-    """True when fetches are instant; the job runner then adds TD_SYNTHETIC_DELAY per stage."""
 
     def fetch(self, variable: CatalogVariable, bbox: BBox | None, start: dt.date, end: dt.date) -> pd.Series:
         """Return the monthly area-mean series for ``start..end`` (inclusive, month-start index)."""
@@ -47,12 +43,9 @@ class DataProvider(Protocol):
 
 @dataclass(frozen=True)
 class Route:
-    """Which provider serves one variable, and what to use if it fails."""
+    """Which provider serves one variable."""
 
     provider: DataProvider
-    fallback: DataProvider | None = None
-    fallback_warning: str | None = None
-    """Shown on results that came from ``fallback``."""
 
 
 def route_for(provider: DataProvider, variable: CatalogVariable) -> Route:

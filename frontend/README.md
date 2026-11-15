@@ -13,24 +13,10 @@ npm run dev          # http://localhost:5173, proxies /api -> http://localhost:8
 npm run build        # type-check (tsc -b) + production build into dist/
 ```
 
-Start the backend first for live data (`cd ../backend && .venv/bin/uvicorn app.main:app --port 8000`).
-If it is not running, the app falls back to the built-in mock automatically (see below).
-
-## Mock mode
-
-`src/api/client.ts` decides once at startup:
-
-- `VITE_USE_MOCKS=true` -> always use the in-browser mock (`src/api/mock.ts`).
-- otherwise it calls `GET /api/health`; if that fails or takes longer than `healthTimeoutMs`, it uses the mock.
-
-```bash
-VITE_USE_MOCKS=true npm run dev     # or put it in .env.local (see .env.example)
-```
-
-The mock implements the whole API contract with deterministic synthetic data (`mock.ts`,
-`mockCatalog.ts`, `mockStats.ts`) and is lazy-loaded, so it never touches the live path. An
-"Offline demo" badge shows on the globe screen when it is active; results always show "Demo data"
-when `result.synthetic` is true.
+Start the backend first (`cd ../backend && .venv/bin/uvicorn app.main:app --port 8000`). There is no
+offline / mock fallback: every number on screen comes from the backend. At startup `src/App.tsx` calls
+`GET /api/health` (timeout `healthTimeoutMs`); if it does not answer, the app shows a
+"Can't reach the server" card with a Reload button instead of any data.
 
 ## Where the tunables live (`src/config/`)
 
@@ -38,7 +24,7 @@ when `result.synthetic` is true.
 |---|---|
 | `theme.css` | Design tokens for the light "survey plate" theme (colours, Archivo + width axis, radii by role, panel width, fade duration). Two accents only: `--rise` (ochre), `--fall` (fjord blue). |
 | `colors.ts` | JS mirror of the colour tokens (charts, WebGL). |
-| `app.ts` | API base, force-mocks flag, health timeout, job polling interval/timeout, default dates and alpha. |
+| `app.ts` | API base, health timeout, job polling interval/timeout, default dates and alpha. |
 | `globe.ts` | Texture paths, camera FOV/distances, wheel zoom threshold that opens the map, fly-in duration, auto-rotate speed and resume delay, relief, exposure, sun angle, cloud drift, limb size/strength, vertical lift, side-dock shift. |
 | `map.ts` | GIBS tile URLs (basemap, coastlines, labels), arrival zoom, zoom-out level that returns to the globe, fit padding, minimum box size. |
 | `motion.ts` | Crossfade duration and `prefers-reduced-motion` helpers (reduced motion stops rotation and cuts transitions). |
@@ -48,7 +34,7 @@ when `result.synthetic` is true.
 ```
 src/
   config/      tunables (above)
-  api/         types.ts (mirrors API.md), client.ts (HTTP + mock switch), mock*.ts
+  api/         types.ts (mirrors API.md), client.ts (HTTP client + health check)
   state/       store.ts (zustand: view, transition, bbox, variable, dates, job, example, chat)
   lib/         geo.ts (lat/lon <-> sphere maths, bbox helpers), format.ts
   components/  Button, Badge/Chip, Toggle, Segmented, Wordmark, icons
@@ -65,19 +51,15 @@ src/
 The globe stays mounted (its render loop pauses while the map is shown); the map is lazy-mounted on the
 first hand-off and then kept, so transitions are a pure opacity crossfade.
 
-## Variable layer: modes, globe overlay, gestures
+## Variable layer: GIBS imagery, globe overlay, gestures
 
-- **Map mode** (layer dock, `layerStore.mode`): *Value* (GIBS imagery if the variable has it, else
-  `/api/grid`), *Change from normal* (`/api/grid?mode=anomaly`, monthly frames), *Trend*
-  (`/api/grid/{id}/trend` for the investigation period: one map, no play controls; cells that fail
-  Mann-Kendall are drawn faint and hatched; legend "Falling / Rising", `<units> per decade`).
-  Picking a variable opens it in *Trend*. Anomaly and trend always come from the backend grid
-  (synthetic for now; the dock says "demo data").
-- **Globe overlay** (`features/globe/GlobeOverlay.tsx`): the same layer is draped on a sphere just
-  above the ground (clouds fade out while it shows). GIBS: one WMS EPSG:4326 image per date; grid modes:
-  a global 2° frame painted to a canvas (`features/layers/gridRender.ts`, shared with the map). Frames
+- **Map layer** (layer dock): the variable's NASA GIBS imagery (`Variable.map_layer`, time-enabled WMTS)
+  with a timeline (play/pause, step, scrubber, speed). A variable with `map_layer: null` has no imagery:
+  the dock shows a one-line note and the variable can still be analysed by drawing a box.
+- **Globe overlay** (`features/globe/GlobeOverlay.tsx`): the same imagery draped on a sphere just
+  above the ground (clouds fade out while it shows): one GIBS WMS EPSG:4326 image per date. Frames
   cross-fade and the next one is preloaded; land-only variables are cut along the real coastline with
-  the water mask. `useFrameSync` runs in `App`, so the globe and the map share frames/mode; the dock
+  the water mask. `useFrameSync` runs in `App`, so the globe and the map share frames; the dock
   shows on the globe too (right of the case index; at the top below 1080 px).
 - **Gestures** (`features/globe/wheelIntent.ts`, thresholds in `config/globe.ts` → `gestures`):
   two-finger trackpad swipe turns the globe (with inertia), trackpad pinch (ctrl+wheel) zooms and hands

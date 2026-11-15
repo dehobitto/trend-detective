@@ -14,17 +14,24 @@
 ## Known issues
 - Pinch globe → map not tested on a real phone.
 - Globe gives no "no image for this month" note for GIBS gap months (map does).
-- If the backend is down when the page loads, the app falls back to the offline demo until reload:
+- If the backend is down when the page loads, the app shows a "Can't reach the server" card until reload:
   start the backend first.
-- All data except Mauna Loa CO2 / NOAA CO2+CH4 / uploads is synthetic ("Demo data" badge).
+- No demo data any more: every variable comes from its real source (GES DISC OPeNDAP, AppEEARS, NOAA GML).
+  The NASA fetches are untested end-to-end until an Earthdata login is provided (only unit tests with stubbed
+  HTTP so far). First things to confirm on the first real `python -m app.prefetch`: the AppEEARS statistics
+  CSV format (columns/scaling in `providers/appeears.py`) and the OMNO2d v004 layout (group path, dimension order).
+- Fresh deploys start with an empty cache: first request per area takes tens of seconds (GES DISC) to minutes
+  (AppEEARS). See `docs/DEPLOY.md`.
+- Not ported from the team repo yet: burned area (MCD64A1) and VIIRS night lights.
 - `requirements.txt` unpinned; Docker image never built locally (first build will be in CI).
 - Bundle chunks > 1 MB (three.js, maplibre); fine for a demo.
 
 ## Next steps (need you)
 1. GitHub repo + Render (or Fly) account → follow `docs/DEPLOY.md` (CI, pre-push hook, auto-deploy on checks pass).
-   Render: use a 1 GB instance (trend grid peaks ~400 MB).
-2. Earthdata token as env var (never in chat/git) → wire real GES DISC / AppEEARS providers
-   (`backend/app/providers/nasa_giovanni.py`, `appeears.py`), verify product IDs in `catalog/variables.yaml`.
+   Set `TD_EARTHDATA_USERNAME` / `TD_EARTHDATA_PASSWORD` as host secrets.
+2. Earthdata login in `backend/.env` (template `backend/.env.example`; never in chat/git) → run
+   `.venv/bin/python -m app.prefetch` (or `--earthdata`, `--appeears`, `--list`) and check every example case
+   with real data; fix the AppEEARS CSV parsing / OMNO2d paths if they differ.
 3. Teammate's chatbot: swap `frontend/src/features/chat/chatAdapter.ts` and backend `TD_CHAT_BACKEND`.
 
 ## How to run

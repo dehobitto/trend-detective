@@ -28,11 +28,6 @@ export function VerdictCard({ result, compact = false, takeaway }: { result: Ana
           </svg>
           {stats.significant ? 'Significant' : 'Not significant'}
         </Badge>
-        {result.synthetic && (
-          <Badge tone="demo" title="Synthetic data from the demo provider, not real NASA measurements yet">
-            Demo data
-          </Badge>
-        )}
         {result.provider === 'upload' && <Badge>Your data</Badge>}
       </div>
     </section>

@@ -1,9 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { mapConfig } from '../../config/map';
 import { useSelectedVariable, useStore } from '../../state/store';
-import { cssSteps, formatFrame, nearestFrame } from './frames';
-import { Segmented } from '../../components/Segmented';
-import { useLayers, type MapMode } from './layerStore';
+import { formatFrame, nearestFrame } from './frames';
+import { useLayers } from './layerStore';
 import './layers.css';
 
 const cfg = mapConfig.variableLayer;
@@ -19,14 +18,6 @@ const IconPrev = () => <Svg d="M4 3.5v9M12 3.5L6 8l6 4.5z" />;
 const IconNext = () => <Svg d="M12 3.5v9M4 3.5L10 8l-6 4.5z" />;
 const IconEye = ({ off }: { off: boolean }) =>
   off ? <Svg d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM3 13L13 3" /> : <Svg d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM8 6.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6z" />;
-
-function fmtNum(x: number): string {
-  const a = Math.abs(x);
-  if (a >= 1000) return x.toFixed(0);
-  if (a >= 10) return x.toFixed(0);
-  if (a >= 1) return x.toFixed(1);
-  return x.toPrecision(2);
-}
 
 /** Year ticks for the scrubber, thinned so labels never collide. */
 function yearTicks(frames: string[]) {
@@ -44,23 +35,12 @@ function yearTicks(frames: string[]) {
 }
 
 /**
- * Docked bottom bar for the variable map layer: show/hide, opacity, legend, and a timeline
+ * Docked bottom bar for the variable's NASA GIBS imagery: show/hide, opacity, legend, and a timeline
  * (play/pause, step, scrubber with year ticks, speed) like a weather-radar app.
  */
-const MODES: { value: MapMode; label: string }[] = [
-  { value: 'value', label: 'Value' },
-  { value: 'anomaly', label: 'Change from normal' },
-  { value: 'trend', label: 'Trend' },
-];
-
-const yearSpan = (p: { start: string; end: string }) => {
-  const f = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-  return `${f(p.start)} – ${f(p.end)}`;
-};
-
 export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boolean; onGlobe?: boolean }) {
   const variable = useSelectedVariable();
-  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, gridLegend, overlayError, mode, trendPeriod, set } = useLayers();
+  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, overlayError, set } = useLayers();
   const job = useStore((s) => s.job);
   const sheetCollapsed = useStore((s) => s.panelCollapsed);
 
@@ -86,15 +66,25 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
     return () => window.clearTimeout(t);
   }, [playing, date, speedIdx, frames]);
 
-  if (!layer || !variable || (frames.length === 0 && mode !== 'trend')) return null;
-  const trend = mode === 'trend';
-  const imagery = layer.kind === 'gibs' && mode === 'value';
+  if (!variable) return null;
+  // An area variable without GIBS imagery: nothing to draw, but say so (it can still be analysed by drawing a box).
+  if (!layer) {
+    if (variable.coverage === 'series') return null;
+    return (
+      <section className="layer-dock layer-dock--empty" data-on-globe={onGlobe} data-beside-panel={besidePanel} data-sheet-collapsed={besidePanel && sheetCollapsed} aria-label="Map layer">
+        <p className="layer-dock__note" role="status">
+          <strong>{variable.name}</strong>: no map imagery for this variable. Draw a box to analyse it.
+        </p>
+      </section>
+    );
+  }
+  if (frames.length === 0) return null;
 
   const step = (d: number) => {
     if (idx < 0) return;
     set({ playing: false, date: frames[Math.max(0, Math.min(frames.length - 1, idx + d))] });
   };
-  const stepKind = imagery && !(layer.time_step === 'daily' && cfg.dailyFrameStep === 'monthly') ? layer.time_step : 'monthly';
+  const stepKind = !(layer.time_step === 'daily' && cfg.dailyFrameStep === 'monthly') ? layer.time_step : 'monthly';
 
   // Analysed period, if a result is on screen.
   const req = job?.status === 'done' && job.result && job.request.variable_id === variable.id ? job.request : null;
@@ -115,19 +105,7 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
         </button>
         <div className="layer-dock__title">
           <span className="layer-dock__name">{variable.name}</span>
-          <span className="layer-dock__src">
-            {imagery
-              ? 'NASA GIBS imagery'
-              : `${mode === 'trend' ? 'Trend, seasons removed' : mode === 'anomaly' ? 'Versus the usual for that month' : 'Gridded values'}${gridLegend?.synthetic ? ', demo data' : ''}`}
-          </span>
-        </div>
-        <div className="layer-dock__mode">
-          <Segmented
-            label="What the map shows"
-            value={mode}
-            options={MODES}
-            onChange={(m) => set({ mode: m, playing: false, gridLegend: null, overlayError: null })}
-          />
+          <span className="layer-dock__src">NASA GIBS imagery</span>
         </div>
         <Legend />
         <label className="layer-dock__opacity" title="Layer opacity">
@@ -137,13 +115,6 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
       </div>
 
       <div className="layer-dock__time">
-        {trend ? (
-          <p className="layer-dock__periodtext">
-            <span className="layer-dock__date">{trendPeriod ? yearSpan(trendPeriod) : '—'}</span>
-            <span className="layer-dock__hint">One map for the whole period. Faint, hatched areas: change not statistically significant.</span>
-          </p>
-        ) : (
-        <>
         <div className="layer-dock__transport">
           <button type="button" className="ld-btn" aria-label="Previous frame" onClick={() => step(-1)} disabled={idx <= 0}>
             <IconPrev />
@@ -206,11 +177,9 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
         >
           {cfg.speeds[speedIdx].label}
         </button>
-        </>
-        )}
       </div>
       {overlayError && <p className="layer-dock__error">{overlayError}</p>}
-      {!overlayError && imagery && frameMissing && !loading && (
+      {!overlayError && frameMissing && !loading && (
         <p className="layer-dock__note" role="status">
           No satellite image for this {stepKind === 'daily' ? 'day' : stepKind === 'yearly' ? 'year' : 'month'}.
         </p>
@@ -221,43 +190,12 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
 
 function Legend() {
   const layer = useLayers((s) => s.layer);
-  const grid = useLayers((s) => s.gridLegend);
-  const mode = useLayers((s) => s.mode);
-  if (layer?.kind === 'gibs' && mode === 'value') {
-    return layer.legend_url ? (
-      <span className="layer-dock__legend-imgwrap">
-        <img className="layer-dock__legend-img" src={layer.legend_url} alt="Colour legend for this layer" />
-      </span>
-    ) : (
-      <span className="layer-dock__legend-note">Colours as published by NASA GIBS</span>
-    );
-  }
-  if (!grid) return <span className="layer-dock__legend" aria-hidden />;
-  if (grid.diverging && mode !== 'value') {
-    const [lo, hi] = mode === 'trend' ? ['Falling', 'Rising'] : ['Below normal', 'Above normal'];
-    return (
-      <div className="layer-dock__legend" role="img" aria-label={`Colour scale: ${lo.toLowerCase()} in blue down to ${fmtNum(grid.min)}, no change in grey, ${hi.toLowerCase()} in ochre up to ${fmtNum(grid.max)} ${grid.units}`}>
-        <span className="layer-dock__scale layer-dock__scale--ends">
-          <span className="layer-dock__fall">{lo}</span>
-          <span className="layer-dock__rise">{hi}</span>
-        </span>
-        <span className="layer-dock__ramp" style={{ background: cssSteps(grid.colormap, grid.min, grid.max, cfg.colourClasses) }} />
-        <span className="layer-dock__scale">
-          <span>{fmtNum(grid.min)}</span>
-          <span className="layer-dock__units" title={grid.units}>{grid.units}</span>
-          <span>+{fmtNum(grid.max)}</span>
-        </span>
-      </div>
-    );
-  }
-  return (
-    <div className="layer-dock__legend" role="img" aria-label={`Colour scale from ${fmtNum(grid.min)} to ${fmtNum(grid.max)} ${grid.units}`}>
-      <span className="layer-dock__ramp" style={{ background: cssSteps(grid.colormap, grid.min, grid.max, cfg.colourClasses) }} />
-      <span className="layer-dock__scale">
-        <span>{fmtNum(grid.min)}</span>
-        <span className="layer-dock__units">{grid.units}</span>
-        <span>{fmtNum(grid.max)}</span>
-      </span>
-    </div>
+  if (!layer) return null;
+  return layer.legend_url ? (
+    <span className="layer-dock__legend-imgwrap">
+      <img className="layer-dock__legend-img" src={layer.legend_url} alt="Colour legend for this layer" />
+    </span>
+  ) : (
+    <span className="layer-dock__legend-note">Colours as published by NASA GIBS</span>
   );
 }

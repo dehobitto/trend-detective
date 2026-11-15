@@ -85,3 +85,26 @@
   center: {lat: 0, lon: -160}
   related_variable_id: noaa_co2_marine
   takeaway: Methane rose quickly, paused around 2000–2006, and then started climbing again even faster, driven by fossil fuels, farming, landfills and wetlands.
+
+- id: rondonia-forest
+  title: Is the Amazon in Rondônia losing its forest?
+  question: Has the vegetation of central Rondônia in the Brazilian Amazon become less green since 2001, as forest is cleared for cattle and crops?
+  bbox: {west: -64.0, south: -11.0, east: -62.0, north: -9.0}
+  variable_id: modis_ndvi
+  start: 2001-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: -10.0, lon: -63.0}
+  takeaway: A falling NDVI here means fewer trees and more pasture and fields; check whether the drop is significant and how fast it goes.
+
+- id: sahel-green
+  title: Is the Sahel turning into desert?
+  question: Has the vegetation in southern Niger changed since 2001, and does rainfall explain it?
+  bbox: {west: 5.0, south: 13.0, east: 8.0, north: 15.0}
+  variable_id: modis_ndvi
+  start: 2001-01-01
+  end: 2025-12-31
+  deseasonalize: true
+  center: {lat: 14.0, lon: 6.5}
+  related_variable_id: gpm_precipitation
+  takeaway: Compare greenness with rainfall over the same area; if vegetation changes while rain does not, people (grazing, farming) are the more likely cause.

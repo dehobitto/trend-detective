@@ -175,18 +175,12 @@ def test_fetch_downloads_converts_and_caches(settings, fake_nasa):
     assert len(cache_files) == 1 and len(json.loads(cache_files[0].read_text())) == 120
 
 
-def test_without_login_uncached_area_fails_and_auto_uses_synthetic(settings, fake_nasa):
+def test_without_login_an_uncached_area_is_an_error(settings, fake_nasa):
     provider = create_provider("earthdata", settings)
     precip = Catalog.from_dir().get("gpm_precipitation")
-    assert not provider.has_login and not provider.serves(precip)
+    assert not provider.has_login
     with pytest.raises(ProviderError, match="Earthdata login"):
         provider.fetch(precip, PUNJAB, dt.date(2003, 1, 1), dt.date(2012, 12, 31))
-
-    auto = create_provider("auto", settings.model_copy(update={"data_provider": "auto"}))
-    assert auto.route(precip).provider.name == "synthetic"
-    with_login = create_provider("auto", settings.model_copy(update={"data_provider": "auto", "earthdata_token": "t"}))
-    route = with_login.route(precip)
-    assert route.provider.name == "earthdata" and route.fallback.name == "synthetic"
 
 
 def test_settings_accept_the_team_env_names(monkeypatch):
@@ -196,3 +190,22 @@ def test_settings_accept_the_team_env_names(monkeypatch):
     monkeypatch.setenv("EARTHDATA_PASS", "secret")
     s = Settings(_env_file=None)
     assert s.earthdata_username == "student" and s.earthdata_password == "secret"
+
+
+def test_cmr_search_retries_a_dropped_connection(settings, monkeypatch):
+    import httpx
+
+    calls = []
+
+    def flaky(url, params=None, headers=None, timeout=None):
+        calls.append(url)
+        if len(calls) == 1:
+            raise httpx.ReadError("Connection reset by peer")
+        item = {"umm": {"TemporalExtent": {"RangeDateTime": {"BeginningDateTime": "2006-03-01T00:00:00Z"}},
+                        "RelatedUrls": [{"Type": "USE SERVICE API", "URL": "https://opendap.test/x"}]}}
+        return httpx.Response(200, json={"items": [item]}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr("app.providers.earthdata.httpx.get", flaky)
+    monkeypatch.setattr("app.providers.earthdata.time.sleep", lambda s: None)
+    found = create_provider("earthdata", settings)._search_year("GPM_3IMERGM", "07", 2006)
+    assert found == {dt.date(2006, 3, 1): "https://opendap.test/x"} and len(calls) == 2

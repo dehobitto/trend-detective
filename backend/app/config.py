@@ -17,13 +17,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TD_", env_file=".env", extra="ignore", populate_by_name=True)
 
     version: str = "0.1.0"
-    data_provider: str = "auto"
-    """Name of the registered DataProvider used for catalog variables. ``auto``: real data where a
-    provider is implemented (NOAA GML records; GES DISC products via ``earthdata`` when an Earthdata login is
-    set or their values are cached), synthetic elsewhere and as a fallback;
-    ``synthetic``: demo data for everything; ``live``: real providers only (stubs raise)."""
-    synthetic_delay: float = 0.3
-    """Artificial pause (seconds) per job stage for local providers, so progress UI is visible."""
+    data_provider: str = "live"
+    """Name of the registered DataProvider used for catalog variables. ``live``: route each variable to its
+    real source by its ``access`` field (NOAA GML, ``earthdata`` for GES DISC, ``appeears`` for MODIS);
+    or a single provider name. There is no demo / synthetic data."""
     chat_backend: str = "stub"
     cors_origins: list[str] = [
         "http://localhost:5173",
@@ -43,6 +40,11 @@ class Settings(BaseSettings):
     )
     earthdata_workers: int = 8
     """Parallel OPeNDAP requests per analysis (each is one small granule subset)."""
+    appeears_wait: float = 90.0
+    """Seconds an analysis waits for a running AppEEARS task before answering "still preparing" (the frontend
+    gives up polling after 120 s)."""
+    appeears_poll: float = 10.0
+    """Seconds between AppEEARS task status checks."""
     noaa_gml_base_url: str = "https://gml.noaa.gov/webdata/ccgg/trends"
     noaa_cache_ttl_days: float = 7.0
     """A cached NOAA file older than this is downloaded again (a stale copy is used if that fails)."""
@@ -55,8 +57,6 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 5 * 1024 * 1024
     max_jobs: int = 500
     """Oldest finished jobs are evicted from the in-memory store beyond this count."""
-    grid_prewarm: bool = True
-    """Compute every variable's map color range in a background thread at startup (first frames stay fast)."""
     photon_url: str = "https://photon.komoot.io/api/"
     """Place search (GET /api/geocode), tried first."""
     nominatim_url: str = "https://nominatim.openstreetmap.org/search"

@@ -130,7 +130,7 @@ export function useGibsOverlay(map: MlMap | null) {
 
     const sync = () => {
       const s = useLayers.getState();
-      const layer = s.layer?.kind === 'gibs' && s.mode === 'value' ? s.layer : null;
+      const layer = s.layer;
       if (!layer || !s.date) {
         if (layerDef) removeAll();
         layerDef = null;
@@ -168,7 +168,7 @@ export function useGibsOverlay(map: MlMap | null) {
     map.on('idle', settle);
     map.on('error', onError);
     const unsub = useLayers.subscribe((s, p) => {
-      if (s.layer !== p.layer || s.date !== p.date || s.mode !== p.mode) sync();
+      if (s.layer !== p.layer || s.date !== p.date) sync();
       else if ((s.opacity !== p.opacity || s.overlayOn !== p.overlayOn) && shown.current && map.getLayer(shown.current)) {
         map.setPaintProperty(shown.current, 'raster-opacity-transition', { duration: 0, delay: 0 });
         map.setPaintProperty(shown.current, 'raster-opacity', s.overlayOn ? s.opacity : 0);

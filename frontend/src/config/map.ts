@@ -114,25 +114,14 @@ export const mapConfig = {
   },
 
   variableLayer: {
+    /** NASA GIBS imagery overlay + timeline. */
     opacity: 0.7,
     /** Daily GIBS layers would give thousands of frames; step through them monthly instead. */
     dailyFrameStep: 'monthly' as 'monthly' | 'daily',
     /** …using this day of each month (mid-month avoids month-boundary gaps). */
     dailyFrameDay: 15,
-    /** Grid maps are drawn in this many flat colour classes (even, so 0 is a class edge on diverging maps). */
-    colourClasses: 10,
     /** GIBS frames preloaded on each side of the current one (invisible layers so tiles are fetched). */
     gibsPrefetch: 2,
-    /** Grid frames prefetched ahead (and 2 behind). */
-    gridPrefetch: 3,
-    /** Grid frames kept in memory. */
-    gridCacheSize: 48,
-    /** Target cells across the view for /api/grid (server caps at 200x200). */
-    gridCells: 160,
-    /** Target cells across the view for a trend map (/api/grid/{id}/trend: heavier, so coarser). */
-    trendCells: 100,
-    /** Rendered canvas size (long side, px) for grid frames (bilinear-resampled, Mercator-corrected). */
-    gridCanvasPx: 640,
     /** Playback speeds: ms per frame. */
     speeds: [
       { label: '0.5×', ms: 1600 },

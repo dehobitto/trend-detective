@@ -5,8 +5,9 @@ Users pick a region + an Earth-science variable (MODIS, OMI, AIRS, GPM, MERRA-2,
 series, and get the rate of change + whether the trend is statistically significant (OLS t-test with CI,
 Mann-Kendall + Sen's slope). Audience: high-school / college students — clear, not childish.
 
-Real NASA data is NOT wired yet. Everything must run end-to-end today on a **synthetic provider**, and the
-real provider must drop in later by implementing one interface. Modularity + UI/UX are the priority.
+All data is real: GES DISC products via OPeNDAP, MODIS via AppEEARS, CO₂/CH₄ from NOAA GML, plus user
+uploads. There is no demo or fallback data; when a source fails, the analysis says so in plain language.
+Each source is one provider behind one interface. Modularity + UI/UX are the priority.
 
 ## Repo layout
 
@@ -33,9 +34,9 @@ docs/       SPEC.md (this), API.md (contract — both sides MUST follow it)
    and a plain-English verdict card: "Rising by 0.21 °C per decade. This trend is significant (p = 0.003)."
    Shows OLS slope ± CI, t-test p, Mann-Kendall tau/p, Sen's slope, n, period. Short "What does this mean?"
    explainers. Download CSV of the series.
-5. **Example cases** (demo mode the brief asks for): presets that set bbox + variable + dates in one click
-   (e.g. Arctic surface air temperature, Amazon precipitation, Aral Sea region soil moisture, Delhi aerosol
-   optical depth, Greenland ice-adjacent SST). Defined in backend catalog, served via API.
+5. **Example cases** (the one-click presets the brief asks for): set bbox + variable + dates in one click
+   (e.g. Punjab groundwater vs. rainfall, Delhi NO₂, China SO₂, Phoenix nights, Mauna Loa CO₂, Rondônia
+   forest NDVI, Sahel greening). Defined in backend catalog, served via API.
 6. **Bring your own data**: upload a CSV (`date,value`) → appears as a dataset you can analyze/plot with the
    same pipeline.
 7. **Field guide chat (stub)**: floating button bottom-right opens a chat drawer. Backend `/api/chat`
@@ -48,27 +49,28 @@ backend/
   pyproject.toml / requirements.txt  (fastapi, uvicorn, pydantic-settings, numpy, scipy, pandas, pyyaml, python-multipart, httpx)
   app/
     main.py            app factory, CORS, router mounting
-    config.py          Settings (env prefix TD_), e.g. TD_DATA_PROVIDER=synthetic
-    api/               routers: health, catalog, analyses, datasets, chat
+    config.py          Settings (env prefix TD_), e.g. TD_DATA_PROVIDER=live, TD_EARTHDATA_USERNAME/PASSWORD
+    prefetch.py        `python -m app.prefetch`: fill the data caches for every example case
+    api/               routers: health, catalog, analyses, datasets, chat, geocode
     schemas/           pydantic models (mirror docs/API.md exactly)
     catalog/           variables.yaml, examples.yaml, loader
-    providers/         base.py (DataProvider protocol + registry), synthetic.py, earthdata.py (GES DISC OPeNDAP),
+    providers/         base.py (DataProvider protocol + registry), live.py (routes by catalog `access`),
+                       earthdata.py (GES DISC OPeNDAP), appeears.py (MODIS via AppEEARS), noaa_gml.py (CO₂/CH₄),
                        upload.py (user CSVs)
     processing/        timeseries.py (area mean, resample), preprocess.py (gap fill, deseasonalize/anomalies),
                        trends.py (OLS+t-test+CI, Mann-Kendall, Sen's slope) — pure numpy/scipy, unit tested
     jobs/              in-memory job store + runner (BackgroundTasks); interface allows swapping to a queue later
     chat/              ChatBackend protocol + StubChatBackend
-  tests/               pytest for processing/trends + API smoke tests
+  tests/               pytest for processing/trends, providers (stubbed HTTP) + API tests (test-only `fake` provider)
 ```
 
 Pipeline for an analysis job: `provider.fetch(variable, bbox, start, end) -> pd.Series (monthly, area-mean)`
 → `preprocess` → `trends.analyze` → result. Each stage is a plain function; job runner just chains them and
 updates status/progress (`queued → fetching → processing → analyzing → done | error`).
 
-Synthetic provider must be deterministic per (variable, bbox, dates): seasonal cycle with amplitude/phase
-depending on latitude, a linear trend whose sign/magnitude depends on region (so different regions give
-different and sometimes opposite trends — that's the point of the challenge), red noise, realistic units/
-ranges from the catalog. Mark results `synthetic: true` so UI shows a "Demo data" badge.
+Providers fetch only what the bbox needs (OPeNDAP subsets, AppEEARS area statistics) and cache it on disk
+(`TD_CACHE_DIR`), so a repeated area is instant; `app.prefetch` warms the cache for the example cases. A
+`ProviderError` ends the job with its student-readable message (no fallback). See `backend/README.md`.
 
 ## Frontend architecture
 

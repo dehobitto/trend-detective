@@ -13,9 +13,10 @@ services:
     autoDeployTrigger: checksPass   # wait for the GitHub Actions CI checks on the commit
     envVars:
       - key: TD_DATA_PROVIDER
-        value: auto
-      - key: TD_GRID_PREWARM
-        value: "false"         # prewarm peaks ~560 MB; too much for 512 MB instances
-      # Later, for real NASA data (secret, set in the dashboard, never in git):
-      # - key: TD_EARTHDATA_TOKEN
-      #   sync: false
+        value: live
+      # Real NASA data needs an Earthdata login (secrets: set in the dashboard, never in git).
+      # Username + password serve both GES DISC (OPeNDAP) and AppEEARS; a token alone serves only GES DISC.
+      - key: TD_EARTHDATA_USERNAME
+        sync: false
+      - key: TD_EARTHDATA_PASSWORD
+        sync: false

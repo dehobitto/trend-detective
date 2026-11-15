@@ -19,14 +19,14 @@ type Variable = {
   source: string             // "MERRA-2 (model reanalysis)"
   mission_or_model: string   // "MERRA-2" | "MODIS" | "GPM" | "OMI" | "AIRS" | "GLDAS" ...
   product: string            // NASA product id, e.g. "M2TMNXSLV.5.12.4:T2M"
-  temporal_resolution: "daily" | "monthly"
+  temporal_resolution: "daily" | "8-day" | "monthly"
   available_start: string    // date
   available_end: string      // date
   coverage: "global" | "land" | "ocean" | "series"
   // "series" = a ready-made single time series (station like Mauna Loa, or a global mean like NOAA marine CH4).
   // bbox is NOT needed/used for these; UI should skip the "draw an area" step and show a "Global record" note.
   dataset: string            // dataset name as the team uses it, e.g. "GLDAS_CLSM025_DA1_D v2.2"
-  access: string             // how real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "KNMI Climate Explorer" | "NOAA GML"
+  access: string             // how real data is obtained: "Giovanni" | "AppEEARS" | "GES DISC OPeNDAP" | "NOAA GML"
   location: { lat: number; lon: number; label: string } | null   // for "series" from a station (Mauna Loa), else null
 }
 
@@ -103,8 +103,7 @@ type AnalysisResult = {
   series: SeriesPoint[]
   stats: TrendStats
   summary: string            // plain-English verdict, e.g. "Rising by 0.42 °C per decade. Both tests agree this trend is significant (p < 0.001)."
-  synthetic: boolean         // true when demo/synthetic data was used
-  provider: string           // "synthetic" | "noaa_gml" | "earthdata" | "upload"
+  provider: string           // concrete source: "earthdata" | "appeears" | "noaa_gml" | "upload" (all data is real; no demo data)
   warnings: string[]         // e.g. "Fewer than 10 years of data: trends may not be reliable."
 }
 
@@ -121,7 +120,7 @@ type ApiError = { detail: string }   // FastAPI default shape; 4xx/5xx
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | `/api/health` | – | `{ status: "ok", provider: string, version: string }` |
+| GET | `/api/health` | – | `{ status: "ok", provider: string, version: string }` (provider = `TD_DATA_PROVIDER`, normally `"live"`) |
 | GET | `/api/variables` | – | `Variable[]` |
 | GET | `/api/variables/{id}` | – | `Variable` (404 if unknown) |
 | GET | `/api/examples` | – | `ExampleCase[]` |
@@ -136,71 +135,41 @@ type ApiError = { detail: string }   // FastAPI default shape; 4xx/5xx
 Validation (422): bbox must have west<east, south<north, within range, area not degenerate; start<end; dates
 inside variable availability (clamp + warning is acceptable instead of erroring); unknown variable → 404.
 
-Frontend polls `GET /api/analyses/{id}` every ~400 ms until `done`/`error`. Synthetic provider should
-take a short artificial delay (~0.3 s per stage, configurable `TD_SYNTHETIC_DELAY`) so the progress UI is
-visible.
+Frontend polls `GET /api/analyses/{id}` every ~400 ms until `done`/`error`. A job that needs uncached NASA
+data takes from tens of seconds (GES DISC) to minutes (AppEEARS); when a source fails or an AppEEARS task is
+still running, the job ends with `status: "error"` and a student-readable `message` (e.g. "NASA is preparing
+this area, try again in a few minutes"). There is no fallback data.
 
 ## v2 additions (map layers, time slider, place search)
 
 ```ts
-// New field on Variable:
+// New field on Variable (null for "series" variables and area variables without a GIBS layer:
+// merra2_bc, merra2_oc, merra2_so4, merra2_sulfate_aod):
 map_layer: MapLayer | null
 
 type MapLayer =
-  | { kind: "gibs"                    // real NASA imagery tiles from GIBS WMTS (EPSG:3857), time-enabled
+    { kind: "gibs"                    // real NASA imagery tiles from GIBS WMTS (EPSG:3857), time-enabled
       layer: string                   // GIBS layer identifier, verified against GetCapabilities
       tile_matrix_set: string         // e.g. "GoogleMapsCompatible_Level6"
       format: "png" | "jpeg"
       max_zoom: number
       time_step: "daily" | "8day" | "monthly" | "yearly"
       time_start: string; time_end: string   // dates available in GIBS
-      legend_url: string | null       // GIBS colormap legend image if available
+      legend_url: string | null       // GIBS legend image if available
       // tile URL template the frontend builds:
       // https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/{tile_matrix_set}/{z}/{y}/{x}.{format}
     }
-  | { kind: "grid" }                  // backend serves gridded values via /api/grid (synthetic now, real later)
-
-type Colormap = { name: string; stops: [number, string][] }   // value -> hex, for legend + client rendering
-
-type GridFrame = {
-  variable_id: string
-  date: string                        // first day of month
-  bbox: BBox                          // area actually covered
-  width: number; height: number       // grid size (cols, rows); row 0 = north
-  values: (number | null)[]           // row-major, length width*height, null = no data (e.g. ocean for land vars)
-  min: number; max: number            // suggested color range for this variable (stable across frames)
-  units: string
-  colormap: Colormap
-  synthetic: boolean
-}
 
 type Place = { name: string; display_name: string; lat: number; lon: number; bbox: BBox | null; kind: string }
 ```
 
 | Method | Path | Query | Returns |
 |---|---|---|---|
-| GET | `/api/grid/{variable_id}` | `date=YYYY-MM-01`, `west,south,east,north` (optional; default global), `res` (deg, optional; server caps size to ≤ 200×200) | `GridFrame` |
-| GET | `/api/grid/{variable_id}/dates` | – | `string[]` monthly dates available for the slider |
 | GET | `/api/geocode` | `q` (≥2 chars), `limit` (default 6) | `Place[]` (proxied to OSM Nominatim/Photon with caching; generic User-Agent) |
 
-## v3 additions (change maps)
-
-| Method | Path | Query | Returns |
-|---|---|---|---|
-| GET | `/api/grid/{variable_id}` | add `mode=value|anomaly` (default value). anomaly = value minus that calendar month's climatology over the variable's availability; diverging colormap centered on 0, symmetric min/max | `GridFrame` |
-| GET | `/api/grid/{variable_id}/trend` | `start`, `end` (YYYY-MM-01), optional bbox, `res`, `alpha` (0.05) | `TrendGrid` |
-
-```ts
-type TrendGrid = GridFrame & {           // values = slope per decade (on deseasonalized monthly series) per cell
-  date: string                           // = end
-  start: string; end: string
-  significant: (boolean | null)[]        // per cell, Mann-Kendall p < alpha (same length as values)
-  // units = "<variable units> per decade"; colormap diverging: falling = deep blue #07668A side, rising = ochre #9A5200 side, 0 = neutral light
-}
-```
 Globe overlay (frontend only): GIBS layers are fetched as one equirectangular image via WMS
-`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS={layer}&STYLES=&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH=2048&HEIGHT=1024&FORMAT=image/png&TRANSPARENT=TRUE&TIME={date}`;
-grid/anomaly/trend frames are rendered to a canvas texture from a global GridFrame.
+`https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS={layer}&STYLES=&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH=2048&HEIGHT=1024&FORMAT=image/png&TRANSPARENT=TRUE&TIME={date}`.
+The map and globe show only GIBS imagery; the backend serves no gridded values.
 
 ## Deployment notes
 

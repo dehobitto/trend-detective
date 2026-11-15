@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Aggregation, BBox, Dataset, ExampleCase, Job, Variable } from '../api/types';
-import type { ApiMode } from '../api/client';
 import { appConfig } from '../config/app';
 import { mapConfig } from '../config/map';
 
@@ -45,7 +44,8 @@ function saveFlat(flat: boolean) {
 const startFlat = typeof window !== 'undefined' && readFlat();
 
 type State = {
-  apiMode: ApiMode | 'connecting';
+  /** Backend reachability, checked once at startup (there is no offline fallback). */
+  server: 'connecting' | 'online' | 'offline';
   /** 2D-only mode: no globe at all, the flat map is the home screen. */
   flat: boolean;
   /** 2D-only mode: the example case list is open over the map. */
@@ -109,7 +109,7 @@ type Actions = {
 };
 
 export const useStore = create<State & Actions>((set, get) => ({
-  apiMode: 'connecting',
+  server: 'connecting',
   flat: startFlat,
   casesOpen: startFlat,
   view: startFlat ? 'map' : 'globe',

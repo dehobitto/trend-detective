@@ -19,8 +19,8 @@ interpolated are flagged only in the st.dev column, so they are kept like NOAA's
 
 Downloads go through httpx (``TD_HTTP_TIMEOUT``) and the raw text is cached in
 ``TD_CACHE_DIR/noaa_gml/<file>.txt`` for ``TD_NOAA_CACHE_TTL_DAYS``. When the download fails a stale
-cached copy is used; with no copy at all a :class:`ProviderError` is raised (the ``auto`` provider then
-falls back to synthetic data with :data:`FALLBACK_WARNING`).
+cached copy is used, then the NOAA files committed in ``app/data/seed/noaa_gml/``; only with neither a
+:class:`ProviderError` is raised.
 """
 
 from __future__ import annotations
@@ -48,7 +48,6 @@ log = logging.getLogger(__name__)
 PRODUCT_PREFIX = "NOAA-GML:"
 MISSING_BELOW = -9.0
 """Monthly means at or below this are NOAA missing-value markers (-9.99, -99.99)."""
-FALLBACK_WARNING = "Couldn't reach NOAA; showing demo data."
 
 
 def file_name(variable: CatalogVariable) -> str:
@@ -87,9 +86,6 @@ class NoaaGmlProvider:
     """Real monthly NOAA GML records, downloaded once and cached on disk."""
 
     name = "noaa_gml"
-    synthetic = False
-    local = False
-    fallback_warning = FALLBACK_WARNING
 
     def __init__(self, settings: Settings) -> None:
         self._base_url = settings.noaa_gml_base_url

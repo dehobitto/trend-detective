@@ -17,8 +17,8 @@ What it does:
    variable's availability, and requires at least one tile with visible (non-transparent) pixels.
 
 It prints suggestions; copy them into ``app/catalog/variables.yaml`` (the file keeps hand-written comments,
-so this script never rewrites it). Variables with no candidate get ``{kind: grid}`` (served by /api/grid);
-"series" variables get ``null``.
+so this script never rewrites it). Variables with no verified candidate, and "series" variables, get ``null``
+(no map imagery).
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ NS = {
 
 # Ordered preferences per catalog variable: the first layer present in GetCapabilities wins.
 CANDIDATES: dict[str, list[str]] = {
+    "modis_ndvi": ["MODIS_Terra_L3_NDVI_Monthly", "MODIS_Aqua_L3_NDVI_Monthly"],
     # GRACE mascons are total water storage anomalies: the closest GIBS has to GLDAS groundwater / TWS.
     "gldas_gws": ["GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI"],
     "gldas_tws": ["GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI"],
@@ -282,7 +283,7 @@ def discover(verify_tiles: bool = True) -> dict[str, dict | None]:
                         continue
                 chosen = layer.map_layer()
                 break
-            result[var.id] = chosen or {"kind": "grid"}
+            result[var.id] = chosen
     return result
 
 

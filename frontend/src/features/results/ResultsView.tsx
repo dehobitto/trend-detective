@@ -28,8 +28,7 @@ export function ResultsView({ job }: { job: Job }) {
     scroller.scrollTo({ top: y, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [job.id]);
   if (!result) return null;
-  // The "Demo data" badge already says this; don't repeat it as a warning.
-  const warnings = result.warnings.filter((w) => !(result.synthetic && /^demo data/i.test(w)));
+  const warnings = result.warnings;
   const slug = `${result.variable.id.replace(/[^a-z0-9]+/gi, '-')}_${job.request.start.slice(0, 4)}-${job.request.end.slice(0, 4)}`;
 
   return (
@@ -66,7 +65,6 @@ export function ResultsView({ job }: { job: Job }) {
         </Button>
         <span className="hint">
           {result.variable.source}
-          {result.synthetic ? '. Synthetic demo values, not measurements.' : ''}
         </span>
       </div>
       {csvError && <p className="field-error">{csvError}</p>}

@@ -5,35 +5,15 @@
 #   ratio_scale: false  -> percent change is meaningless (e.g. °C has an arbitrary zero), so it is null.
 #   conversion:         -> native product units -> catalog units for real-data providers:
 #                          catalog_value = native_value * scale + offset  (CatalogVariable.to_catalog_units)
-#   synthetic:          -> hints for the synthetic demo provider (realistic ranges, seasonality, trends).
-#     base + base_lat*|lat|         climatological mean at a grid point
-#     amp + amp_lat*|lat|           half-range of the seasonal cycle
-#     peak_month                    month of the seasonal maximum in the northern hemisphere (+6 in the south)
-#     trend_per_decade              trend scale; the background trend is
-#                                   trend_per_decade * (bias + spread * wave(lat, lon)) (sign can flip by region)
-#     polar_amplification           extra trend multiplier ramping up poleward of 55°
-#     noise, noise_lat, noise_rel   AR(1) "red" noise std-dev: + noise_lat*|lat| + noise_rel*|local mean level|
-#     ar1                           lag-1 correlation of the noise
-#     hotspots                      [{lat, lon, radius, base, amp, trend, break_year, trend_before, damp}]
-#                                   Gaussian bumps: base/amp offsets (catalog units), a local trend factor
-#                                   (x trend_per_decade) that can change at break_year (trend_before -> trend),
-#                                   and damp (0..1) to switch the background trend off there.
-#     dips                          [{start, end, fraction}] temporarily remove part of the hotspot excess
-#                                   (e.g. the 2020 COVID lockdowns for NO₂ over cities)
-#     curve                         "series" variables only: [[decimal_year, value], ...] knots (linear between)
-#     min, max                      physical clamp; gap_fraction: share of missing months (satellite gaps)
-#
-# Map (public `map_layer`, internal `colormap`), see docs/API.md "v2 additions":
+# Map (public `map_layer`), see docs/API.md "v2 additions":
 #   map_layer: {kind: gibs, ...}    real NASA GIBS imagery for the time slider, verified against GetCapabilities
 #                                   and by downloading a tile. Refresh: `.venv/bin/python -m app.tools.gibs_layers`.
 #                                   time_start/time_end = what GIBS has (not the product's availability).
-#   map_layer: {kind: grid}         no good GIBS layer: the frontend draws /api/grid frames instead
-#                                   (/api/grid works for every area variable either way).
-#   map_layer: null                 "series" variables (no map).
-#   colormap: <name>                colormap of /api/grid frames, defined in colormaps.yaml.
+#   map_layer: null                 no map imagery: "series" variables, and area variables without a GIBS layer
+#                                   (still analysed for any box drawn on the map).
 #
 # Coverage "series" = a ready-made single record (one station, or a global mean): the bbox is ignored and
-# `location` is set for station records. Daily products (GLDAS, OMI) are served as MONTHLY AREA MEANS: the
+# `location` is set for station records. Daily and 8-day products (GLDAS, OMI, MODIS LST) are served as MONTHLY AREA MEANS: the
 # provider averages the days of each month (processing.timeseries.to_monthly) and the grid cells inside the bbox.
 #
 # Availability end dates are conservative (last fully processed month we rely on).
@@ -58,14 +38,7 @@
   map_layer: {kind: gibs, layer: GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 2002-04-04, time_end: 2022-07-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI_H.svg}
-  colormap: brown_teal
   location: null
-  synthetic: {base: 600, amp: 30, peak_month: 4, trend_per_decade: 10, bias: 0.3, spread: 0.6,
-              noise: 12, ar1: 0.85, min: 0, max: 5000,
-              hotspots: [{lat: 30.0, lon: 75.5, radius: 3.5, trend: -18, amp: 40, damp: 1},   # NW India (Punjab/Haryana)
-                         {lat: 36.5, lon: -120.0, radius: 2.5, trend: -10, damp: 1},           # California Central Valley
-                         {lat: 37.5, lon: 115.5, radius: 3, trend: -9, damp: 1},               # North China Plain
-                         {lat: 33.5, lon: 46.0, radius: 6, trend: -12, damp: 1}]}              # Middle East (Tigris-Euphrates, W Iran)
 
 - id: gldas_tws
   name: Terrestrial water storage
@@ -85,14 +58,7 @@
   map_layer: {kind: gibs, layer: GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 2002-04-04, time_end: 2022-07-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/GRACE_Tellus_Liquid_Water_Equivalent_Thickness_Mascon_CRI_H.svg}
-  colormap: brown_teal
   location: null
-  synthetic: {base: 900, amp: 60, peak_month: 4, trend_per_decade: 10, bias: 0.3, spread: 0.8,
-              noise: 18, ar1: 0.8, min: 0, max: 8000,
-              hotspots: [{lat: 30.0, lon: 75.5, radius: 3.5, trend: -20, amp: 60, damp: 1},
-                         {lat: 36.5, lon: -120.0, radius: 2.5, trend: -12, damp: 1},
-                         {lat: 37.5, lon: 115.5, radius: 3, trend: -10, damp: 1},
-                         {lat: 33.5, lon: 46.0, radius: 6, trend: -14, damp: 1}]}
 
 # ---------------------------------------------------------------- water: GPM (rain) ----------------------
 
@@ -114,14 +80,8 @@
   map_layer: {kind: gibs, layer: MERRA2_Precipitation_Bias_Corrected_Monthly, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 1980-01-01, time_end: 2026-08-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/MERRA2_Precipitation_Bias_Corrected_Monthly_H.svg}
-  colormap: blue_green
   location: null
   conversion: {native_units: mm/hr, scale: 24, note: "IMERG monthly is a mean rate in mm/hr; x24 gives mm/day"}
-  synthetic: {base: 5.5, base_lat: -0.07, amp: 1.5, peak_month: 7, trend_per_decade: 0.08,
-              bias: 0.0, spread: 1.0, noise: 0.7, ar1: 0.25, min: 0, max: 40,
-              hotspots: [{lat: 30.0, lon: 75.5, radius: 3.5, base: -1.6, amp: 1.0, trend: 0, damp: 1},  # NW India: flat
-                         {lat: -6, lon: -60, radius: 12, trend: -3, base: 2.0},
-                         {lat: 22, lon: 10, radius: 12, trend: 0, base: -4.5}]}
 
 # ---------------------------------------------------------------- atmosphere: OMI NO₂ --------------------
 
@@ -143,20 +103,8 @@
   map_layer: {kind: gibs, layer: OMI_Nitrogen_Dioxide_Tropo_Column, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: daily, time_start: 2004-10-01, time_end: 2026-11-09,
               legend_url: https://gibs.earthdata.nasa.gov/legends/OMI_Nitrogen_Dioxide_Tropo_Column_H.svg}
-  colormap: yellow_orange_brown
   location: null
   conversion: {native_units: molecules/cm², scale: 1.0e-15}
-  synthetic: {base: 1.0, amp: 0.2, peak_month: 1, trend_per_decade: 1.0, bias: 0.0, spread: 0.03,
-              noise: 0.1, noise_rel: 0.12, ar1: 0.3, min: 0.05, max: 60, gap_fraction: 0.02,
-              hotspots: [{lat: 28.6, lon: 77.2, radius: 1.5, base: 4.5, amp: 1.5, trend: 1.3},          # Delhi
-                         {lat: 23.5, lon: 83.0, radius: 6, base: 1.0, amp: 0.3, trend: 0.5},            # Indian coal belt
-                         {lat: 39.9, lon: 116.4, radius: 2, base: 12, amp: 6, break_year: 2011, trend_before: 3, trend: -5.5},  # Beijing
-                         {lat: 36.5, lon: 115.0, radius: 4, base: 5, amp: 3, break_year: 2011, trend_before: 2, trend: -3},     # North China Plain
-                         {lat: 40.7, lon: -74.0, radius: 1.5, base: 6, amp: 1.5, break_year: 2011, trend_before: -2.5, trend: -1.5},  # New York
-                         {lat: 34.05, lon: -118.25, radius: 1.2, base: 7, amp: 1.5, break_year: 2011, trend_before: -3, trend: -2},  # Los Angeles
-                         {lat: 51.3, lon: 6.5, radius: 2.5, base: 5, amp: 2, break_year: 2011, trend_before: -1.5, trend: -1.5},     # Rhine-Ruhr / Benelux
-                         {lat: 51.5, lon: -0.1, radius: 1.2, base: 4, amp: 1.5, break_year: 2011, trend_before: -1, trend: -1.5}],   # London
-              dips: [{start: 2020-03-01, end: 2020-05-31, fraction: 0.35}]}                           # COVID-19 lockdowns
 
 # ---------------------------------------------------------------- atmosphere: MERRA-2 aerosols -----------
 
@@ -178,16 +126,8 @@
   map_layer: {kind: gibs, layer: MERRA2_Dust_Surface_Mass_Concentration_Monthly, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 1980-01-01, time_end: 2026-08-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/MERRA2_Dust_Surface_Mass_Concentration_Monthly_H.svg}
-  colormap: yellow_orange_brown
   location: null
   conversion: {native_units: kg/m³, scale: 1.0e9}
-  synthetic: {base: 2, base_lat: -0.03, amp: 0.5, peak_month: 6, trend_per_decade: 1.0, bias: 0.0, spread: 0.2,
-              noise: 1, noise_rel: 0.25, ar1: 0.3, min: 0, max: 2000,
-              hotspots: [{lat: 20, lon: 5, radius: 12, base: 120, amp: 60},           # Sahara
-                         {lat: 17, lon: 18, radius: 4, base: 80, amp: 30},            # Bodélé depression
-                         {lat: 25, lon: 47, radius: 8, base: 70, amp: 45, trend: 4},  # Arabian Peninsula / Middle East
-                         {lat: 40, lon: 85, radius: 7, base: 60, amp: 40},            # Taklimakan / Gobi
-                         {lat: 27, lon: 71, radius: 4, base: 40, amp: 30}]}           # Thar desert
 
 - id: merra2_bc
   name: Black carbon (soot) near the ground
@@ -204,16 +144,9 @@
   available_start: 1980-01-01
   available_end: 2025-12-31
   coverage: global
-  map_layer: {kind: grid}
-  colormap: yellow_orange_brown
+  map_layer: null
   location: null
   conversion: {native_units: kg/m³, scale: 1.0e9}
-  synthetic: {base: 0.15, base_lat: -0.002, amp: 0.05, peak_month: 1, trend_per_decade: 1.0, bias: 0.0, spread: 0.01,
-              noise: 0.03, noise_rel: 0.12, ar1: 0.35, min: 0, max: 100,
-              hotspots: [{lat: 27, lon: 80, radius: 5, base: 3.5, amp: 2, trend: 0.6},                              # Indo-Gangetic Plain
-                         {lat: 37, lon: 115, radius: 4, base: 3.5, amp: 1.5, break_year: 2010, trend_before: 0.8, trend: -1.5},  # North China Plain
-                         {lat: -5, lon: 22, radius: 8, base: 1.0, amp: 0.6},                                       # Central African fires
-                         {lat: 50, lon: 10, radius: 8, base: 0.6, trend: -0.15}]}                                  # Europe
 
 - id: merra2_oc
   name: Organic carbon particles near the ground
@@ -230,16 +163,9 @@
   available_start: 1980-01-01
   available_end: 2025-12-31
   coverage: global
-  map_layer: {kind: grid}
-  colormap: yellow_orange_brown
+  map_layer: null
   location: null
   conversion: {native_units: kg/m³, scale: 1.0e9}
-  synthetic: {base: 0.6, base_lat: -0.008, amp: 0.2, peak_month: 8, trend_per_decade: 1.0, bias: 0.0, spread: 0.03,
-              noise: 0.1, noise_rel: 0.15, ar1: 0.35, min: 0, max: 300,
-              hotspots: [{lat: 26, lon: 80, radius: 5, base: 8, amp: 5, trend: 1.0},                                   # India
-                         {lat: 36, lon: 115, radius: 4, base: 6, amp: 3, break_year: 2012, trend_before: 1, trend: -2},  # North China Plain
-                         {lat: -8, lon: 22, radius: 8, base: 6, amp: 4},                                               # Central African fires
-                         {lat: -9, lon: -60, radius: 7, base: 4, amp: 3, trend: -1}]}                                  # Amazon fires
 
 - id: merra2_so2
   name: Sulfur dioxide (SO₂) near the ground
@@ -259,18 +185,8 @@
   map_layer: {kind: gibs, layer: MERRA2_SO2_Column_Mass_Density_Monthly, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 1980-01-01, time_end: 2026-08-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/MERRA2_SO2_Column_Mass_Density_Monthly_H.svg}
-  colormap: yellow_orange_brown
   location: null
   conversion: {native_units: kg/m³, scale: 1.0e9}
-  synthetic: {base: 0.3, amp: 0.1, peak_month: 1, trend_per_decade: 1.0, bias: 0.0, spread: 0.02,
-              noise: 0.05, noise_rel: 0.12, ar1: 0.35, min: 0.01, max: 500,
-              hotspots: [{lat: 37.5, lon: 115.5, radius: 4, base: 22, amp: 10, break_year: 2010, trend_before: 2, trend: -12},  # North China Plain
-                         {lat: 31, lon: 116, radius: 6, base: 6, amp: 2, break_year: 2010, trend_before: 1, trend: -3},          # Eastern China
-                         {lat: 23.5, lon: 83, radius: 4, base: 5, amp: 1.5, trend: 2.0},                                         # Indian coal belt
-                         {lat: 28, lon: 78, radius: 4, base: 3, amp: 1, trend: 1.0},                                             # Delhi / Indo-Gangetic Plain
-                         {lat: 39.5, lon: -83, radius: 5, base: 6, break_year: 2008, trend_before: -1.5, trend: -3},             # Ohio Valley power plants
-                         {lat: 50, lon: 15, radius: 7, base: 3, trend: -0.8},                                                    # Central Europe
-                         {lat: 27, lon: 50, radius: 5, base: 4, trend: 0.5}]}                                                    # Persian Gulf
 
 - id: merra2_so4
   name: Sulfate particles near the ground
@@ -287,16 +203,9 @@
   available_start: 1980-01-01
   available_end: 2025-12-31
   coverage: global
-  map_layer: {kind: grid}
-  colormap: yellow_orange_brown
+  map_layer: null
   location: null
   conversion: {native_units: kg/m³, scale: 1.0e9}
-  synthetic: {base: 0.5, amp: 0.15, peak_month: 7, trend_per_decade: 1.0, bias: 0.0, spread: 0.02,
-              noise: 0.08, noise_rel: 0.12, ar1: 0.35, min: 0.01, max: 300,
-              hotspots: [{lat: 36, lon: 115, radius: 5, base: 14, amp: 4, break_year: 2010, trend_before: 1.5, trend: -6},  # North/East China
-                         {lat: 24, lon: 82, radius: 6, base: 6, amp: 2, trend: 1.8},                                         # India
-                         {lat: 37, lon: -84, radius: 7, base: 4, trend: -1.2},                                               # Eastern US
-                         {lat: 50, lon: 15, radius: 8, base: 3, trend: -0.7}]}                                               # Europe
 
 - id: merra2_aod
   name: Total aerosol optical thickness
@@ -316,15 +225,7 @@
   map_layer: {kind: gibs, layer: MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 1980-01-01, time_end: 2026-08-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly_H.svg}
-  colormap: yellow_orange_brown
   location: null
-  synthetic: {base: 0.12, base_lat: -0.0012, amp: 0.04, peak_month: 4, trend_per_decade: 0.05, bias: 0.0, spread: 0.1,
-              noise: 0.01, noise_rel: 0.12, ar1: 0.4, min: 0.01, max: 3,
-              hotspots: [{lat: 20, lon: 5, radius: 12, base: 0.3, amp: 0.15},                                         # Sahara dust
-                         {lat: 27, lon: 80, radius: 5, base: 0.45, amp: 0.15, trend: 0.6},                            # Indo-Gangetic Plain
-                         {lat: 34, lon: 115, radius: 6, base: 0.5, amp: 0.15, break_year: 2011, trend_before: 0.6, trend: -1.6},  # Eastern China
-                         {lat: -5, lon: 20, radius: 8, base: 0.3, amp: 0.2},                                          # Central African fires
-                         {lat: 26, lon: 47, radius: 7, base: 0.25, amp: 0.1}]}                                        # Middle East dust
 
 - id: merra2_sulfate_aod
   name: Sulfate aerosol optical thickness
@@ -341,19 +242,13 @@
   available_start: 1980-01-01
   available_end: 2025-12-31
   coverage: global
-  map_layer: {kind: grid}
-  colormap: yellow_orange_brown
+  map_layer: null
   location: null
-  synthetic: {base: 0.03, base_lat: -0.0002, amp: 0.01, peak_month: 7, trend_per_decade: 0.05, bias: 0.0, spread: 0.05,
-              noise: 0.004, noise_rel: 0.12, ar1: 0.4, min: 0.001, max: 2,
-              hotspots: [{lat: 33, lon: 115, radius: 6, base: 0.25, amp: 0.08, break_year: 2010, trend_before: 0.4, trend: -1.4},  # Eastern China
-                         {lat: 24, lon: 82, radius: 6, base: 0.1, amp: 0.03, trend: 0.5},                                          # India
-                         {lat: 37, lon: -84, radius: 7, base: 0.08, trend: -0.6},                                                  # Eastern US
-                         {lat: 50, lon: 15, radius: 8, base: 0.06, trend: -0.3}]}                                                  # Europe
 
 # ---------------------------------------------------------------- land: MODIS LST (AppEEARS) -------------
-# MOD11C3 stores LST in Kelvin (as scaled integers; the reader applies the 0.02 scale factor first).
-# We show °C: value_K - 273.15. Real access: AppEEARS area request (or MOD11A2 8-day for finer cities).
+# MOD11A2 (8-day composites, 1 km) through an AppEEARS area request: the provider reads AppEEARS'
+# per-date area statistics, applies the 0.02 scale factor if needed (-> Kelvin) and averages to months.
+# We show °C: value_K - 273.15. (MOD11C3, the 0.05° monthly product, is not offered by AppEEARS.)
 
 - id: modis_lst_day
   name: Daytime land surface temperature
@@ -363,31 +258,19 @@
   sphere: land
   source: MODIS on NASA's Terra satellite (converted from Kelvin)
   mission_or_model: MODIS
-  product: "MOD11C3.061:LST_Day_CMG"
-  dataset: MODIS MOD11C3 v061
+  product: "MOD11A2.061:LST_Day_1km"
+  dataset: MODIS MOD11A2 v061
   access: AppEEARS
-  temporal_resolution: monthly
+  temporal_resolution: 8-day
   available_start: 2000-03-01
   available_end: 2025-12-31
   coverage: land
   map_layer: {kind: gibs, layer: MODIS_Terra_L3_Land_Surface_Temp_Monthly_Day, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 2000-03-01, time_end: 2026-10-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/MODIS_Land_Surface_Temp_H.svg}
-  colormap: inferno
   location: null
   ratio_scale: false
-  conversion: {native_units: K, offset: -273.15, note: "MOD11C3 LST is in Kelvin (after the 0.02 scale factor)"}
-  synthetic: {base: 36, base_lat: -0.6, amp: 2, amp_lat: 0.3, peak_month: 7, trend_per_decade: 0.25,
-              bias: 0.6, spread: 0.6, polar_amplification: 1.5, noise: 0.9, noise_lat: 0.02, ar1: 0.35,
-              min: -60, max: 75, gap_fraction: 0.01,
-              hotspots: [{lat: 23, lon: 10, radius: 10, base: 12},               # Sahara
-                         {lat: 23, lon: 47, radius: 8, base: 12},                # Arabian desert
-                         {lat: 33, lon: -113, radius: 4, base: 12},              # Sonoran / Mojave desert
-                         {lat: 27, lon: 71, radius: 4, base: 6},                 # Thar desert
-                         {lat: 33.45, lon: -112.07, radius: 0.8, base: 4, trend: 3},    # Phoenix
-                         {lat: 28.6, lon: 77.2, radius: 1.0, base: 3, trend: 2.5},     # Delhi
-                         {lat: 30.05, lon: 31.25, radius: 0.8, base: 3, trend: 2.5},   # Cairo
-                         {lat: 6.5, lon: 3.4, radius: 0.8, base: 2, trend: 3}]}        # Lagos
+  conversion: {native_units: K, offset: -273.15, note: "MOD11A2 LST is in Kelvin (after the 0.02 scale factor)"}
 
 - id: modis_lst_night
   name: Nighttime land surface temperature
@@ -397,34 +280,46 @@
   sphere: land
   source: MODIS on NASA's Terra satellite (converted from Kelvin)
   mission_or_model: MODIS
-  product: "MOD11C3.061:LST_Night_CMG"
-  dataset: MODIS MOD11C3 v061
+  product: "MOD11A2.061:LST_Night_1km"
+  dataset: MODIS MOD11A2 v061
   access: AppEEARS
-  temporal_resolution: monthly
+  temporal_resolution: 8-day
   available_start: 2000-03-01
   available_end: 2025-12-31
   coverage: land
   map_layer: {kind: gibs, layer: MODIS_Terra_L3_Land_Surface_Temp_Monthly_Night, tile_matrix_set: GoogleMapsCompatible_Level6, format: png, max_zoom: 6,
               time_step: monthly, time_start: 2000-03-01, time_end: 2026-10-01,
               legend_url: https://gibs.earthdata.nasa.gov/legends/MODIS_Land_Surface_Temp_H.svg}
-  colormap: inferno
   location: null
   ratio_scale: false
-  conversion: {native_units: K, offset: -273.15, note: "MOD11C3 LST is in Kelvin (after the 0.02 scale factor)"}
-  synthetic: {base: 24, base_lat: -0.5, amp: 1.0, amp_lat: 0.2, peak_month: 7, trend_per_decade: 0.25,
-              bias: 0.6, spread: 0.6, polar_amplification: 1.5, noise: 0.6, noise_lat: 0.015, ar1: 0.35,
-              min: -65, max: 45, gap_fraction: 0.01,
-              hotspots: [{lat: 23, lon: 10, radius: 10, base: 6},
-                         {lat: 23, lon: 47, radius: 8, base: 6},
-                         {lat: 33, lon: -113, radius: 4, base: 6},
-                         {lat: 33.45, lon: -112.07, radius: 0.8, base: 6, trend: 4},   # Phoenix
-                         {lat: 28.6, lon: 77.2, radius: 1.0, base: 4, trend: 3},       # Delhi
-                         {lat: 30.05, lon: 31.25, radius: 0.8, base: 4, trend: 3},     # Cairo
-                         {lat: 6.5, lon: 3.4, radius: 0.8, base: 3, trend: 3.5}]}      # Lagos
+  conversion: {native_units: K, offset: -273.15, note: "MOD11A2 LST is in Kelvin (after the 0.02 scale factor)"}
+
+# ---------------------------------------------------------------- land: MODIS NDVI (AppEEARS) -----------
+# MOD13A3 monthly 1 km NDVI through an AppEEARS area request (area statistics; 0.0001 scale applied if needed).
+
+- id: modis_ndvi
+  name: Vegetation greenness (NDVI)
+  short_definition: How green and leafy the land is, measured from space by how plants reflect red and near-infrared light. It goes from about 0 (bare soil, rock, sand) to near 1 (dense healthy forest).
+  why_it_matters: It shows where forests are cut down, where farmland spreads or dries out, and where grazing and drought turn land into desert.
+  units: unitless
+  sphere: land
+  source: MODIS on NASA's Terra satellite
+  mission_or_model: MODIS
+  product: "MOD13A3.061:_1_km_monthly_NDVI"
+  dataset: MODIS MOD13A3 v061
+  access: AppEEARS
+  temporal_resolution: monthly
+  available_start: 2000-02-01
+  available_end: 2025-12-31
+  coverage: land
+  map_layer: {kind: gibs, layer: MODIS_Terra_L3_NDVI_Monthly, tile_matrix_set: GoogleMapsCompatible_Level7, format: png, max_zoom: 7,
+              time_step: monthly, time_start: 2000-03-01, time_end: 2026-10-01,
+              legend_url: https://gibs.earthdata.nasa.gov/legends/MODIS_L3_NDVI_H.svg}
+  location: null
 
 # ---------------------------------------------------------------- atmosphere: greenhouse gas records -----
 # Ready-made single series (coverage "series"): no area to draw. Real access: the NOAA GML monthly text
-# files named in `product` (app/providers/noaa_gml.py; KNMI Climate Explorer mirrors them, stub kept).
+# files named in `product` (app/providers/noaa_gml.py).
 # available_end = latest month in the NOAA files when last checked (2026-11); bump when refreshing.
 
 - id: mauna_loa_co2
@@ -444,12 +339,6 @@
   coverage: series
   map_layer: null
   location: {lat: 19.54, lon: -155.58, label: "Mauna Loa Observatory, Hawaii"}
-  synthetic: {base: 315, amp: 3.0, peak_month: 5, noise: 0.15, ar1: 0.5, min: 300, max: 500,
-              curve: [[1958.2, 315.3], [1959.5, 315.98], [1965.5, 320.04], [1970.5, 325.68], [1975.5, 331.11],
-                      [1980.5, 338.76], [1985.5, 346.12], [1990.5, 354.39], [1995.5, 360.82], [2000.5, 369.71],
-                      [2005.5, 379.98], [2010.5, 389.90], [2015.5, 401.01], [2020.5, 414.21], [2022.5, 418.53],
-                      [2023.5, 421.08], [2024.5, 424.61], [2025.5, 427.0],
-                      [2026.5, 428.9]]}
 
 - id: noaa_co2_marine
   name: Global carbon dioxide (marine air)
@@ -468,11 +357,6 @@
   coverage: series
   map_layer: null
   location: null
-  synthetic: {base: 339, amp: 1.1, peak_month: 4, noise: 0.1, ar1: 0.6, min: 300, max: 500,
-              curve: [[1979.0, 336.6], [1980.0, 338.4], [1980.5, 338.91], [1985.5, 345.54], [1990.5, 353.85], [1995.5, 360.17],
-                      [2000.5, 368.84], [2005.5, 378.81], [2010.5, 388.76], [2015.5, 399.41], [2020.5, 412.44],
-                      [2023.5, 419.31], [2024.5, 422.79], [2025.5, 425.4],
-                      [2026.5, 427.4]]}
 
 - id: noaa_ch4_marine
   name: Global methane (marine air)
@@ -491,11 +375,6 @@
   coverage: series
   map_layer: null
   location: null
-  synthetic: {base: 1626, amp: 9, peak_month: 12, noise: 1.5, ar1: 0.6, min: 1500, max: 2100,
-              curve: [[1983.5, 1625.9], [1985.5, 1648.0], [1990.5, 1714.5], [1992.5, 1735.4], [1995.5, 1751.4],
-                      [1998.5, 1772.1], [2000.5, 1773.2], [2003.5, 1777.3], [2006.5, 1775.0], [2008.5, 1786.6],
-                      [2010.5, 1799.0], [2014.5, 1822.5], [2017.5, 1849.8], [2019.5, 1866.3], [2020.5, 1879.0],
-                      [2021.5, 1895.2], [2022.5, 1911.8], [2023.5, 1922.6], [2024.5, 1929.7], [2025.5, 1935.0], [2026.5, 1941.0]]}
 
 # ---------------------------------------------------------------- TODO: not chosen yet -------------------
 # The team still has to pick datasets for these two gases (see "Газові компоненти" in the dataset list).

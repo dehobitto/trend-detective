@@ -1,15 +1,13 @@
 import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { CanvasTexture, LinearFilter, ShaderMaterial, SRGBColorSpace, Texture, TextureLoader } from 'three';
-import { api } from '../../api/client';
-import type { GibsLayer, GridFrame } from '../../api/types';
+import { CanvasTexture, ShaderMaterial, SRGBColorSpace, Texture, TextureLoader } from 'three';
+import type { GibsLayer } from '../../api/types';
 import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { useSelectedVariable, useStore } from '../../state/store';
 import { neighbourFrames } from '../layers/frames';
-import { paintEquirect } from '../layers/gridRender';
-import { useLayers, usesGrid, type MapMode } from '../layers/layerStore';
+import { useLayers } from '../layers/layerStore';
 import { globeUniforms } from './sun';
 
 const cfg = globeConfig.overlay;
@@ -33,26 +31,14 @@ export function gibsWmsUrl(l: GibsLayer, date: string): string {
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${p}`;
 }
 
-type Loaded = { tex: Texture; frame: GridFrame | null };
+type Loaded = { tex: Texture };
 type Job = { key: string; load: () => Promise<Loaded> };
 
 /** What the overlay should show right now (null = nothing), plus the frames around it to preload, nearest first. */
 function jobsFor(s: ReturnType<typeof useLayers.getState>): { now: Job | null; next: Job[] } {
-  const { layer, variableId, mode, date, frames, trendPeriod } = s;
+  const { layer, variableId, date, frames } = s;
   if (!layer || !variableId) return { now: null, next: [] };
-  const at = (d: string | null | undefined): Job | null => {
-    if (!d) return null;
-    if (!usesGrid(s)) {
-      const l = layer as GibsLayer;
-      return { key: `gibs|${l.layer}|${d}`, load: () => loadImage(gibsWmsUrl(l, d)) };
-    }
-    return { key: `grid|${variableId}|${mode}|${d}`, load: () => loadGrid(variableId, mode, d) };
-  };
-  if (mode === 'trend') {
-    if (!trendPeriod) return { now: null, next: [] };
-    const d = `${trendPeriod.start}/${trendPeriod.end}`;
-    return { now: { key: `trend|${variableId}|${d}`, load: () => loadGrid(variableId, 'trend', d) }, next: [] };
-  }
+  const at = (d: string | null | undefined): Job | null => (d ? { key: `gibs|${layer.layer}|${d}`, load: () => loadImage(gibsWmsUrl(layer, d)) } : null);
   const around = neighbourFrames(frames, date, cfg.prefetch, cfg.prefetch).map(at).filter((j): j is Job => !!j);
   return { now: at(date), next: around };
 }
@@ -64,30 +50,12 @@ function loadImage(url: string): Promise<Loaded> {
       url,
       (tex) => {
         tex.colorSpace = SRGBColorSpace;
-        resolve({ tex, frame: null });
+        resolve({ tex });
       },
       undefined,
       () => reject(new Error('No image for this date')),
     );
   });
-}
-
-async function loadGrid(variableId: string, mode: MapMode, d: string): Promise<Loaded> {
-  let frame: GridFrame;
-  if (mode === 'trend') {
-    const [start, end] = d.split('/');
-    frame = await api.getTrendGrid(variableId, { start, end, res: cfg.gridRes });
-  } else {
-    frame = await api.getGrid(variableId, { date: d, res: cfg.gridRes, mode: mode === 'anomaly' ? 'anomaly' : 'value' });
-  }
-  const canvas = document.createElement('canvas');
-  // Land-only variables: grow the data over the coarse coasts; the shader cuts them along the real coastline.
-  paintEquirect(frame, canvas, cfg.canvasWidth, frame.values.some((v) => v === null));
-  const tex = new CanvasTexture(canvas);
-  tex.colorSpace = SRGBColorSpace;
-  tex.minFilter = LinearFilter;
-  tex.generateMipmaps = false;
-  return { tex, frame };
 }
 
 /** Small LRU of loaded textures (current, previous and the preloaded next frames). */
@@ -135,7 +103,7 @@ const fragment = /* glsl */ `
     vec4 c = mix(a, b, uMix);
     // Mostly flat colour (it's data, not terrain), with a hint of the sun so the globe still reads as round.
     float light = 0.72 + 0.28 * smoothstep(-0.2, 0.6, dot(normalize(vN), uSun));
-    // Land-only variables follow the real coastline (the data grid is ~2° coarse).
+    // Land-only variables follow the real coastline (cuts GIBS' low-res coastal fringe).
     float land = 1.0 - smoothstep(0.35, 0.65, texture2D(uWater, vUv).r);
     float mask = mix(1.0, land, uLandOnly);
     gl_FragColor = vec4(c.rgb * light, c.a * uOpacity * mask);
@@ -145,8 +113,7 @@ const fragment = /* glsl */ `
 
 /**
  * The selected variable draped over the globe: a sphere just above the ground (below the clouds, which
- * fade out while it's shown). Value mode with GIBS imagery uses the WMS equirectangular image for the
- * timeline date; grid / anomaly / trend modes paint a global GridFrame or TrendGrid onto a canvas.
+ * fade out while it's shown): the variable's NASA GIBS WMS equirectangular image for the timeline date.
  * New frames cross-fade in once loaded; the next timeline frame is preloaded.
  */
 export function GlobeOverlay() {
@@ -194,7 +161,7 @@ export function GlobeOverlay() {
       const my = ++seq;
       s.set({ loading: true });
       get(now, inUse.current)
-        .then(({ tex, frame }) => {
+        .then(({ tex }) => {
           if (my !== seq) return;
           const u = material.uniforms;
           // Cross-fade from what's on screen (B) to the new frame.
@@ -204,32 +171,13 @@ export function GlobeOverlay() {
           fade.current = u.uMix.value < 1 ? { t0: performance.now() } : null;
           inUse.current = new Set([u.uA.value, u.uB.value]);
           shownKey.current = now.key;
-          useLayers.getState().set({
-            loading: false,
-            frameMissing: false,
-            overlayError: null,
-            ...(frame
-              ? {
-                  gridLegend: {
-                    min: frame.min,
-                    max: frame.max,
-                    units: frame.units,
-                    colormap: frame.colormap,
-                    synthetic: frame.synthetic,
-                    diverging: frame.min < 0 && Math.abs(frame.min + frame.max) < 1e-9,
-                  },
-                }
-              : {}),
-          });
+          useLayers.getState().set({ loading: false, frameMissing: false, overlayError: null });
           // Preload neighbours one after another (big images: don't compete with the frame on screen).
           next.reduce<Promise<unknown>>((chain, j) => chain.then((): unknown => (my === seq ? get(j, inUse.current) : null)).catch(() => {}), Promise.resolve());
         })
-        .catch((e) => {
+        .catch(() => {
           if (my !== seq) return;
-          const imagery = !usesGrid(useLayers.getState());
-          useLayers.getState().set(
-            imagery ? { loading: false, frameMissing: true } : { loading: false, overlayError: `Could not load the map layer: ${e instanceof Error ? e.message : 'error'}` },
-          );
+          useLayers.getState().set({ loading: false, frameMissing: true });
         });
     };
     sync();
@@ -237,11 +185,8 @@ export function GlobeOverlay() {
       if (
         s.layer !== p.layer ||
         s.variableId !== p.variableId ||
-        s.mode !== p.mode ||
         s.overlayOn !== p.overlayOn ||
-        (s.mode !== 'trend' && s.date !== p.date) ||
-        s.trendPeriod?.start !== p.trendPeriod?.start ||
-        s.trendPeriod?.end !== p.trendPeriod?.end
+        s.date !== p.date
       )
         sync();
     });

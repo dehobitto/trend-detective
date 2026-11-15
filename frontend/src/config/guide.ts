@@ -43,6 +43,13 @@ export const guideThemes: GuideTheme[] = [
     focus: { lat: 33.45, lon: -112.07 },
   },
   {
+    id: 'green',
+    label: 'Forests & green land',
+    hint: 'Is the land greening up, or are forests being cleared?',
+    variableIds: ['modis_ndvi'],
+    focus: { lat: -10.9, lon: -62.8 },
+  },
+  {
     id: 'ghg',
     label: 'Greenhouse gases',
     hint: 'The long records of carbon dioxide and methane in the air we all share.',

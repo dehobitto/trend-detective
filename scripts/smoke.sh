@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # End-to-end smoke test against a running single-container deploy (API + built frontend).
 #   scripts/smoke.sh http://localhost:8200
-# Checks: /api/health, /api/variables, POST /api/analyses -> poll to done, CSV, /api/grid, GET / is index.html.
+# Checks: /api/health, /api/variables, POST /api/analyses -> poll to done, CSV, GET / is index.html.
+# The analysis uses Mauna Loa CO₂: real NOAA data that works without secrets (seed files ship in the image).
 set -euo pipefail
 BASE="${1:-http://localhost:8000}"
 BASE="${BASE%/}"
@@ -21,7 +22,7 @@ n=$(curl -fsS "$BASE/api/variables" | json 'len(d)')
 [ "$n" -gt 0 ] || fail "no variables"
 echo "   variables: $n"
 
-body='{"variable_id":"gldas_gws","bbox":{"west":74,"south":29,"east":77,"north":32},"start":"2004-01-01","end":"2020-12-31","aggregation":"monthly","deseasonalize":true,"alpha":0.05}'
+body='{"variable_id":"mauna_loa_co2","start":"1990-01-01","end":"2020-12-31","aggregation":"monthly","deseasonalize":true,"alpha":0.05}'
 job=$(curl -fsS -X POST -H 'Content-Type: application/json' -d "$body" "$BASE/api/analyses") || fail "POST /api/analyses"
 id=$(echo "$job" | json 'd["id"]')
 status=""
@@ -35,9 +36,8 @@ echo "   analysis $id: done ($(curl -fsS "$BASE/api/analyses/$id" | json 'd["res
 curl -fsS "$BASE/api/analyses/$id/csv" | head -1 | grep -q '^date,value' || fail "CSV header"
 echo "   csv ok"
 
-grid=$(curl -fsS "$BASE/api/grid/gldas_gws?date=2010-01-01&res=2" | json 'd["width"]*d["height"]')
-[ "$grid" -gt 0 ] || fail "grid empty"
-echo "   grid cells: $grid"
+code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/grid/gldas_gws/dates")
+[ "$code" = 404 ] || fail "removed /api/grid answered $code"
 
 curl -fsS "$BASE/" | grep -qi '<div id="root"' || fail "GET / did not return index.html"
 curl -fsS "$BASE/some/client/route" | grep -qi '<div id="root"' || fail "SPA fallback"

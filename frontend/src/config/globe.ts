@@ -67,9 +67,6 @@ export const globeConfig = {
     altitude: 1.003,
     /** GIBS WMS image width (px); height is half. */
     wmsWidth: 2048,
-    /** Grid / anomaly / trend frames: request resolution (deg) and canvas texture width (px). */
-    gridRes: 2,
-    canvasWidth: 1024,
     /** Cross-fade between timeline frames, and fade in/out of the whole overlay. */
     crossFadeMs: 350,
     showFadeMs: 400,

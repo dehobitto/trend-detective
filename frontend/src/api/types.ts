@@ -14,7 +14,7 @@ export type Variable = {
   source: string;
   mission_or_model: string;
   product: string;
-  temporal_resolution: 'daily' | 'monthly';
+  temporal_resolution: 'daily' | '8-day' | 'monthly';
   available_start: string;
   available_end: string;
   /** "series" = a ready-made single time series (station or global mean): no bbox needed. */
@@ -25,11 +25,11 @@ export type Variable = {
   access: string;
   /** Station location for station series (Mauna Loa), else null. */
   location: { lat: number; lon: number; label: string } | null;
-  /** v2: how to show this variable on the map (null = no map layer). Older backends omit it. */
-  map_layer?: MapLayer | null;
+  /** NASA GIBS imagery for the map / globe; null = no map imagery (still analysable by drawing a box). */
+  map_layer: MapLayer | null;
 };
 
-/* ------------------------------------------------------------------ v2: map layers, grid, geocode */
+/* ------------------------------------------------------------------ map layers, geocode */
 
 export type TimeStep = 'daily' | '8day' | 'monthly' | 'yearly';
 
@@ -47,39 +47,7 @@ export type GibsLayer = {
   legend_url: string | null;
 };
 
-export type MapLayer = GibsLayer | { kind: 'grid' };
-
-export type Colormap = { name: string; stops: [number, string][] };
-
-export type GridFrame = {
-  variable_id: string;
-  /** First day of the month. */
-  date: string;
-  /** Area actually covered. */
-  bbox: BBox;
-  /** Columns, rows. Row 0 = north. */
-  width: number;
-  height: number;
-  /** Row-major, length width*height; null = no data. */
-  values: (number | null)[];
-  /** Suggested colour range for this variable (stable across frames). */
-  min: number;
-  max: number;
-  units: string;
-  colormap: Colormap;
-  synthetic: boolean;
-};
-
-export type GridQuery = { date: string; bbox?: BBox; res?: number; mode?: 'value' | 'anomaly' };
-
-/** v3: per-cell trend map. values = slope per decade of the deseasonalized monthly series. */
-export type TrendGrid = GridFrame & {
-  start: string;
-  end: string;
-  /** Per cell: Mann-Kendall p < alpha (null where there is no data). */
-  significant: (boolean | null)[];
-};
-export type TrendQuery = { start: string; end: string; bbox?: BBox; res?: number; alpha?: number };
+export type MapLayer = GibsLayer;
 
 export type Place = { name: string; display_name: string; lat: number; lon: number; bbox: BBox | null; kind: string };
 
@@ -161,7 +129,6 @@ export type AnalysisResult = {
   series: SeriesPoint[];
   stats: TrendStats;
   summary: string;
-  synthetic: boolean;
   provider: string;
   warnings: string[];
 };
@@ -187,7 +154,7 @@ export type ApiError = { detail: string };
 
 export type Health = { status: 'ok'; provider: string; version: string };
 
-/** The full surface of the backend. Implemented by the HTTP client and by the in-browser mock. */
+/** The full surface of the backend. Implemented by the HTTP client. */
 export interface TrendApi {
   health(): Promise<Health>;
   listVariables(): Promise<Variable[]>;
@@ -200,11 +167,6 @@ export interface TrendApi {
   listDatasets(): Promise<Dataset[]>;
   deleteDataset(id: string): Promise<void>;
   chat(req: ChatRequest): Promise<ChatResponse>;
-  /** v2 */
-  getGrid(variableId: string, q: GridQuery, signal?: AbortSignal): Promise<GridFrame>;
-  getGridDates(variableId: string): Promise<string[]>;
-  /** v3 */
-  getTrendGrid(variableId: string, q: TrendQuery, signal?: AbortSignal): Promise<TrendGrid>;
   geocode(q: string, limit?: number, signal?: AbortSignal): Promise<Place[]>;
 }
 

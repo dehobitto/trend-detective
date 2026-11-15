@@ -14,7 +14,7 @@ def run(client: TestClient, **overrides) -> dict:
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok", "provider": "synthetic", "version": "0.1.0"}
+    assert client.get("/api/health").json() == {"status": "ok", "provider": "fake", "version": "0.1.0"}
 
 
 VARIABLE_FIELDS = {
@@ -26,11 +26,14 @@ VARIABLE_FIELDS = {
 
 def test_variables_and_examples(client):
     variables = client.get("/api/variables").json()
-    assert len(variables) == 16
-    assert all(set(v) == VARIABLE_FIELDS for v in variables)  # internal synthetic/ratio_scale/conversion hidden
+    assert len(variables) == 17
+    assert all(set(v) == VARIABLE_FIELDS for v in variables)  # internal ratio_scale/conversion hidden
     assert {v["sphere"] for v in variables} == {"atmosphere", "land", "water"}
     by_id = {v["id"]: v for v in variables}
     assert by_id["modis_lst_night"]["units"] == "°C" and by_id["modis_lst_night"]["access"] == "AppEEARS"
+    assert by_id["modis_lst_night"]["product"] == "MOD11A2.061:LST_Night_1km"
+    assert by_id["modis_ndvi"]["access"] == "AppEEARS" and by_id["modis_ndvi"]["coverage"] == "land"
+    assert all(v["map_layer"] is None or v["map_layer"]["kind"] == "gibs" for v in variables)
     assert by_id["gldas_gws"]["dataset"] == "GLDAS_CLSM025_DA1_D v2.2" and by_id["gldas_gws"]["coverage"] == "land"
     assert by_id["omi_no2"]["units"] == "10¹⁵ molecules/cm²"
     assert by_id["merra2_dust"]["product"] == "M2TMNXAER.5.12.4:DUSMASS" and by_id["merra2_dust"]["units"] == "µg/m³"
@@ -44,7 +47,7 @@ def test_variables_and_examples(client):
     assert client.get("/api/variables/nope").status_code == 404
 
     examples = client.get("/api/examples").json()
-    assert len(examples) == 7
+    assert len(examples) == 9
     for e in examples:
         assert e["variable_id"] in by_id and "center" in e and e["takeaway"]
         assert e["related_variable_id"] is None or e["related_variable_id"] in by_id
@@ -53,31 +56,15 @@ def test_variables_and_examples(client):
     assert (punjab["variable_id"], punjab["related_variable_id"]) == ("gldas_gws", "gpm_precipitation")
 
 
-# The detective stories the examples are built around: (direction, significant).
-EXPECTED_STORIES = {
-    "punjab-groundwater": ("falling", True),
-    "punjab-rain": (None, False),  # rain: no significant trend (sign does not matter)
-    "delhi-no2": ("rising", True),
-    "china-so2": ("falling", True),
-    "phoenix-nights": ("rising", True),
-    "mauna-loa-co2": ("rising", True),
-    "global-methane": ("rising", True),
-}
-
-
-def test_every_example_tells_its_story(client):
+def test_every_example_runs(client):
+    """Each one-click case is a valid request end to end (the stories themselves come from real data)."""
     examples = client.get("/api/examples").json()
-    assert {e["id"] for e in examples} == set(EXPECTED_STORIES)
     for e in examples:
         body = {k: e[k] for k in ("bbox", "variable_id", "start", "end", "deseasonalize")}
         r = client.post("/api/analyses", json=body)
         assert r.status_code == 202, (e["id"], r.text)
         job = client.get(f"/api/analyses/{r.json()['id']}").json()
         assert job["status"] == "done", (e["id"], job["message"])
-        stats = job["result"]["stats"]
-        direction, significant = EXPECTED_STORIES[e["id"]]
-        assert stats["significant"] is significant, (e["id"], stats)
-        assert direction is None or stats["direction"] == direction, (e["id"], stats)
         assert job["result"]["bbox"] == e["bbox"]
 
 
@@ -112,10 +99,12 @@ def test_live_provider_routes_by_access_and_fails_gracefully(settings):
         assert provider.provider_for(catalog.get("gldas_gws")).name == "earthdata"
         assert provider.provider_for(catalog.get("modis_lst_day")).name == "appeears"
         assert provider.provider_for(catalog.get("noaa_ch4_marine")).name == "noaa_gml"
+        assert c.get("/api/health").json()["provider"] == "live"
+        # no login and nothing cached: a clear error, never made-up data
         body = {"bbox": PHOENIX, "variable_id": "modis_lst_day", "start": "2005-01-01", "end": "2015-12-31"}
         job = c.get(f"/api/analyses/{c.post('/api/analyses', json=body).json()['id']}").json()
-        assert job["status"] == "error" and "not connected yet" in job["message"]
-        # live has no synthetic fallback: an unreachable NOAA is an error
+        assert job["status"] == "error" and "Earthdata login" in job["message"]
+        # an unreachable NOAA with no cache or seed is an error too
         body = {"variable_id": "mauna_loa_co2", "start": "2005-01-01", "end": "2015-12-31"}
         job = c.get(f"/api/analyses/{c.post('/api/analyses', json=body).json()['id']}").json()
         assert job["status"] == "error" and "Couldn't reach NOAA" in job["message"]
@@ -125,7 +114,7 @@ def test_full_analysis_lifecycle(client):
     job = run(client)
     assert job["status"] == "done" and job["progress"] == 1
     result = job["result"]
-    assert result["synthetic"] is True and result["provider"] == "synthetic"
+    assert result["provider"] == "fake" and "synthetic" not in result
     assert result["analyzed_series"] == "deseasonalized"
     assert len(result["series"]) == 20 * 12
     point = result["series"][0]
@@ -136,7 +125,7 @@ def test_full_analysis_lifecycle(client):
     assert stats["percent_change"] is None  # °C is not a ratio scale
     assert stats["slope_per_decade"] == stats["slope_per_year"] * 10
     assert result["summary"].startswith("Rising by")
-    assert any("Demo data" in w for w in result["warnings"])
+    assert not any("demo" in w.lower() for w in result["warnings"])
 
     csv = client.get(f"/api/analyses/{job['id']}/csv")
     assert csv.status_code == 200 and csv.headers["content-type"].startswith("text/csv")
@@ -193,7 +182,7 @@ def test_upload_and_analyze_dataset(client):
     job = run(client, variable_id=f"upload:{ds['id']}", start="1990-01-01", end="2030-01-01")
     assert job["status"] == "done", job["message"]
     result = job["result"]
-    assert result["provider"] == "upload" and result["synthetic"] is False and result["bbox"] is None
+    assert result["provider"] == "upload" and result["bbox"] is None
     assert result["variable"]["id"] == f"upload:{ds['id']}" and result["variable"]["units"] == "m"
     assert result["stats"]["slope_per_year"] > 0 and result["stats"]["significant"]
     assert result["series"][0]["date"] == "2000-01-01"

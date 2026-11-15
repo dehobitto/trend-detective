@@ -10,7 +10,6 @@ from app.catalog import Catalog
 from app.chat import ChatBackend
 from app.config import Settings
 from app.geocode import Geocoder
-from app.grid import GridService
 from app.jobs import AnalysisRunner, JobStore
 from app.providers import DataProvider, UploadProvider
 
@@ -24,7 +23,6 @@ class Services:
     jobs: JobStore
     runner: AnalysisRunner
     chat: ChatBackend
-    grid: GridService
     geocoder: Geocoder
 
 

@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FlatSwitch } from './features/globe/FlatSwitch';
-import { api, initApi } from './api/client';
-import { Badge } from './components/Badge';
+import { api, checkHealth } from './api/client';
+import { Button } from './components/Button';
 import { Wordmark } from './components/Wordmark';
 import { ChatLauncher } from './features/chat/ChatLauncher';
 import { ExampleCases } from './features/examples/ExampleCases';
@@ -19,8 +19,11 @@ const MapView = lazy(() => import('./features/map/MapView').then((m) => ({ defau
 
 async function bootstrap() {
   const set = useStore.getState().set;
-  const mode = await initApi();
-  set({ apiMode: mode });
+  if (!(await checkHealth())) {
+    set({ server: 'offline', catalogError: "Can't reach the server. Start the backend and reload the page." });
+    return;
+  }
+  set({ server: 'online' });
   try {
     const [variables, examples, datasets] = await Promise.all([api.listVariables(), api.listExamples(), api.listDatasets().catch(() => [])]);
     set({ variables, examples, datasets });
@@ -33,7 +36,7 @@ export default function App() {
   const view = useStore((s) => s.view);
   const transition = useStore((s) => s.transition);
   const mapMounted = useStore((s) => s.mapMounted);
-  const apiMode = useStore((s) => s.apiMode);
+  const server = useStore((s) => s.server);
   const panelVisible = useStore((s) => !!s.bbox || needsNoArea(s) || s.panelRequested);
   const flat = useStore((s) => s.flat);
   const casesOpen = useStore((s) => s.casesOpen);
@@ -46,7 +49,7 @@ export default function App() {
   useEffect(() => {
     bootstrap();
   }, []);
-  // Variable layer frames/mode are shared by the globe overlay and the map overlay.
+  // Variable layer frames are shared by the globe overlay and the map overlay.
   useFrameSync();
 
   const onMap = view === 'map';
@@ -71,9 +74,13 @@ export default function App() {
 
       <Wordmark />
       <PlaceSearch />
-      {apiMode === 'mock' && (
-        <div className="mode-note" title="The backend did not answer, so the app is using built-in synthetic data.">
-          <Badge tone="demo">Offline demo</Badge>
+      {server === 'offline' && (
+        <div className="server-down" role="alert">
+          <p className="server-down__title">Can't reach the server</p>
+          <p className="server-down__text">Trend Detective needs its backend for every map layer, analysis and search. Start the backend, then reload.</p>
+          <Button variant="primary" size="s" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
         </div>
       )}
 

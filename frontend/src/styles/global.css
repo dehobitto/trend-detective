@@ -49,12 +49,20 @@ body {
 .overlay { transition: opacity 300ms; }
 .overlay[data-busy='true'] { opacity: 0; pointer-events: none; }
 
-.mode-note {
+.server-down {
   position: absolute;
-  top: calc(var(--edge) + 4px);
+  top: calc(var(--edge) + 56px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 6;
+  z-index: 30;
+  width: min(380px, calc(100vw - 2 * var(--edge)));
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow);
+  color: var(--ink);
 }
-.app[data-view='globe'] .mode-note { left: auto; right: var(--edge); transform: none; }
-.app[data-view='map'] .mode-note { display: none; }
+.server-down__title { margin: 0 0 4px; font-weight: 600; }
+.server-down__text { margin: 0 0 10px; font-size: 14px; color: var(--ink-dim); }

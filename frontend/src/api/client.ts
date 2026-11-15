@@ -6,12 +6,9 @@ import type {
   Dataset,
   ExampleCase,
   Health,
-  GridFrame,
-  GridQuery,
   Job,
   Place,
   TrendApi,
-  TrendGrid,
   Variable,
 } from './types';
 
@@ -83,27 +80,14 @@ export const httpApi: TrendApi = {
   listDatasets: () => request<Dataset[]>('/datasets'),
   deleteDataset: (id) => request<void>(`/datasets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   chat: (req: ChatRequest) => request<ChatResponse>('/chat', json(req)),
-  getGrid: (id, q: GridQuery, signal) => {
-    const p = new URLSearchParams({ date: q.date });
-    if (q.bbox) for (const k of ['west', 'south', 'east', 'north'] as const) p.set(k, String(q.bbox[k]));
-    if (q.res) p.set('res', String(q.res));
-    if (q.mode && q.mode !== 'value') p.set('mode', q.mode);
-    return request<GridFrame>(`/grid/${encodeURIComponent(id)}?${p}`, { signal });
-  },
-  getGridDates: (id) => request<string[]>(`/grid/${encodeURIComponent(id)}/dates`),
-  getTrendGrid: (id, q, signal) => {
-    const p = new URLSearchParams({ start: q.start, end: q.end });
-    if (q.bbox) for (const k of ['west', 'south', 'east', 'north'] as const) p.set(k, String(q.bbox[k]));
-    if (q.res) p.set('res', String(q.res));
-    if (q.alpha) p.set('alpha', String(q.alpha));
-    return request<TrendGrid>(`/grid/${encodeURIComponent(id)}/trend?${p}`, { signal });
-  },
   geocode: (q, limit = 6, signal) => request<Place[]>(`/geocode?${new URLSearchParams({ q, limit: String(limit) })}`, { signal }),
 };
 
-export type ApiMode = 'live' | 'mock';
+/** The API everyone should call. There is no offline fallback: if the backend is down, calls fail. */
+export const api: TrendApi = httpApi;
 
-async function backendIsUp(): Promise<boolean> {
+/** Is the backend answering? Used once at startup to show a clear "can't reach the server" state. */
+export async function checkHealth(): Promise<boolean> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), appConfig.healthTimeoutMs);
   try {
@@ -117,27 +101,3 @@ async function backendIsUp(): Promise<boolean> {
     clearTimeout(timer);
   }
 }
-
-let active: TrendApi = httpApi;
-let mode: ApiMode = 'live';
-
-/**
- * Decide once at startup: live backend, or the in-browser mock.
- * Mock is used when VITE_USE_MOCKS=true or when /api/health doesn't answer.
- * The mock module is loaded lazily so it never ships logic into the live path.
- */
-export async function initApi(): Promise<ApiMode> {
-  if (appConfig.forceMocks || !(await backendIsUp())) {
-    const { mockApi } = await import('./mock');
-    active = mockApi;
-    mode = 'mock';
-  }
-  return mode;
-}
-
-/** The API everyone should call. Delegates to whichever implementation initApi() picked. */
-export const api: TrendApi = new Proxy({} as TrendApi, {
-  get: (_t, key: keyof TrendApi) => active[key],
-});
-
-export const apiMode = () => mode;
