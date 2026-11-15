@@ -11,9 +11,13 @@ const pressable = {
     const r = el.getBoundingClientRect();
     const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
     const ny = ((e.clientY - r.top) / r.height) * 2 - 1;
-    const k = el.dataset.pressed === 'true' ? 9 : 4;
+    // Wide pills: scale the tilt by the aspect ratio so both axes feel the same under the finger.
+    const k = el.dataset.pressed === 'true' ? 14 : 8;
+    const aspect = Math.min(1, r.height / r.width) * 2.2;
     el.style.setProperty('--rx', `${(-ny * k).toFixed(2)}deg`);
-    el.style.setProperty('--ry', `${(nx * k).toFixed(2)}deg`);
+    el.style.setProperty('--ry', `${(nx * k * Math.min(1, aspect)).toFixed(2)}deg`);
+    el.style.setProperty('--mx', `${((nx + 1) * 50).toFixed(1)}%`);
+    el.style.setProperty('--my', `${((ny + 1) * 50).toFixed(1)}%`);
   },
   onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
     e.currentTarget.dataset.pressed = 'true';
