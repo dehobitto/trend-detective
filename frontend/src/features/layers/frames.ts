@@ -87,6 +87,22 @@ export function nearestFrame(frames: string[], date: string | null): number {
   return best;
 }
 
+/**
+ * Frames worth preloading around `date`, nearest first, alternating forward and back
+ * (+1, -1, +2, -2, ...), so stepping either way and playback both find their frame ready.
+ * `ahead` frames forward, `behind` back; playback wraps at the end.
+ */
+export function neighbourFrames(frames: string[], date: string | null, ahead: number, behind = ahead): string[] {
+  const i = date ? frames.indexOf(date) : -1;
+  if (i < 0 || frames.length < 2) return [];
+  const out: string[] = [];
+  for (let k = 1; k <= Math.max(ahead, behind); k++) {
+    if (k <= ahead) out.push(frames[(i + k) % frames.length]);
+    if (k <= behind && i - k >= 0) out.push(frames[i - k]);
+  }
+  return [...new Set(out)].filter((d) => d !== date);
+}
+
 export function formatFrame(date: string, step: GibsLayer['time_step'] | 'monthly'): string {
   const d = parse(date);
   if (step === 'yearly') return String(d.getUTCFullYear());

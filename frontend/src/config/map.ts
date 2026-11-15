@@ -115,9 +115,9 @@ export const mapConfig = {
     dailyFrameStep: 'monthly' as 'monthly' | 'daily',
     /** …using this day of each month (mid-month avoids month-boundary gaps). */
     dailyFrameDay: 15,
-    /** GIBS frames preloaded ahead of the current one (invisible layers so tiles are fetched). */
+    /** GIBS frames preloaded on each side of the current one (invisible layers so tiles are fetched). */
     gibsPrefetch: 2,
-    /** Grid frames prefetched ahead. */
+    /** Grid frames prefetched ahead (and 2 behind). */
     gridPrefetch: 3,
     /** Grid frames kept in memory. */
     gridCacheSize: 48,

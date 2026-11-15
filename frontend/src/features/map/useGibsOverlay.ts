@@ -2,7 +2,7 @@ import type { Map as MlMap } from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
 import type { GibsLayer } from '../../api/types';
 import { mapConfig } from '../../config/map';
-import { gibsTileUrl } from '../layers/frames';
+import { gibsTileUrl, neighbourFrames } from '../layers/frames';
 import { useLayers } from '../layers/layerStore';
 import { OVERLAY_BEFORE } from './layers';
 
@@ -85,9 +85,16 @@ export function useGibsOverlay(map: MlMap | null) {
       return id;
     };
 
+    /**
+     * Swap in one render: the new frame's tiles are already loaded, so it replaces the old one instantly
+     * (a cross-fade would stack two semi-transparent layers, or let the plain basemap show through).
+     */
     const show = (id: string) => {
       const { opacity, overlayOn } = useLayers.getState();
-      for (const l of ours()) map.setPaintProperty(l, 'raster-opacity', l === id && overlayOn ? opacity : 0);
+      for (const l of ours()) {
+        map.setPaintProperty(l, 'raster-opacity-transition', { duration: 0, delay: 0 });
+        map.setPaintProperty(l, 'raster-opacity', l === id && overlayOn ? opacity : 0);
+      }
       shown.current = id;
     };
 
@@ -107,13 +114,10 @@ export function useGibsOverlay(map: MlMap | null) {
     const prune = () => {
       if (!layerDef || !wanted) return;
       const { frames } = useLayers.getState();
-      const i = frames.indexOf(wanted);
       const keep = new Set<string>([idFor(wanted)]);
       if (shown.current) keep.add(shown.current);
-      for (let k = 1; k <= mapConfig.variableLayer.gibsPrefetch && i >= 0; k++) {
-        const next = frames[(i + k) % frames.length];
-        if (next) keep.add(ensure(next));
-      }
+      const n = mapConfig.variableLayer.gibsPrefetch;
+      for (const d of neighbourFrames(frames, wanted, n, n)) keep.add(ensure(d));
       for (const l of ours()) {
         if (keep.has(l)) continue;
         map.removeLayer(l);

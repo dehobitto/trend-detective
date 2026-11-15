@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { globeConfig } from '../../config/globe';
 import { fadeMs } from '../../config/motion';
 import { formatLat, formatLon } from '../../lib/geo';
@@ -17,8 +17,24 @@ export function GlobeView() {
   const view = useStore((s) => s.view);
   const transition = useStore((s) => s.transition);
   const flyTo = useStore((s) => s.flyTo);
-  const [hover, setHover] = useState<Hover>(null);
   const [paused, setPaused] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+
+  // Hover readout is written straight to the DOM: a React state update here would re-render the whole
+  // 3D scene on every mouse move and make the spinning globe stutter.
+  const setHover = useCallback((h: Hover) => {
+    const tip = tipRef.current;
+    const root = rootRef.current;
+    if (!tip || !root) return;
+    const on = !!h && root.dataset.interactive === 'true';
+    tip.hidden = !on;
+    root.style.cursor = on ? 'pointer' : '';
+    if (!on || !h) return;
+    tip.style.left = `${h.x + 14}px`;
+    tip.style.top = `${h.y + 14}px`;
+    tip.textContent = `${formatLat(h.lat)}, ${formatLon(h.lon)}`;
+  }, []);
 
   // Stop rendering once the map has fully faded in; start again the moment we head back.
   useEffect(() => {
@@ -31,9 +47,12 @@ export function GlobeView() {
   }, [view]);
 
   const interactive = view === 'globe' && transition === 'idle';
+  useEffect(() => {
+    if (!interactive) setHover(null);
+  }, [interactive, setHover]);
 
   return (
-    <div className="globe" data-interactive={interactive} style={{ cursor: hover && interactive ? 'pointer' : undefined }}>
+    <div ref={rootRef} className="globe" data-interactive={interactive}>
       <Canvas
         frameloop={paused ? 'never' : 'always'}
         dpr={[1, 2]}
@@ -58,11 +77,7 @@ export function GlobeView() {
         </Suspense>
         <CameraRig />
       </Canvas>
-      {hover && interactive && (
-        <div className="globe__hover" style={{ left: hover.x + 14, top: hover.y + 14 }} aria-hidden>
-          {formatLat(hover.lat)}, {formatLon(hover.lon)}
-        </div>
-      )}
+      <div ref={tipRef} className="globe__hover" hidden aria-hidden />
     </div>
   );
 }

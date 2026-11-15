@@ -74,7 +74,9 @@ export const globeConfig = {
     /** Cloud opacity while an overlay is shown (0 = hidden). */
     cloudAlphaWithOverlay: 0.08,
     /** Loaded frame textures kept in memory. */
-    cacheSize: 6,
+    cacheSize: 10,
+    /** Timeline frames preloaded on each side of the current one. */
+    prefetch: 2,
   },
   /** Opacity of the limb at its densest. */
   atmosphereStrength: 0.85,

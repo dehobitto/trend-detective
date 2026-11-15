@@ -7,6 +7,7 @@ import type { GibsLayer, GridFrame } from '../../api/types';
 import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { useSelectedVariable, useStore } from '../../state/store';
+import { neighbourFrames } from '../layers/frames';
 import { paintEquirect } from '../layers/gridRender';
 import { useLayers, usesGrid, type MapMode } from '../layers/layerStore';
 import { globeUniforms } from './sun';
@@ -35,10 +36,10 @@ export function gibsWmsUrl(l: GibsLayer, date: string): string {
 type Loaded = { tex: Texture; frame: GridFrame | null };
 type Job = { key: string; load: () => Promise<Loaded> };
 
-/** What the overlay should show right now (null = nothing), plus the next frame to preload. */
-function jobsFor(s: ReturnType<typeof useLayers.getState>): { now: Job | null; next: Job | null } {
+/** What the overlay should show right now (null = nothing), plus the frames around it to preload, nearest first. */
+function jobsFor(s: ReturnType<typeof useLayers.getState>): { now: Job | null; next: Job[] } {
   const { layer, variableId, mode, date, frames, trendPeriod } = s;
-  if (!layer || !variableId) return { now: null, next: null };
+  if (!layer || !variableId) return { now: null, next: [] };
   const at = (d: string | null | undefined): Job | null => {
     if (!d) return null;
     if (!usesGrid(s)) {
@@ -48,12 +49,12 @@ function jobsFor(s: ReturnType<typeof useLayers.getState>): { now: Job | null; n
     return { key: `grid|${variableId}|${mode}|${d}`, load: () => loadGrid(variableId, mode, d) };
   };
   if (mode === 'trend') {
-    if (!trendPeriod) return { now: null, next: null };
+    if (!trendPeriod) return { now: null, next: [] };
     const d = `${trendPeriod.start}/${trendPeriod.end}`;
-    return { now: { key: `trend|${variableId}|${d}`, load: () => loadGrid(variableId, 'trend', d) }, next: null };
+    return { now: { key: `trend|${variableId}|${d}`, load: () => loadGrid(variableId, 'trend', d) }, next: [] };
   }
-  const i = date ? frames.indexOf(date) : -1;
-  return { now: at(date), next: i >= 0 && frames.length > 1 ? at(frames[(i + 1) % frames.length]) : null };
+  const around = neighbourFrames(frames, date, cfg.prefetch, cfg.prefetch).map(at).filter((j): j is Job => !!j);
+  return { now: at(date), next: around };
 }
 
 const loader = new TextureLoader().setCrossOrigin('anonymous');
@@ -220,7 +221,8 @@ export function GlobeOverlay() {
                 }
               : {}),
           });
-          if (next) get(next, inUse.current).catch(() => {});
+          // Preload neighbours one after another (big images: don't compete with the frame on screen).
+          next.reduce<Promise<unknown>>((chain, j) => chain.then((): unknown => (my === seq ? get(j, inUse.current) : null)).catch(() => {}), Promise.resolve());
         })
         .catch((e) => {
           if (my !== seq) return;

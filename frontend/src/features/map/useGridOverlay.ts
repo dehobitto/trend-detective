@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { api } from '../../api/client';
 import type { BBox, GridFrame } from '../../api/types';
 import { mapConfig } from '../../config/map';
+import { neighbourFrames } from '../layers/frames';
 import { paintGrid } from '../layers/gridRender';
 import { useLayers, usesGrid, type MapMode } from '../layers/layerStore';
 import { OVERLAY_BEFORE } from './layers';
@@ -138,12 +139,8 @@ export function useGridOverlay(map: MlMap | null) {
           if (my !== seq) return;
           paint(f);
           useLayers.getState().set({ loading: false, overlayError: null });
-          // Prefetch the next frames for smooth playback.
-          const i = trend ? -1 : frames.indexOf(date);
-          for (let k = 1; k <= cfg.gridPrefetch && i >= 0; k++) {
-            const next = frames[(i + k) % frames.length];
-            if (next) fetchFrame(variableId, mode, next, q).catch(() => {});
-          }
+          // Preload the frames around this one (both directions) for stepping and playback.
+          if (!trend) for (const d of neighbourFrames(frames, date, cfg.gridPrefetch, 2)) fetchFrame(variableId, mode, d, q).catch(() => {});
         })
         .catch((e) => {
           if (my !== seq) return;

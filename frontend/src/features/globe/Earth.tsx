@@ -7,6 +7,7 @@ import { colors } from '../../config/colors';
 import { globeConfig } from '../../config/globe';
 import { useReducedMotion } from '../../config/motion';
 import { uvToLatLon } from '../../lib/geo';
+import { sphereRaycast } from './sphereRaycast';
 import { globeUniforms } from './sun';
 
 type Props = {
@@ -218,7 +219,7 @@ export function Earth({ onPick, onHover, interactive }: Props) {
 
   return (
     <>
-      <mesh material={earthMat} onClick={handleClick} onPointerMove={handleMove} onPointerOut={() => onHover(null)}>
+      <mesh material={earthMat} raycast={sphereRaycast} onClick={handleClick} onPointerMove={handleMove} onPointerOut={() => onHover(null)}>
         <sphereGeometry args={[1, 160, 80]} />
       </mesh>
       <mesh material={cloudMat} scale={globeConfig.cloudAltitude} raycast={() => null} renderOrder={1}>
