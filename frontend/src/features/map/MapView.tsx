@@ -80,6 +80,10 @@ export function MapView() {
     const switcher = new PortalControl('basemap-ctrl');
     m.addControl(switcher, 'bottom-left');
     m.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+    // Phones: start the attribution folded to its (i) button; expanded it would cover the map hint.
+    m.once('load', () => {
+      if (matchMedia('(max-width: 760px)').matches) m.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
+    });
     setSwitcherHost(switcher.el);
     // 'style.load' fires as soon as the style is parsed; 'load' would wait for every first tile.
     m.once('style.load', () => {
@@ -119,6 +123,15 @@ export function MapView() {
   // Keep the drawn rectangle in sync with the store (panel edits, examples, clears).
   useEffect(() => {
     if (map) setBBoxData(map, bbox);
+    // Phones: a box drawn low on the map ends up under the bottom sheet that opens with it. Bring it into view.
+    if (!map || !bbox || window.innerWidth > 760 || map.isMoving()) return;
+    const { view, transition } = useStore.getState();
+    if (view !== 'map' || transition !== 'idle') return;
+    const pad = fitPadding();
+    const sw = map.project([bbox.west, bbox.south]);
+    const ne = map.project([bbox.east, bbox.north]);
+    const visible = ne.y >= pad.top * 0.5 && sw.y <= window.innerHeight - pad.bottom && sw.x >= 0 && ne.x <= window.innerWidth;
+    if (!visible) map.fitBounds(lngLatBounds(bbox), { padding: pad, maxZoom: map.getZoom(), duration: dur(600) });
   }, [map, bbox]);
 
   // Arriving from the globe: frame the example's box or the searched place, else zoom in on the focus point.
