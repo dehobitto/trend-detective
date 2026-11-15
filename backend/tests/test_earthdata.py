@@ -248,3 +248,46 @@ def test_modis_cmg_grid_runs_north_to_south_and_ndvi_is_divided():
     buf = io.BytesIO(ds.to_netcdf(engine="h5netcdf"))
     values = decode_subset(buf.getvalue(), layout, 2, 2, overrides=grid.packing)
     assert values[0, 0] == pytest.approx(0.5) and np.isnan(values[0, 1]) and values[1, 1] == pytest.approx(1.0)
+
+
+def test_big_area_takes_every_nth_cell():
+    grid = GRIDS["MOD11C3"]
+    small = Box.for_bbox(grid, PUNJAB)  # 80 x 80 cells: under the cap, whole box, old cache key
+    assert small.step == 1 and "_s" not in small.key
+    big = Box.for_bbox(grid, BBox(west=0.0, south=0.0, east=90.0, north=60.0))  # 1200 x 1800 cells
+    assert big.step == 8 and big.key.endswith("_s8")
+    lats, lons = big.lats(grid), big.lons(grid)
+    assert len(lats) * len(lons) <= 40_000
+    assert len(lats) == len(range(big.lat0, big.lat1 + 1, 8)) and lats[1] - lats[0] == pytest.approx(-0.4)
+    layout = VarLayout("/LST_Day_CMG", ("lat", "lon"))
+    assert layout.constraint(big) == f"/LST_Day_CMG[{big.lat0}:8:{big.lat1}][{big.lon0}:8:{big.lon1}]"
+
+    # read_subset sizes the response from the sampled cells
+    box = Box(lat0=0, lat1=4, lon0=0, lon1=6, step=2)  # 3 x 4 sampled cells
+    values = np.full((3, 4), 300.0)
+    ds = xr.Dataset({"LST_Day_CMG": (("y", "x"), values)})
+    content = ds.to_netcdf(engine="h5netcdf")
+    assert read_subset(content, layout, grid, box) == pytest.approx(300.0)
+
+
+def test_cold_granule_years_are_searched_in_parallel(settings, monkeypatch):
+    import threading
+    import time as _time
+
+    active, peak, lock = [0], [0], threading.Lock()
+
+    def search_year(self, short_name, version, year):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        _time.sleep(0.05)
+        with lock:
+            active[0] -= 1
+        return {dt.date(year, m, 1): f"u{year}{m}" for m in range(1, 13)}
+
+    monkeypatch.setattr(EarthdataProvider, "_search_year", search_year)
+    provider = create_provider("earthdata", settings)
+    granules = provider._granules("GPM_3IMERGM", "07", dt.date(2001, 1, 1), dt.date(2010, 12, 31))
+    assert len(granules) == 120 and peak[0] > 1
+    monkeypatch.setattr(EarthdataProvider, "_search_year", lambda *a: pytest.fail("cached years searched again"))
+    assert provider._granules("GPM_3IMERGM", "07", dt.date(2001, 1, 1), dt.date(2010, 12, 31)) == granules

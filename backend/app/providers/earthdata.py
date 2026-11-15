@@ -10,11 +10,13 @@ Serves catalog variables whose ``access`` is ``Giovanni`` / ``GES DISC OPeNDAP``
 ``"<ShortName>.<version>:<Variable>"`` (e.g. ``GLDAS_CLSM025_DA1_D.2.2:GWS_tavg``).
 
 Flow for one request (variable, bbox, start..end):
-1. Granule list from CMR (public, no login): date + OPeNDAP URL per granule, cached on disk per year.
+1. Granule list from CMR (public, no login): date + OPeNDAP URL per granule, cached on disk per year
+   (missing years are searched in parallel).
 2. Daily products are sampled on a few days per month (:data:`GRIDS` ``days``), like the team's
    ``prefetch.py`` (1st of the month for GLDAS: ~250 requests for 20 years instead of ~7600).
 3. Each missing granule: ``<url>.dap.nc4?dap4.ce=/<path>[t][i0:i1][j0:j1]`` with an Earthdata session
    (``earthaccess``), area mean, stored in a per-(product, grid box) JSON cache. Requests run in parallel.
+   Big areas take every n-th cell (:data:`MAX_SAMPLES`), so one request stays ~200 x 200 cells.
 4. Calendar-month mean -> ``variable.to_catalog_units``.
 
 The variable's full path and dimension order come from the granule's ``.dmr`` (fetched once per product),
@@ -58,6 +60,12 @@ CMR_PAGE_SIZE = 2000
 DAP4_NS = "{http://xml.opendap.org/ns/DAP/4.0#}"
 MIN_COVERAGE = 0.5
 """Without a login, serve cached values only if at least this share of the requested granules is cached."""
+MAX_SAMPLES = 40_000
+"""Grid cells fetched per granule at most (~200 x 200). A bigger area takes every ``step``-th row and column
+(OPeNDAP ``[start:step:stop]``), like the Black Marble provider: a 90° x 60° MODIS 0.05° box would otherwise be
+~4 MB per month, and the area mean barely changes."""
+CMR_WORKERS = 6
+"""Parallel CMR searches (one per year) on a cold granule cache."""
 
 
 @dataclass(frozen=True)
@@ -137,22 +145,26 @@ class Box:
     lat1: int
     lon0: int
     lon1: int
+    step: int = 1
+    """Take every ``step``-th row and column (big areas, see :data:`MAX_SAMPLES`)."""
 
     @classmethod
     def for_bbox(cls, grid: Grid, bbox: BBox) -> "Box":
         lat0, lat1 = cell_range(grid.lat_start, grid.lat_step, grid.lat_n, bbox.south, bbox.north)
         lon0, lon1 = cell_range(grid.lon_start, grid.lon_step, grid.lon_n, bbox.west, bbox.east)
-        return cls(lat0, lat1, lon0, lon1)
+        cells = (lat1 - lat0 + 1) * (lon1 - lon0 + 1)
+        return cls(lat0, lat1, lon0, lon1, max(1, math.ceil(math.sqrt(cells / MAX_SAMPLES))))
 
     def lats(self, grid: Grid) -> np.ndarray:
-        return grid.lat_start + grid.lat_step * np.arange(self.lat0, self.lat1 + 1)
+        return grid.lat_start + grid.lat_step * np.arange(self.lat0, self.lat1 + 1, self.step)
 
     def lons(self, grid: Grid) -> np.ndarray:
-        return grid.lon_start + grid.lon_step * np.arange(self.lon0, self.lon1 + 1)
+        return grid.lon_start + grid.lon_step * np.arange(self.lon0, self.lon1 + 1, self.step)
 
     @property
     def key(self) -> str:
-        return f"{self.lat0}-{self.lat1}_{self.lon0}-{self.lon1}"
+        base = f"{self.lat0}-{self.lat1}_{self.lon0}-{self.lon1}"
+        return base if self.step == 1 else f"{base}_s{self.step}"  # sampled values get their own cache
 
 
 @dataclass(frozen=True)
@@ -177,7 +189,8 @@ class VarLayout:
         return self.path.rsplit("/", 1)[1]
 
     def constraint(self, box: Box) -> str:
-        parts = {"time": "[0]", "lat": f"[{box.lat0}:{box.lat1}]", "lon": f"[{box.lon0}:{box.lon1}]"}
+        step = f"{box.step}:" if box.step > 1 else ""
+        parts = {"time": "[0]", "lat": f"[{box.lat0}:{step}{box.lat1}]", "lon": f"[{box.lon0}:{step}{box.lon1}]"}
         return self.path + "".join(parts[d] for d in self.dims)
 
 
@@ -286,11 +299,12 @@ def read_subset(content: bytes, layout: VarLayout, grid: Grid, box: Box, mask: n
 
     ``mask`` (``(lat, lon)`` booleans, see ``providers.base.mask_grid``) keeps only the cells of a named region.
     """
-    n_lat, n_lon = box.lat1 - box.lat0 + 1, box.lon1 - box.lon0 + 1
+    lats = box.lats(grid)
+    n_lat, n_lon = len(lats), len(box.lons(grid))
     values = decode_subset(content, layout, n_lat, n_lon, positive_only=grid.positive_only, overrides=grid.packing)
     if mask is not None:
         values = np.where(mask, values, np.nan)
-    total, weight = weighted_sum(values, box.lats(grid))
+    total, weight = weighted_sum(values, lats)
     return total / weight if weight > 0 else float("nan")
 
 
@@ -393,17 +407,26 @@ class EarthdataProvider:
     # -- granule list (CMR, public) --------------------------------------------------------------------
 
     def _granules(self, short_name: str, version: str, start: dt.date, end: dt.date) -> dict[dt.date, str]:
-        out: dict[dt.date, str] = {}
         this_year = dt.date.today().year
-        for year in range(start.year, end.year + 1):
-            path = self._cache_dir / short_name / "granules" / f"{version}_{year}.json"
-            # Past years never change; the current year is searched again once a day for new granules.
-            fresh = path.exists() and (year < this_year or time.time() - path.stat().st_mtime < 86400)
-            if fresh:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            else:
-                data = {d.isoformat(): u for d, u in self._search_year(short_name, version, year).items()}
-                _write_json(path, data)
+        years = range(start.year, end.year + 1)
+        paths = {year: self._cache_dir / short_name / "granules" / f"{version}_{year}.json" for year in years}
+        # Past years never change; the current year is searched again once a day for new granules.
+        stale = [
+            year for year, path in paths.items()
+            if not (path.exists() and (year < this_year or time.time() - path.stat().st_mtime < 86400))
+        ]
+
+        def search(year: int) -> None:
+            data = {d.isoformat(): u for d, u in self._search_year(short_name, version, year).items()}
+            _write_json(paths[year], data)
+
+        # One CMR search per year takes 1-5 s; 20 cold years in a row were as slow as the downloads themselves.
+        if stale:
+            with ThreadPoolExecutor(max_workers=min(CMR_WORKERS, len(stale))) as pool:
+                list(pool.map(search, stale))  # re-raises the first ProviderError
+        out: dict[dt.date, str] = {}
+        for path in paths.values():
+            data = json.loads(path.read_text(encoding="utf-8"))
             out.update({dt.date.fromisoformat(d): u for d, u in data.items()})
         return out
 
