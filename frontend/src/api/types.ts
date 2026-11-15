@@ -1,4 +1,4 @@
-/** Mirrors docs/API.md (v1) exactly. Keep in sync with backend/app/schemas. */
+/** Mirrors docs/API.md (v1 + v2 additions) exactly. Keep in sync with backend/app/schemas. */
 
 export type BBox = { west: number; south: number; east: number; north: number };
 
@@ -25,7 +25,54 @@ export type Variable = {
   access: string;
   /** Station location for station series (Mauna Loa), else null. */
   location: { lat: number; lon: number; label: string } | null;
+  /** v2: how to show this variable on the map (null = no map layer). Older backends omit it. */
+  map_layer?: MapLayer | null;
 };
+
+/* ------------------------------------------------------------------ v2: map layers, grid, geocode */
+
+export type TimeStep = 'daily' | '8day' | 'monthly' | 'yearly';
+
+export type GibsLayer = {
+  kind: 'gibs';
+  /** GIBS layer identifier (EPSG:3857 "best"). */
+  layer: string;
+  /** e.g. "GoogleMapsCompatible_Level6". */
+  tile_matrix_set: string;
+  format: 'png' | 'jpeg';
+  max_zoom: number;
+  time_step: TimeStep;
+  time_start: string;
+  time_end: string;
+  legend_url: string | null;
+};
+
+export type MapLayer = GibsLayer | { kind: 'grid' };
+
+export type Colormap = { name: string; stops: [number, string][] };
+
+export type GridFrame = {
+  variable_id: string;
+  /** First day of the month. */
+  date: string;
+  /** Area actually covered. */
+  bbox: BBox;
+  /** Columns, rows. Row 0 = north. */
+  width: number;
+  height: number;
+  /** Row-major, length width*height; null = no data. */
+  values: (number | null)[];
+  /** Suggested colour range for this variable (stable across frames). */
+  min: number;
+  max: number;
+  units: string;
+  colormap: Colormap;
+  synthetic: boolean;
+};
+
+export type GridQuery = { date: string; bbox?: BBox; res?: number };
+
+export type Place = { name: string; display_name: string; lat: number; lon: number; bbox: BBox | null; kind: string };
 
 export type ExampleCase = {
   id: string;
@@ -144,6 +191,10 @@ export interface TrendApi {
   listDatasets(): Promise<Dataset[]>;
   deleteDataset(id: string): Promise<void>;
   chat(req: ChatRequest): Promise<ChatResponse>;
+  /** v2 */
+  getGrid(variableId: string, q: GridQuery, signal?: AbortSignal): Promise<GridFrame>;
+  getGridDates(variableId: string): Promise<string[]>;
+  geocode(q: string, limit?: number, signal?: AbortSignal): Promise<Place[]>;
 }
 
 export const UPLOAD_PREFIX = 'upload:';

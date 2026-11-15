@@ -6,7 +6,10 @@ import type {
   Dataset,
   ExampleCase,
   Health,
+  GridFrame,
+  GridQuery,
   Job,
+  Place,
   TrendApi,
   Variable,
 } from './types';
@@ -36,7 +39,8 @@ async function request<T>(path: string, init?: RequestInit, as: 'json' | 'text' 
   let res: Response;
   try {
     res = await fetch(`${appConfig.apiBase}${path}`, init);
-  } catch {
+  } catch (e) {
+    if (init?.signal?.aborted) throw e;
     throw new ApiRequestError('Could not reach the server. Check that the backend is running.', 0);
   }
   if (!res.ok) {
@@ -78,6 +82,14 @@ export const httpApi: TrendApi = {
   listDatasets: () => request<Dataset[]>('/datasets'),
   deleteDataset: (id) => request<void>(`/datasets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   chat: (req: ChatRequest) => request<ChatResponse>('/chat', json(req)),
+  getGrid: (id, q: GridQuery, signal) => {
+    const p = new URLSearchParams({ date: q.date });
+    if (q.bbox) for (const k of ['west', 'south', 'east', 'north'] as const) p.set(k, String(q.bbox[k]));
+    if (q.res) p.set('res', String(q.res));
+    return request<GridFrame>(`/grid/${encodeURIComponent(id)}?${p}`, { signal });
+  },
+  getGridDates: (id) => request<string[]>(`/grid/${encodeURIComponent(id)}/dates`),
+  geocode: (q, limit = 6, signal) => request<Place[]>(`/geocode?${new URLSearchParams({ q, limit: String(limit) })}`, { signal }),
 };
 
 export type ApiMode = 'live' | 'mock';

@@ -7,6 +7,21 @@ export type View = 'globe' | 'map';
 /** Globe-side animation phase. 'flyingIn' ends with view = 'map'; 'flyingOut' runs after returning. */
 export type Transition = 'idle' | 'flyingIn' | 'flyingOut';
 export type LatLon = { lat: number; lon: number };
+/** How the map should frame the arrival: explicit zoom, a place's bounds, or 'wheel' (globe zoom gesture → gentler zoom). */
+export type Arrival = { zoom?: number; bounds?: BBox | null; via?: 'click' | 'wheel' | 'search' };
+
+/**
+ * The globe hands off to the map both on click and when wheel/pinch-zooming past a threshold.
+ * Those arrive at different zooms; a hand-off within a moment of a wheel/pinch gesture counts as 'wheel'.
+ */
+let lastZoomGestureAt = -Infinity;
+if (typeof window !== 'undefined') {
+  const mark = () => (lastZoomGestureAt = performance.now());
+  window.addEventListener('wheel', mark, { capture: true, passive: true });
+  window.addEventListener('touchmove', (e) => e.touches.length > 1 && mark(), { capture: true, passive: true });
+}
+const recentZoomGesture = () => performance.now() - lastZoomGestureAt < 600;
+export type MapEnter = { nonce: number; fitBBox: boolean } & Arrival;
 
 type State = {
   apiMode: ApiMode | 'connecting';
@@ -14,8 +29,11 @@ type State = {
   transition: Transition;
   /** Where the camera / map is centred during a hand-off. */
   focus: LatLon;
-  /** Bumps each time the map should re-centre on `focus` (or fit `bbox` when fitBBox). */
-  mapEnter: { nonce: number; fitBBox: boolean };
+  /**
+   * Bumps each time the map should re-centre on `focus` (or fit `bbox` when fitBBox).
+   * `zoom` overrides the arrival zoom; `bounds` frames a place (search result) instead.
+   */
+  mapEnter: MapEnter;
   /** Mount the map lazily the first time it's needed, then keep it. */
   mapMounted: boolean;
 
@@ -50,7 +68,7 @@ type State = {
 
 type Actions = {
   set: (patch: Partial<State>) => void;
-  flyTo: (to: LatLon, fitBBox?: boolean) => void;
+  flyTo: (to: LatLon, fitBBox?: boolean, arrival?: Arrival) => void;
   arriveAtMap: () => void;
   backToGlobe: (from: LatLon) => void;
   finishTransition: () => void;
@@ -96,13 +114,13 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   set: (patch) => set(patch),
 
-  flyTo: (to, fitBBox = false) => {
+  flyTo: (to, fitBBox = false, arrival = {}) => {
     if (get().transition !== 'idle' || get().view !== 'globe') return;
-    set({ transition: 'flyingIn', focus: to, mapMounted: true, mapEnter: { nonce: get().mapEnter.nonce, fitBBox } });
+    const via = arrival.via ?? (recentZoomGesture() ? 'wheel' : 'click');
+    set({ transition: 'flyingIn', focus: to, mapMounted: true, mapEnter: { nonce: get().mapEnter.nonce, fitBBox, ...arrival, via } });
   },
 
-  arriveAtMap: () =>
-    set((s) => ({ view: 'map', transition: 'idle', mapEnter: { nonce: s.mapEnter.nonce + 1, fitBBox: s.mapEnter.fitBBox } })),
+  arriveAtMap: () => set((s) => ({ view: 'map', transition: 'idle', mapEnter: { ...s.mapEnter, nonce: s.mapEnter.nonce + 1 } })),
 
   backToGlobe: (from) => set({ view: 'globe', transition: 'flyingOut', focus: from, drawing: false }),
 

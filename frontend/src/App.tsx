@@ -6,7 +6,9 @@ import { ChatLauncher } from './features/chat/ChatLauncher';
 import { ExampleCases } from './features/examples/ExampleCases';
 import { GlobeView } from './features/globe/GlobeView';
 import { InvestigationPanel } from './features/investigate/InvestigationPanel';
+import { LayerDock } from './features/layers/LayerDock';
 import { MapHint, MapToolbar } from './features/map/MapToolbar';
+import { PlaceSearch } from './features/search/PlaceSearch';
 import { needsNoArea, useStore } from './state/store';
 
 // The map is only needed after the first hand-off, so its bundle loads lazily.
@@ -52,6 +54,7 @@ export default function App() {
       )}
 
       <Wordmark />
+      <PlaceSearch />
       {apiMode === 'mock' && (
         <div className="mode-note" title="The backend did not answer, so the app is using built-in synthetic data.">
           <Badge tone="demo">Offline demo</Badge>
@@ -67,6 +70,7 @@ export default function App() {
         <>
           <MapToolbar panelOpen={showPanel} />
           <MapHint />
+          <LayerDock besidePanel={showPanel} />
         </>
       )}
       {showPanel && <InvestigationPanel />}

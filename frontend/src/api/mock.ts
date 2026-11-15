@@ -5,6 +5,7 @@
  */
 import { MOCK_EXAMPLES, MOCK_STORY_TRENDS, MOCK_VARIABLES, type MockVariable } from './mockCatalog';
 import { mannKendall, ols, sensSlope } from './mockStats';
+import { mockGeocode, mockGrid, mockGridDates, mockMapLayer } from './mockGrid';
 import {
   UPLOAD_PREFIX,
   type AnalysisRequest,
@@ -262,7 +263,7 @@ const newId = (p: string) => `${p}_${Date.now().toString(36)}${(seq++).toString(
 
 const strip = (v: MockVariable): Variable => {
   const { base: _b, amp: _a, trend: _t, noise: _n, min: _m, fixedTrend: _f, ...rest } = v;
-  return rest;
+  return { ...rest, map_layer: mockMapLayer(v) };
 };
 
 function findVariable(id: string): MockVariable {
@@ -413,6 +414,18 @@ export const mockApi: TrendApi = {
   },
   async deleteDataset(id) {
     uploads.delete(id);
+  },
+  async getGrid(id, q) {
+    await delay(60);
+    return mockGrid(findVariable(id), q);
+  },
+  async getGridDates(id) {
+    return mockGridDates(findVariable(id));
+  },
+  async geocode(q, limit) {
+    await delay(120);
+    if (q.trim().length < 2) throw new MockError('Type at least 2 characters.', 422);
+    return mockGeocode(q, limit);
   },
   async chat(req: ChatRequest) {
     await delay(500);
