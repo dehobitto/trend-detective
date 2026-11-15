@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, field
 
+import numpy as np
 import pandas as pd
 
 MAX_FILL_GAP = 2
@@ -17,6 +18,9 @@ class Preprocessed:
     """Aggregated values (after gap filling)."""
     deseasonalized: pd.Series | None
     """Anomalies from the monthly climatology, or None when not requested / not applicable."""
+    seasonal: pd.Series | None = None
+    """Seasonal component on ``raw``'s dates (``raw`` = level + trend + seasonal + residual), or None
+    exactly when ``deseasonalized`` is None."""
     warnings: list[str] = field(default_factory=list)
     filled: pd.Series | None = None
     """True where ``raw`` holds an interpolated (not observed) value."""
@@ -56,13 +60,60 @@ def fill_gaps(series: pd.Series, max_gap: int = MAX_FILL_GAP) -> tuple[pd.Series
     return filled, int(fillable.sum())
 
 
+MONTHS = 12
+MIN_YEARS_PER_MONTH = 3
+"""Each calendar month needs this many detrended values to estimate its seasonal offset."""
+
+
+def _centered_annual_mean(series: pd.Series) -> pd.Series:
+    """Centered 2x12 moving average (weights 1/24, 1/12 x 11, 1/24): the series with the seasonal cycle
+    averaged out, a rough trend. Every calendar month gets the same weight, so the cycle cancels exactly.
+
+    NaN wherever the 13-month window is not complete (the first and last 6 months, around gaps): a
+    lopsided window would let part of the seasonal cycle leak into the trend.
+    """
+    weights = np.r_[0.5, np.ones(MONTHS - 1), 0.5] / MONTHS
+    return series.rolling(MONTHS + 1, center=True).apply(lambda w: float(np.dot(w, weights)), raw=True)
+
+
+def _is_regular_monthly(index: pd.Index) -> bool:
+    if not isinstance(index, pd.DatetimeIndex) or len(index) < 2:
+        return False
+    return bool(index.equals(pd.date_range(index[0], periods=len(index), freq="MS")))
+
+
+def seasonal_cycle(series: pd.Series) -> pd.Series:
+    """Typical offset of each calendar month from the trend (index 1..12, sums to 0).
+
+    Classical decomposition: remove a rough trend first (centered 2x12 moving average), then average the
+    detrended values per calendar month. Averaging the raw values instead would let the trend leak into the
+    cycle (in a rising record December reads high just because it comes later in the year).
+    Records too short for that (fewer than ``MIN_YEARS_PER_MONTH`` detrended values for some month) fall
+    back to the raw monthly means. A series without all 12 calendar months has no monthly cycle: all zeros.
+    """
+    months = pd.Index(range(1, MONTHS + 1), name="month")
+    if series.index.month.nunique() < MONTHS:
+        return pd.Series(0.0, index=months)
+    detrended = series - _centered_annual_mean(series) if _is_regular_monthly(series.index) else None
+    if detrended is None or detrended.groupby(detrended.index.month).count().min() < MIN_YEARS_PER_MONTH:
+        detrended = series
+    cycle = detrended.groupby(detrended.index.month).mean().reindex(months)
+    return (cycle - cycle.mean()).astype(float)
+
+
 def monthly_climatology(series: pd.Series) -> pd.Series:
-    """Mean value for each calendar month (index 1..12)."""
-    return series.groupby(series.index.month).mean()
+    """Expected value for each calendar month (index 1..12): the series mean plus the seasonal cycle."""
+    return seasonal_cycle(series) + series.mean()
+
+
+def seasonal_component(series: pd.Series) -> pd.Series:
+    """The seasonal cycle laid out on the series' own dates (sums to ~0 over each year)."""
+    cycle = seasonal_cycle(series)
+    return pd.Series(cycle.reindex(series.index.month).to_numpy(), index=series.index, name=series.name)
 
 
 def deseasonalize(series: pd.Series) -> pd.Series:
-    """Subtract the mean seasonal cycle, leaving monthly anomalies."""
+    """Subtract the monthly climatology, leaving monthly anomalies (centered on 0)."""
     clim = monthly_climatology(series)
     return series - clim.reindex(series.index.month).to_numpy()
 
@@ -80,11 +131,12 @@ def preprocess(series: pd.Series, *, want_deseasonalized: bool, is_monthly: bool
     if remaining:
         warnings.append(f"{remaining} period(s) have no data and were skipped.")
 
-    anomalies = None
+    anomalies = seasonal = None
     if want_deseasonalized:
         if is_monthly:
             anomalies = deseasonalize(filled)
+            seasonal = seasonal_component(filled)
         else:
             warnings.append("Deseasonalizing only applies to monthly data, so the annual values were analyzed directly.")
     was_filled = series.isna() & filled.notna()
-    return Preprocessed(raw=filled, deseasonalized=anomalies, warnings=warnings, filled=was_filled)
+    return Preprocessed(raw=filled, deseasonalized=anomalies, seasonal=seasonal, warnings=warnings, filled=was_filled)

@@ -138,8 +138,11 @@ Analysis pipeline (`jobs/runner.py`): `resolve` (variable, provider via `route()
 
 Notes on the numbers:
 - Time is measured in decimal years; `intercept` is the fitted value at the first date of the series.
-- With `deseasonalize`, the trend is fitted to monthly anomalies (value minus that calendar month's mean),
-  so `trend`/`ci_low`/`ci_high` in `series` are on the anomaly scale.
+- With `deseasonalize`, the trend is fitted to monthly anomalies (value minus that calendar month's expected
+  value), so `trend`/`ci_low`/`ci_high` in `series` are on the anomaly scale. The seasonal cycle comes from a
+  classical decomposition: a centered 2x12 moving average removes the trend first, then the detrended values
+  are averaged per calendar month (so a rising record does not make December look seasonally high). Records
+  with fewer than 3 detrended values per month fall back to raw monthly means.
 - `significant` requires both the OLS t-test and Mann-Kendall to have p < alpha.
 - `direction` is the sign of the OLS slope, or `flat` when the total change is < 5% of the series' std-dev.
 - `percent_change` is relative to the mean raw value; it is `null` for temperatures (°C has no true zero).
