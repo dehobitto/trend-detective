@@ -94,7 +94,6 @@ export default function App() {
       {!onMap && (
         <div className="overlay" data-busy={transition !== 'idle'}>
           <Hero />
-          <ExampleCases />
         </div>
       )}
       {!onMap && transition === 'idle' && <LayerDock besidePanel={false} onGlobe />}

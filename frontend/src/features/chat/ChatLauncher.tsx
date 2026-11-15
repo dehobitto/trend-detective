@@ -62,22 +62,17 @@ export function ChatLauncher({ besidePanel }: { besidePanel: boolean }) {
         {!open && !picker && <span className="curious-launch__label">Curious about Earth?</span>}
         <button
           type="button"
-          className="curious-launch__btn"
+          className="orb"
+          data-open={open || picker}
           aria-expanded={open || picker}
-          aria-label={open ? 'Close the field guide' : 'Curious questions'}
+          aria-label={open ? 'Close the field guide' : picker ? 'Close questions' : 'Curious questions about Earth'}
           onClick={() => (open ? set({ chatOpen: false }) : setPicker(!picker))}
         >
-          {open || picker ? (
-            <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9.2 9a3 3 0 0 1 5.8 1c0 2-3 2.6-3 4.5" />
-              <path d="M12 18h.01" />
-              <circle cx="12" cy="12" r="9.5" />
-            </svg>
-          )}
+          <span className="orb__earth" aria-hidden />
+          <span className="orb__shine" aria-hidden />
+          <svg className="orb__x" width="18" height="18" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
         </button>
       </div>
     </div>

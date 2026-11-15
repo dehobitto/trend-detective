@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { IconClose, IconSend } from '../../components/icons';
 import { useStore } from '../../state/store';
 import { chatAdapter, type ChatMessage } from './chatAdapter';
 
@@ -56,26 +55,24 @@ export function ChatDrawer({ onClose, initialQuestion = null }: { onClose: () =>
 
   return (
     <section className="chat" role="dialog" aria-label="Field guide chat" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <header className="chat__head">
-        <div>
-          <h2 className="chat__title">Field guide</h2>
-          {stub && <p className="hint">Placeholder answers for now.</p>}
-        </div>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close chat">
-          <IconClose />
-        </button>
-      </header>
       <div className="chat__list" ref={list} aria-live="polite">
         {messages.map((m, i) => (
-          <p key={i} className={`msg msg--${m.role}`}>
+          <p key={i} className={`bubble bubble--${m.role}`}>
             {m.content}
           </p>
         ))}
-        {busy && <p className="msg msg--assistant msg--typing">Thinking…</p>}
-        {error && <p className="field-error">{error}</p>}
+        {busy && (
+          <p className="bubble bubble--assistant bubble--typing" aria-label="Thinking">
+            <span />
+            <span />
+            <span />
+          </p>
+        )}
+        {error && <p className="bubble bubble--error">{error}</p>}
       </div>
+      {stub && <p className="chat__note">Placeholder answers for now.</p>}
       <form
-        className="chat__form"
+        className="chat__pill"
         onSubmit={(e) => {
           e.preventDefault();
           void send();
@@ -83,9 +80,9 @@ export function ChatDrawer({ onClose, initialQuestion = null }: { onClose: () =>
       >
         <textarea
           ref={inputRef}
-          rows={2}
+          rows={1}
           value={text}
-          placeholder="Ask a question"
+          placeholder="Ask about Earth…"
           aria-label="Your question"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -95,8 +92,10 @@ export function ChatDrawer({ onClose, initialQuestion = null }: { onClose: () =>
             }
           }}
         />
-        <button type="submit" className="icon-btn icon-btn--solid" disabled={!text.trim() || busy} aria-label="Send">
-          <IconSend />
+        <button type="submit" className="chat__send" disabled={!text.trim() || busy} aria-label="Send">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" />
+          </svg>
         </button>
       </form>
     </section>

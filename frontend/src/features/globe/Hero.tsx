@@ -13,6 +13,7 @@ export function Hero() {
         </span>
       </h2>
       <p className="hero__lede">Pick a place and a measurement. We test whether the change is real or just the usual ups and downs.</p>
+      <p className="hero__hint">Turn the globe and click anywhere, or search for a place.</p>
     </section>
   );
 }
