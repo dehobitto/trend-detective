@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../state/store';
+import { useLayers } from '../layers/layerStore';
 import { pressable } from '../../components/pressable';
 import { ChatDrawer } from './ChatDrawer';
 import { CURIOUS_QUESTIONS } from './questions';
@@ -69,6 +70,17 @@ export function ChatLauncher({ besidePanel, onMap = false }: { besidePanel: bool
     setKept(false);
     set({ chatAsk: null, chatOpen: true });
   }, [chatAsk, set]);
+  // Before/after swipe needs the whole map: fold the chat away (kept) and park the orb in the corner.
+  const compare = useLayers((s) => s.compare);
+  useEffect(() => {
+    if (!compare) return;
+    setPicker(false);
+    if (useStore.getState().chatOpen) {
+      setKept(true);
+      set({ chatOpen: false });
+    }
+  }, [compare, set]);
+  const parked = docked ?? (compare && onMap ? 'right' : null);
   const root = useRef<HTMLDivElement>(null);
   const [own, setOwn] = useState('');
 
@@ -94,7 +106,7 @@ export function ChatLauncher({ besidePanel, onMap = false }: { besidePanel: bool
   };
 
   return (
-    <div className="chat-dock" data-beside-panel={besidePanel} data-on-map={onMap} data-docked={docked && !open && !picker ? docked : undefined} ref={root}>
+    <div className="chat-dock" data-beside-panel={besidePanel} data-on-map={onMap} data-docked={parked && !open && !picker ? parked : undefined} ref={root}>
       {(open || kept) && (
         <div className="chat-dock__chat" hidden={!open}>
           <ChatDrawer
@@ -136,7 +148,7 @@ export function ChatLauncher({ besidePanel, onMap = false }: { besidePanel: bool
         </div>
       )}
       <div className="curious-launch">
-        {!open && !picker && !docked && (
+        {!open && !picker && !parked && (
           <button
             type="button"
             className="curious-launch__label"

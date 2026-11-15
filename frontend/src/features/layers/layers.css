@@ -280,3 +280,16 @@
   .app:has(.layer-dock) .chat-dock[data-on-map='true'] { bottom: 146px; }
   .app:has(.job-toast[data-dock='true']) .chat-dock[data-on-map='true'] { bottom: calc(var(--edge) + 138px + var(--job-toast-h, 96px)); }
 }
+
+/* Folded-away timeline: a small pill in the dock's place that brings it back. */
+.layer-dock.layer-dock--hidden {
+  width: max-content;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.layer-dock.layer-dock--hidden:hover { color: var(--ink); }

@@ -117,9 +117,8 @@
   padding: 14px 16px;
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.4));
   border: 1px solid var(--lg-card-edge);
-  border-left: 1px solid var(--lg-card-edge);
   border-radius: 20px;
-  box-shadow: inset 4px 0 0 var(--tone), var(--lg-card-shadow);
+  box-shadow: var(--lg-card-shadow);
 }
 .app .panel .chart {
   padding: 12px 12px 10px;
@@ -186,5 +185,5 @@
 .app .panel .chart,
 .app .panel .stats,
 .app .panel .chart-tip { box-shadow: none; }
-.app .panel .verdict { box-shadow: inset 4px 0 0 var(--tone); }
+.app .panel .verdict { box-shadow: none; }
 .app .panel { box-shadow: none; }

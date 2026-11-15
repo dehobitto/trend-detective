@@ -27,6 +27,8 @@ type LayerState = {
   mapCommand: MapCommand | null;
   /** Before/after swipe on the map: left = first frame, right = last frame of the same month. */
   compare: boolean;
+  /** Timeline dock folded away into a small button. */
+  dockHidden: boolean;
 
   set: (p: Partial<LayerState>) => void;
   /** Ask the (already visible) map to fly somewhere. */
@@ -48,6 +50,7 @@ export const useLayers = create<LayerState>((set, get) => ({
   overlayError: null,
   mapCommand: null,
   compare: false,
+  dockHidden: false,
   set: (p) => set(p),
   flyMap: (c) => set({ mapCommand: { ...c, nonce: (get().mapCommand?.nonce ?? 0) + 1 } }),
 }));

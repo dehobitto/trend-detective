@@ -59,7 +59,6 @@ body {
   padding: 14px 16px;
   background: var(--panel);
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--danger);
   border-radius: var(--radius-l);
   box-shadow: var(--shadow);
   color: var(--ink);

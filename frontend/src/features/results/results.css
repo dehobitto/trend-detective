@@ -3,8 +3,7 @@
 /* Verdict: no card wash — a hairline rule in the trend colour carries the meaning. */
 .verdict {
   --tone: var(--ink-dim);
-  padding: 2px 0 4px 14px;
-  border-left: 3px solid var(--tone);
+  padding: 2px 0 4px;
 }
 .verdict[data-tone='rise'] { --tone: var(--rise); }
 .verdict[data-tone='fall'] { --tone: var(--fall); }
@@ -28,7 +27,6 @@
   margin: 0;
   padding: 8px 12px 8px 30px;
   background: var(--panel-raised);
-  border-left: 3px solid var(--ink-dim);
   font-size: 13.5px;
   line-height: 1.45;
   color: var(--ink);

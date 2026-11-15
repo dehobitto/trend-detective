@@ -16,6 +16,8 @@ const IconPlay = () => <Svg d="M5 3.5v9l7-4.5z" fill />;
 const IconPause = () => <Svg d="M5 3.5v9M11 3.5v9" />;
 const IconPrev = () => <Svg d="M4 3.5v9M12 3.5L6 8l6 4.5z" />;
 const IconNext = () => <Svg d="M12 3.5v9M4 3.5L10 8l-6 4.5z" />;
+const IconHide = () => <Svg d="M4 6.5l4 4 4-4" />;
+const IconTimeline = () => <Svg d="M2 8h12M4 5.5v5M8 5.5v5M12 5.5v5" />;
 const IconSwipe = () => <Svg d="M8 1.5v13M2.5 3.5h11v9h-11zM5 8H3.5M12.5 8H11" />;
 const IconEye = ({ off }: { off: boolean }) =>
   off ? <Svg d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM3 13L13 3" /> : <Svg d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM8 6.2a1.8 1.8 0 100 3.6 1.8 1.8 0 000-3.6z" />;
@@ -41,7 +43,7 @@ function yearTicks(frames: string[]) {
  */
 export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boolean; onGlobe?: boolean }) {
   const variable = useSelectedVariable();
-  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, overlayError, compare, set } = useLayers();
+  const { layer, frames, date, playing, speedIdx, loading, frameMissing, overlayOn, opacity, overlayError, compare, dockHidden, set } = useLayers();
   const job = useStore((s) => s.job);
   const sheetCollapsed = useStore((s) => s.panelCollapsed);
 
@@ -80,6 +82,23 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
     );
   }
   if (frames.length === 0) return null;
+
+  if (dockHidden) {
+    return (
+      <button
+        type="button"
+        className="layer-dock layer-dock--hidden"
+        data-on-globe={onGlobe}
+        data-beside-panel={besidePanel}
+        data-sheet-collapsed={besidePanel && sheetCollapsed}
+        title="Show the timeline"
+        onClick={() => set({ dockHidden: false })}
+      >
+        <IconTimeline />
+        <span>Timeline</span>
+      </button>
+    );
+  }
 
   const step = (d: number) => {
     if (idx < 0) return;
@@ -125,6 +144,9 @@ export function LayerDock({ besidePanel, onGlobe = false }: { besidePanel: boole
           <span className="sr-only">Opacity</span>
           <input type="range" min={0.1} max={1} step={0.05} value={opacity} onChange={(e) => set({ opacity: Number(e.target.value), overlayOn: true })} />
         </label>
+        <button type="button" className="ld-btn" aria-label="Hide the timeline" title="Hide the timeline" onClick={() => set({ dockHidden: true })}>
+          <IconHide />
+        </button>
       </div>
 
       <div className="layer-dock__time">

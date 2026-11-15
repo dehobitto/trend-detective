@@ -146,6 +146,14 @@
   pointer-events: none;
 }
 
+.map-hint--action {
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.map-hint--action:hover { background: var(--panel); }
+
 @media (max-width: 760px) {
   .map-hint {
     top: 150px; /* below the toolbar, which wraps to two rows on phones */

@@ -96,9 +96,17 @@ export function MapHint() {
   if (bbox && !drawing) return null;
   if (casesOpen && !drawing) return null;
   if (!drawing && noArea) return null;
+  if (drawing) {
+    return (
+      <p className="map-hint" role="status">
+        Drag on the map to draw your area. Press Esc to cancel.
+      </p>
+    );
+  }
+  // Clickable: arms the box tool, same as the "Draw area" button.
   return (
-    <p className="map-hint" role="status">
-      {drawing ? 'Drag on the map to draw your area. Press Esc to cancel.' : 'Select an area to investigate'}
-    </p>
+    <button type="button" className="map-hint map-hint--action" onClick={() => set({ drawing: true })}>
+      Select an area to investigate
+    </button>
   );
 }

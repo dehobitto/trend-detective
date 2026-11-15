@@ -169,7 +169,7 @@ select:disabled { opacity: 0.5; }
   transition: background-color 120ms, box-shadow 120ms;
 }
 .var-opt:hover { background: var(--wash); }
-.var-opt[aria-checked='true'] { background: var(--wash); box-shadow: inset 3px 0 0 0 var(--ink); }
+.var-opt[aria-checked='true'] { background: var(--wash); }
 .var-opt__name { font-size: 14.5px; font-weight: 700; }
 .var-opt__units { font-weight: 400; color: var(--ink-dim); font-size: 13px; margin-left: 4px; }
 .var-opt__def { font-family: var(--font-notes); font-size: 13.5px; line-height: 1.45; color: var(--ink-dim); }

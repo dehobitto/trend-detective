@@ -53,7 +53,6 @@
 .case:hover:not(:disabled),
 .case:focus-visible {
   background: var(--wash);
-  box-shadow: inset 3px 0 0 0 var(--ink);
 }
 .case:focus-visible { outline-offset: -2px; }
 .case:disabled { opacity: 0.5; cursor: progress; }
@@ -130,7 +129,7 @@
   }
   .case { margin: 0; padding: 8px 4px; min-height: 40px; }
   .case:hover:not(:disabled),
-  .case:focus-visible { box-shadow: inset 3px 0 0 0 var(--ink); padding-left: 10px; }
+  .case:focus-visible { padding-left: 10px; }
   .cases--guide .cases__list { max-height: 40vh; }
   .cases__foot { justify-content: space-between; }
 }
